@@ -1,0 +1,65 @@
+% Timesheet template for Midnight, built on Report.cls.
+% Placeholders such as <<body>> are filled in by the app.
+
+\documentclass[
+	a4paper,
+	unnumberedsections,
+	<<language>>,
+]{Report}
+
+\reporttitle{<<owner>>\\ <<title>>}
+
+\reportsubtitle{<<subtitle>>}
+
+\reportauthors{<<label_by>> <<owner>>:\\\smallskip <<label_email>>: <<email>>}
+
+\reportdate{<<period>>}
+
+\leftheadercontent{<<owner>> | <<title>>}
+
+\rightheadercontent{\IfFileExists{Images/logo.pdf}{\includegraphics[width=1cm]{Images/logo.pdf}}{}}
+
+\begin{document}
+
+\thispagestyle{empty}
+
+\vspace*{-0.075\textheight}
+
+\IfFileExists{Images/logo.pdf}{\hfill\includegraphics[width=2.5cm]{Images/logo.pdf}}{}
+
+\vspace{0.06\textheight}
+
+{\large\raggedright\reportdate\par}
+
+{\fontsize{32pt}{34pt}\selectfont\raggedright\textbf{\reporttitle}\par}
+
+\vspace{0.01\textheight}
+
+{\Large\raggedright\reportsubtitle\par}
+
+\vspace{0.06\textheight}
+
+{\large\raggedright\reportauthors\par}
+
+\vspace{0.12\textheight}
+
+\tableofcontents
+
+\newpage
+
+<<body>>\newpage
+
+\section{<<label_summary>>}
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\textwidth}{|X|p{3cm}|}
+\hline
+\textbf{<<label_week>>} & \textbf{<<label_hours>>} \\
+\hline
+<<overview>>\multicolumn{1}{|r|}{\textbf{<<label_hours_total>>}} & \textbf{<<grand_total>>} \\
+\hline
+\end{tabularx}
+\end{table}
+
+\end{document}

@@ -1,0 +1,117 @@
+% Invoice template for Midnight.
+% Placeholders such as <<rows>> are filled in by the app.
+% Fonts and images are resolved relative to the template folder.
+
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[a4paper,left=1.27cm,right=1.27cm,top=1.27cm,bottom=1.27cm]{geometry}
+\usepackage{fontspec}
+\usepackage[<<language>>]{babel}
+\usepackage[table]{xcolor}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{eso-pic}
+\usepackage{graphicx}
+\usepackage{tikz}
+
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newlength{\blockspace}
+\setlength{\blockspace}{8mm}
+
+\IfFileExists{Fonts/Inter/Inter-Regular.ttf}{%
+\setmainfont{Inter}[
+  Path=Fonts/Inter/,
+  Extension=.ttf,
+  UprightFont=*-Regular,
+  BoldFont=*-Bold,
+  ItalicFont=*-Italic,
+  BoldItalicFont=*-BoldItalic,
+  RawFeature={-calt}
+]}{}
+
+\definecolor{textdark}{HTML}{262626}
+\definecolor{textmid}{HTML}{7F7F7F}
+\definecolor{textgray2}{HTML}{595959}
+\definecolor{bordergray}{HTML}{ADADAD}
+\definecolor{footerbg}{HTML}{F0F0F0}
+
+\color{textdark}
+\arrayrulecolor{bordergray}
+\renewcommand{\arraystretch}{1.25}
+\setlength{\aboverulesep}{0.6ex}
+\setlength{\belowrulesep}{0.9ex}
+
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+\newcolumntype{R}{>{\raggedleft\arraybackslash}X}
+\newcommand{\addressblock}{\raggedright\hyphenpenalty=10000\exhyphenpenalty=10000\relax}
+
+\begin{document}
+
+\AddToShipoutPictureBG{
+  \begin{tikzpicture}[remember picture,overlay]
+    \fill[footerbg] (current page.south west) rectangle
+      ([yshift=6.6cm]current page.south east);
+  \end{tikzpicture}
+}
+
+\IfFileExists{Images/logo.pdf}{%
+\AddToShipoutPictureFG{
+  \begin{tikzpicture}[remember picture,overlay]
+    \node[anchor=north east,inner sep=0pt]
+      at ([xshift=-1.27cm,yshift=-1.27cm]current page.north east)
+      {\includegraphics[width=2.5cm]{Images/logo.pdf}};
+  \end{tikzpicture}
+}}{}
+
+{\fontsize{48}{58}\selectfont\bfseries <<title>>\par}
+
+\vspace{11mm}
+
+{
+\setlength{\tabcolsep}{5pt}
+\begin{tabularx}{\linewidth}{@{}LLL@{}}
+\textbf{<<label_from>>} & \textbf{<<label_to>>} & \textbf{<<label_details>>} \\
+\midrule
+\begin{minipage}[t]{\hsize}\addressblock
+<<from>>
+\end{minipage}
+&
+\begin{minipage}[t]{\hsize}\addressblock
+<<to>>
+\end{minipage}
+&
+\begin{minipage}[t]{\hsize}\addressblock
+<<details>>
+\end{minipage}
+\end{tabularx}%
+}%
+
+\vspace{\blockspace}
+
+{
+\begin{tabularx}{\linewidth}{@{}Lccccr@{}}
+<<columns>> \\
+\midrule
+<<rows>><<sums>>\multicolumn{3}{@{}l}{\footnotesize\color{textmid}<<tax_note>>} &
+\multicolumn{2}{r}{\textbf{<<label_total>>}} &
+\textbf{<<total>>~<<currency>>} \\
+\end{tabularx}%
+}%
+
+\vspace{\blockspace}
+
+<<note>><<regards>>
+
+\vspace{2mm}
+
+\textbf{<<signer>>}
+
+\vfill
+
+<<payment>>
+
+\vspace{5mm}
+
+\end{document}

@@ -1,0 +1,100 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      @font-face {
+        font-family: "Hedvig Letters Serif";
+        src: url(../../public/fonts/hedvig-letters-serif-latin-400-normal.woff2) format("woff2");
+        font-display: block;
+      }
+      html,
+      body {
+        margin: 0;
+        width: 660px;
+        height: 400px;
+        overflow: hidden;
+      }
+      body {
+        position: relative;
+        background: radial-gradient(120% 90% at 50% 0%, #fbfbfa 0%, #f7f7f6 55%, #f0f0ed 100%);
+        color: #111111;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .brand {
+        position: absolute;
+        top: 38px;
+        left: 0;
+        right: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+      .brand svg {
+        width: 34px;
+        height: 34px;
+        margin-top: -2px;
+      }
+      .brand h1 {
+        margin: 0;
+        font-family: "Hedvig Letters Serif", "New York", Georgia, serif;
+        font-size: 27px;
+        font-weight: 400;
+        letter-spacing: -0.02em;
+        line-height: 1;
+      }
+      .scene {
+        position: absolute;
+        inset: 0;
+      }
+      .caption {
+        position: absolute;
+        bottom: 34px;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-family: "SF Mono", ui-monospace, Menlo, monospace;
+        font-size: 10px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: #8a8a86;
+        line-height: 1.7;
+      }
+      .caption b {
+        font-weight: 500;
+        color: #5f5f5b;
+      }
+    </style>
+  </head>
+  <body>
+    <svg class="scene" viewBox="0 0 660 400" width="660" height="400">
+      <defs>
+        <linearGradient id="sun" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#e9e8e4" />
+          <stop offset="1" stop-color="#f2f1ee" />
+        </linearGradient>
+        <linearGradient id="fade" gradientUnits="userSpaceOnUse" x1="262" y1="0" x2="396" y2="0">
+          <stop offset="0" stop-color="#111111" stop-opacity="0" />
+          <stop offset="0.35" stop-color="#111111" stop-opacity="0.55" />
+          <stop offset="1" stop-color="#111111" stop-opacity="0.8" />
+        </linearGradient>
+      </defs>
+      <path d="M268 196a60 60 0 0 1 120 0z" fill="url(#sun)" />
+      <line x1="62" y1="303" x2="598" y2="303" stroke="#e5e5e2" stroke-width="1" />
+      <path d="M262 201.5H395M388.5 195.5C390.8 198 393 200 395 201.5C393 203 390.8 205 388.5 207.5" fill="none" stroke="url(#fade)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+    <div class="brand">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M5 15a7 7 0 0 1 14 0z" fill="currentColor" />
+        <rect x="3" y="16.5" width="18" height="1.6" rx="0.8" fill="currentColor" />
+      </svg>
+      <h1>Midnight</h1>
+    </div>
+    <div class="caption">
+      <b>Drag Midnight to Applications to install</b><br />
+      Zum Installieren in den Programme-Ordner ziehen
+    </div>
+  </body>
+</html>

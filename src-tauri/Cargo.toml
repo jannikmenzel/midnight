@@ -1,0 +1,39 @@
+[package]
+name = "midnight"
+version = "0.1.0"
+description = "Local bookkeeping for freelancers in Germany"
+license = "AGPL-3.0-only"
+authors = ["Jannik Menzel"]
+repository = "https://github.com/jannikmenzel/midnight"
+homepage = "https://github.com/jannikmenzel/midnight"
+readme = "../README.md"
+publish = false
+edition = "2021"
+default-run = "midnight"
+
+[lib]
+name = "midnight_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png", "macos-private-api"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rusqlite = { version = "0.32", features = ["bundled"] }
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+csv = "1"
+regex = "1"
+pdf-extract = "0.7"
+thiserror = "1"
+schemars = "1"
+tokio = { version = "1", features = ["rt"] }
+tauri-plugin-autostart = "2"
+
+[dev-dependencies]
+tempfile = "3"

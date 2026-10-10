@@ -1,0 +1,239 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg: #f7f7f6;
+  --panel: #ffffff;
+  --fg: #111111;
+  --muted: #6f6f6c;
+  --subtle: #f0f0ee;
+  --line: #e5e5e2;
+  --accent: #111111;
+  --accent-fg: #ffffff;
+  --pos: #12804a;
+  --neg: #c4352b;
+  --warn: #a8640a;
+  --info: #2457c5;
+  --overlay: rgb(0 0 0 / 0.28);
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #0b0b0b;
+  --panel: #131313;
+  --fg: #f2f2f0;
+  --muted: #8d8d89;
+  --subtle: #1b1b1b;
+  --line: #262626;
+  --accent: #f2f2f0;
+  --accent-fg: #0b0b0b;
+  --pos: #3cc580;
+  --neg: #ff7468;
+  --warn: #e6a644;
+  --info: #7aa2ff;
+  --overlay: rgb(0 0 0 / 0.55);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-pos: var(--pos);
+  --color-neg: var(--neg);
+  --color-warn: var(--warn);
+  --color-info: var(--info);
+  --color-overlay: var(--overlay);
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-serif: "Hedvig Letters Serif", "New York", Georgia, serif;
+  --font-mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  --font-figures: "JetBrains Mono Variable", "SF Mono", ui-monospace, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+.overflow-y-auto,
+.overflow-y-scroll,
+.overflow-auto,
+.overflow-x-auto {
+  overscroll-behavior: contain;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+input,
+textarea,
+select,
+[data-selectable] {
+  user-select: text;
+}
+
+.tabular {
+  font-family: var(--font-figures);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+input[type="number"]::-webkit-inner-spin-button {
+  margin-left: 10px;
+  margin-right: 2px;
+}
+
+@layer base {
+  :focus,
+  :focus-visible {
+    outline: none;
+  }
+  button:focus-visible,
+  a:focus-visible,
+  [role="switch"]:focus-visible,
+  input[type="checkbox"]:focus-visible {
+    outline: 1px solid var(--muted);
+    outline-offset: 2px;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 8px;
+  border: 2px solid var(--bg);
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+}
+@keyframes sheet-out {
+  to {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+}
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+}
+@keyframes dialog-out {
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--pop-y, -4px)) scale(0.98);
+  }
+}
+
+:root {
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.anim-page {
+  animation: page-in 200ms var(--ease-out) 40ms backwards;
+}
+
+[data-state="open"] > .anim-overlay {
+  animation: fade-in 180ms ease-out;
+}
+[data-state="closed"] > .anim-overlay {
+  animation: fade-out 140ms ease-in forwards;
+}
+[data-state="open"] > .anim-sheet {
+  animation: sheet-in 240ms var(--ease-out);
+}
+[data-state="closed"] > .anim-sheet {
+  animation: sheet-out 140ms ease-in forwards;
+}
+[data-state="open"] > .anim-dialog {
+  animation: dialog-in 200ms var(--ease-out);
+}
+[data-state="closed"] > .anim-dialog {
+  animation: dialog-out 140ms ease-in forwards;
+}
+[data-state="pre"] > .anim-overlay,
+[data-state="pre"] > .anim-sheet,
+[data-state="pre"] > .anim-dialog {
+  opacity: 0;
+}
+[data-state="closed"] {
+  pointer-events: none;
+}
+
+.anim-pop {
+  animation: pop-in 140ms var(--ease-out);
+}
+.anim-pop-up {
+  --pop-y: 4px;
+}
+.anim-toast {
+  --pop-y: 8px;
+  animation: pop-in 220ms var(--ease-out);
+}
+
+.theme-switching,
+.theme-switching * {
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-page,
+  .anim-pop,
+  .anim-toast,
+  [data-state] > .anim-overlay,
+  [data-state] > .anim-sheet,
+  [data-state] > .anim-dialog {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+  }
+}
+
+.menubar-panel,
+.menubar-panel body {
+  background: transparent;
+}

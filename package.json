@@ -1,0 +1,48 @@
+{
+  "name": "midnight",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Local bookkeeping for freelancers and the self-employed in Germany",
+  "author": "Jannik Menzel",
+  "homepage": "https://github.com/jannikmenzel/midnight#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jannikmenzel/midnight.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jannikmenzel/midnight/issues"
+  },
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "typecheck": "tsc --noEmit",
+    "dmg:background": "src-tauri/dmg/render.sh"
+  },
+  "dependencies": {
+    "@fontsource-variable/jetbrains-mono": "^5.3.0",
+    "@fontsource/hedvig-letters-serif": "^5.3.0",
+    "@tauri-apps/api": "^2.2.0",
+    "@tauri-apps/plugin-dialog": "^2.2.0",
+    "lucide-react": "^0.460.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
+    "@tauri-apps/cli": "^2.2.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "generate-license-file": "^4.2.5",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.6.3",
+    "vite": "^6.0.0"
+  }
+}

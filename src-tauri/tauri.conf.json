@@ -1,0 +1,65 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Midnight",
+  "version": "0.1.0",
+  "identifier": "app.midnight.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "macOSPrivateApi": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Midnight",
+        "width": 1360,
+        "height": 860,
+        "minWidth": 1200,
+        "minHeight": 600,
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: asset: http://asset.localhost; connect-src ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Finance",
+    "shortDescription": "Local bookkeeping for freelancers in Germany",
+    "copyright": "Copyright (c) 2026 Jannik Menzel. Licensed under AGPL-3.0.",
+    "homepage": "https://github.com/jannikmenzel/midnight",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "../LICENSE": "LICENSE"
+    },
+    "macOS": {
+      "signingIdentity": "-",
+      "dmg": {
+        "background": "dmg/background.tiff",
+        "windowSize": {
+          "width": 660,
+          "height": 428
+        },
+        "appPosition": {
+          "x": 165,
+          "y": 200
+        },
+        "applicationFolderPosition": {
+          "x": 495,
+          "y": 200
+        }
+      }
+    }
+  }
+}
