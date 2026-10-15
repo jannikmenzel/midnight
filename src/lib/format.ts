@@ -86,12 +86,10 @@ export function hours(seconds: number): string {
   return `${Math.floor(seconds / 3600)}:${String(Math.floor((seconds % 3600) / 60)).padStart(2, "0")}`;
 }
 
-function isHourUnit(unit: string | null | undefined): boolean {
-  return ["h", "std", "stunde", "stunden", "hr", "hrs", "hour", "hours"].includes((unit ?? "").trim().replace(/\.+$/, "").toLowerCase());
-}
+export const HOURS = "HUR";
 
 export function quantityInput(n: number, unit: string | null | undefined): string {
-  if (!isHourUnit(unit)) return decimalInput(n);
+  if (unit !== HOURS) return decimalInput(n);
   const minutes = Math.round(Math.abs(n) * 60);
   return `${n < 0 ? "-" : ""}${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")}`;
 }

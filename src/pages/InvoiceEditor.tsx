@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { ask, save as saveDialog } from "@tauri-apps/plugin-dialog";
-import { Ban, CheckCircle2, Copy, Download, ExternalLink, Plus, Send, Timer, Trash2, X } from "lucide-react";
+import { Ban, CheckCircle2, Copy, Download, ExternalLink, FileCode, Plus, Send, Timer, Trash2, X } from "lucide-react";
 import { api, errorMessage, type Customer, type Invoice, type InvoiceStatus, type Product, type Project, type TrackerInvoiceDraft } from "../lib/api";
 import { addDays, centsToInput, date, hours, money, parseMoney, parseQuantity, quantityInput, todayIso } from "../lib/format";
 import { useAsync } from "../lib/hooks";
 import { useApp } from "../lib/nav";
 import { ActionMenu, Button, CurrencySelect, DateInput, Field, IconButton, Input, Section, Select, Sheet, StatusBadge, Textarea, useToast } from "../components/ui";
 import { PaidDialog } from "../components/PaidDialog";
+import { UnitSelect } from "../components/fields";
 import { t } from "../lib/i18n";
 
 interface LineDraft {
@@ -264,7 +265,17 @@ export function InvoiceEditor({
                   <span className={invoice.status === "overdue" ? "text-neg" : undefined}>{t("Due on {date}", { date: date(invoice.due_date) })}</span>
                 )}
               </div>
-              <Button size="sm" icon={<ExternalLink className="size-3" />} onClick={() => withSaved(async (inv) => api.openPath(await api.renderInvoicePdf(inv.id)))}>
+              <Button
+                size="sm"
+                icon={<ExternalLink className="size-3" />}
+                onClick={() =>
+                  withSaved(async (inv) => {
+                    const pdf = await api.renderInvoicePdf(inv.id);
+                    if (pdf.e_invoice_warning) toast.warn(pdf.e_invoice_warning);
+                    await api.openPath(pdf.path);
+                  })
+                }
+              >
                 PDF
               </Button>
               {invoice.tracked_entries > 0 && (
@@ -289,14 +300,27 @@ export function InvoiceEditor({
               <ActionMenu
                 items={[
                   {
-                    label: t("Save PDF as…"),
+                    label: t("Save PDF"),
                     icon: <Download className="size-3.5" />,
                     onClick: () =>
                       withSaved(async (inv) => {
                         const target = await saveDialog({ defaultPath: `${t("Invoice")}_${inv.invoice_number}.pdf`, filters: [{ name: "PDF", extensions: ["pdf"] }] });
                         if (target) {
-                          await api.exportInvoicePdf(inv.id, target);
+                          const warning = await api.exportInvoicePdf(inv.id, target);
                           toast.success(t("PDF saved"));
+                          if (warning) toast.warn(warning);
+                        }
+                      }),
+                  },
+                  {
+                    label: t("Save XRechnung"),
+                    icon: <FileCode className="size-3.5" />,
+                    onClick: () =>
+                      withSaved(async (inv) => {
+                        const target = await saveDialog({ defaultPath: `XRechnung_${inv.invoice_number}.xml`, filters: [{ name: "XRechnung", extensions: ["xml"] }] });
+                        if (target) {
+                          await api.exportInvoiceXRechnung(inv.id, target);
+                          toast.success(t("XRechnung saved"));
                         }
                       }),
                   },
@@ -376,7 +400,7 @@ export function InvoiceEditor({
                   <div key={i} className="grid grid-cols-[minmax(0,1fr)_72px_72px_104px_104px_32px] items-center gap-2 px-3 py-2">
                     <Input value={l.name} onChange={(e) => setLine(i, { name: e.target.value })} placeholder={t("Service, e.g. Concept (01/09–15/09/26)")} disabled={locked} />
                     <Input value={l.quantity} onChange={(e) => setLine(i, { quantity: e.target.value })} className="tabular-nums text-right" disabled={locked} />
-                    <Input value={l.unit} onChange={(e) => setLine(i, { unit: e.target.value })} placeholder={t("hrs")} disabled={locked} />
+                    <UnitSelect value={l.unit} onChange={(unit) => setLine(i, { unit })} disabled={locked} />
                     <Input value={l.price} onChange={(e) => setLine(i, { price: e.target.value })} placeholder={centsToInput(0)} className="tabular-nums text-right" disabled={locked} />
                     <span className="tabular text-right text-[13px] font-medium">{money(Math.round(qty(l.quantity) * (parseMoney(l.price) ?? 0)), currency)}</span>
                     <IconButton label={t("Remove line item")} onClick={() => setLines(lines.length > 1 ? lines.filter((_, idx) => idx !== i) : [emptyLine()])} disabled={locked}>

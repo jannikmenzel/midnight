@@ -8,8 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{msg, AppResult};
 use crate::i18n::tr;
-
-const MIGRATIONS: &[&str] = &[include_str!("../migrations/001_init.sql")];
+use crate::migrations::ALL as MIGRATIONS;
 
 pub type Db = Arc<Mutex<Connection>>;
 
@@ -100,9 +99,12 @@ fn migrate(conn: &Connection) -> AppResult<()> {
     }
     conn.execute_batch("PRAGMA foreign_keys = OFF;")?;
     let result = (|| -> AppResult<()> {
-        for (i, sql) in MIGRATIONS.iter().enumerate().skip(version as usize) {
+        for (i, migration) in MIGRATIONS.iter().enumerate().skip(version as usize) {
             let tx = conn.unchecked_transaction()?;
-            tx.execute_batch(sql)?;
+            tx.execute_batch(migration.sql)?;
+            if let Some(data) = migration.data {
+                data(&tx)?;
+            }
             tx.execute_batch(&format!("PRAGMA user_version = {}", i + 1))?;
             let broken: i64 = tx.query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| r.get(0))?;
             if broken > 0 {
@@ -153,7 +155,11 @@ pub struct Settings {
     pub company_owner: String,
     pub company_email: String,
     pub company_phone: String,
-    pub company_address: String,
+    pub company_address_line1: String,
+    pub company_address_line2: String,
+    pub company_zip: String,
+    pub company_city: String,
+    pub company_country: String,
     pub company_vat_id: String,
     pub company_tax_number: String,
     pub company_iban: String,
@@ -171,6 +177,7 @@ pub struct Settings {
     pub default_vat_rate: f64,
     pub default_payment_terms: i64,
     pub invoice_note: String,
+    pub e_invoice: bool,
     pub notify_overdue: bool,
     pub menu_bar_icon: bool,
     pub menu_bar_show_time: bool,
@@ -203,7 +210,11 @@ impl Default for Settings {
             company_owner: String::new(),
             company_email: String::new(),
             company_phone: String::new(),
-            company_address: String::new(),
+            company_address_line1: String::new(),
+            company_address_line2: String::new(),
+            company_zip: String::new(),
+            company_city: String::new(),
+            company_country: crate::places::HOME_COUNTRY.into(),
             company_vat_id: String::new(),
             company_tax_number: String::new(),
             company_iban: String::new(),
@@ -221,6 +232,7 @@ impl Default for Settings {
             default_vat_rate: 19.0,
             default_payment_terms: 14,
             invoice_note: "Thank you for your business.".into(),
+            e_invoice: true,
             notify_overdue: true,
             menu_bar_icon: true,
             menu_bar_show_time: true,
@@ -283,6 +295,7 @@ mod tests {
         let s = load_settings(&conn).unwrap();
         assert_eq!(s.company_name, "Alt GmbH");
         assert!(s.menu_bar_icon && s.menu_bar_show_time && s.menu_bar_keep_running);
+        assert!(s.e_invoice, "e-invoicing is on for settings saved before it existed");
     }
 
     #[test]

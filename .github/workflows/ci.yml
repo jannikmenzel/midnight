@@ -16,6 +16,9 @@ jobs:
   check:
     name: Check
     runs-on: macos-latest
+    env:
+      SAMPLES: ${{ github.workspace }}/e-invoice-samples
+      VALIDATORS: ${{ github.workspace }}/e-invoice-validators
     steps:
       - uses: actions/checkout@v5
 
@@ -44,3 +47,32 @@ jobs:
       - name: Tests
         working-directory: src-tauri
         run: cargo test --locked
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Write sample e-invoices
+        working-directory: src-tauri
+        env:
+          EINVOICE_SAMPLES: ${{ env.SAMPLES }}
+        run: cargo test --locked writes_validation_samples -- --ignored
+
+      - name: Download validators
+        run: |
+          mkdir -p "$VALIDATORS/xrechnung"
+          curl -fsSL -o "$VALIDATORS/kosit.jar" https://github.com/itplr-kosit/validator/releases/download/v1.6.3/validator-1.6.3-standalone.jar
+          curl -fsSL -o "$VALIDATORS/xrechnung.zip" https://github.com/itplr-kosit/validator-configuration-xrechnung/releases/download/v2026-08-31/xrechnung-3.0.2-validator-configuration-2026-08-31.zip
+          unzip -q "$VALIDATORS/xrechnung.zip" -d "$VALIDATORS/xrechnung"
+          curl -fsSL -o "$VALIDATORS/mustang.jar" https://github.com/ZUGFeRD/mustangproject/releases/download/core-2.26.0/Mustang-CLI-2.26.0.jar
+
+      - name: Validate XRechnung (KoSIT, XRechnung 3.0.2)
+        run: java -jar "$VALIDATORS/kosit.jar" -s "$VALIDATORS/xrechnung/scenarios.xml" -r "$VALIDATORS/xrechnung" -o "$VALIDATORS/reports" "$SAMPLES"/*-xrechnung.xml
+
+      - name: Validate ZUGFeRD (Mustang, veraPDF)
+        run: |
+          for pdf in "$SAMPLES"/*-zugferd.pdf; do
+            report="${pdf%.pdf}-report.xml"
+            java -jar "$VALIDATORS/mustang.jar" --action validate --source "$pdf" --no-notices > "$report" || { cat "$report"; exit 1; }
+          done

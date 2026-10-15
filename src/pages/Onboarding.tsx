@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api, errorMessage, type Settings } from "../lib/api";
-import { Button, CurrencySelect, ErrorNote, Field, Input, Select, Textarea, Toggle } from "../components/ui";
+import { Button, CurrencySelect, ErrorNote, Field, Input, Select, Toggle } from "../components/ui";
+import { CountrySelect, PlaceInput } from "../components/fields";
 import { isLang, lang, LANGUAGES, setLang, t } from "../lib/i18n";
 
 const DEFAULT_NOTE = "Thank you for your business.";
@@ -63,9 +64,21 @@ export default function Onboarding({ settings, onDone }: { settings: Settings; o
               <Input value={form.company_name} onChange={(e) => set("company_name", e.target.value)} />
             </Field>
           )}
-          <Field label={t("Address")}>
-            <Textarea value={form.company_address} onChange={(e) => set("company_address", e.target.value)} placeholder={t("1 Example Street\n12345 Example City")} />
+          <Field label={t("Street and number")}>
+            <Input value={form.company_address_line1} onChange={(e) => set("company_address_line1", e.target.value)} />
           </Field>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label={t("Postcode and town")}>
+              <PlaceInput
+                zip={form.company_zip}
+                city={form.company_city}
+                onChange={(p) => setForm((f) => ({ ...f, company_zip: p.zip, company_city: p.city, ...(p.country && { company_country: p.country }) }))}
+              />
+            </Field>
+            <Field label={t("Country")}>
+              <CountrySelect value={form.company_country} onChange={(v) => set("company_country", v)} />
+            </Field>
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <Field label={t("Email")}>
               <Input value={form.company_email} onChange={(e) => set("company_email", e.target.value)} />

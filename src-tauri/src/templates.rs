@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};
 
-use rusqlite::OptionalExtension;
 use serde::Serialize;
 
+use crate::customers::Customer;
 use crate::db::{load_settings, AppState, Settings};
 use crate::error::{msg, AppResult, Context};
 use crate::i18n::tr;
@@ -274,64 +274,67 @@ pub async fn latex_delete(state: &AppState, path: String) -> AppResult<()> {
 }
 
 pub async fn latex_preview(state: &AppState, template: String) -> AppResult<String> {
-    enum Data {
-        Invoice(Box<(Invoice, Option<crate::customers::Customer>)>),
-        Timesheet(Vec<TimesheetEntry>),
-    }
-    let (data, settings) = {
-        let conn = state.conn()?;
-        let settings = load_settings(&conn)?;
-        let data = match template.as_str() {
-            INVOICE => {
-                let latest: Option<String> = conn
-                    .query_row("SELECT id FROM invoices ORDER BY issue_date DESC, created_at DESC LIMIT 1", [], |r| r.get(0))
-                    .optional()?;
-                match latest {
-                    Some(id) => {
-                        let inv = crate::invoices::load_invoice(&conn, &id)?;
-                        let customer = inv.customer_id.as_deref().map(|c| crate::customers::get_customer(&conn, c)).transpose()?;
-                        Data::Invoice(Box::new((inv, customer)))
-                    }
-                    None => Data::Invoice(Box::new((sample_invoice(&settings), None))),
-                }
-            }
-            TIMESHEET | "Report.cls" => {
-                let to = today_date();
-                let entries = crate::tracker::timesheet_in_range(&conn, &iso(to - chrono::Duration::days(60)), &iso(to), None)?;
-                Data::Timesheet(if entries.is_empty() { sample_entries() } else { entries })
-            }
-            _ => return Err(msg(tr!("There is no preview for {template}", "Für {template} gibt es keine Vorschau"))),
-        };
-        (data, settings)
-    };
+    let settings = sample_settings(&load_settings(&*state.conn()?)?);
     let tc = latex::toolchain(&state.files_dir).map_err(msg)?;
     let stem = Path::new(&template).file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
     let out = state.files_dir.join("previews").join(format!("{stem}.pdf"));
-    match data {
-        Data::Invoice(data) => {
-            let (inv, customer) = *data;
-            latex::render_invoice(&tc, &inv, customer.as_ref(), &settings, &out)?
-        }
-        Data::Timesheet(entries) => {
+    match template.as_str() {
+        INVOICE => latex::render_invoice(&tc, &sample_invoice(&settings), Some(&sample_customer(&settings)), &settings, &out)?,
+        TIMESHEET | "Report.cls" => {
+            let entries = sample_entries();
             let first = entries.iter().filter_map(|e| crate::util::parse_date(&e.date)).min().unwrap_or_else(today_date);
             latex::render_timesheet(&tc, &entries, &tr!("Preview", "Vorschau"), first, &settings, &out)?
         }
+        _ => return Err(msg(tr!("There is no preview for {template}", "Für {template} gibt es keine Vorschau"))),
     }
     Ok(out.to_string_lossy().to_string())
+}
+
+fn sample_settings(real: &Settings) -> Settings {
+    Settings {
+        company_name: "Max Mustermann Design".into(),
+        company_owner: "Max Mustermann".into(),
+        company_email: "max@mustermann.example".into(),
+        company_phone: "+49 30 1234567".into(),
+        company_website: "https://mustermann.example".into(),
+        company_address_line1: "Musterstraße 1".into(),
+        company_address_line2: String::new(),
+        company_zip: "12345".into(),
+        company_city: "Musterstadt".into(),
+        company_tax_number: "12/345/67890".into(),
+        company_vat_id: "DE123456789".into(),
+        company_iban: "DE02 1203 0000 0000 2020 51".into(),
+        company_bic: "BYLADEM1001".into(),
+        company_bank_name: "Musterbank".into(),
+        ..real.clone()
+    }
+}
+
+fn sample_customer(s: &Settings) -> Customer {
+    Customer {
+        name: tr!("Example Ltd", "Beispiel GmbH"),
+        email: Some(tr!("billing@example.com", "rechnung@beispiel.de")),
+        address_line1: Some(tr!("1 Sample Road", "Beispielweg 5")),
+        zip: Some("54321".into()),
+        city: Some(tr!("Sample City", "Beispielstadt")),
+        country: Some(s.company_country.clone()),
+        customer_number: Some("CUS-001".into()),
+        ..Customer::default()
+    }
 }
 
 fn sample_invoice(s: &Settings) -> Invoice {
     let today = today_date();
     let line_items = vec![
-        LineItem { name: tr!("Website – UI design ({})", "Website – UI-Design ({})", today.format("%d.%m.%y")), quantity: 12.5, price_cents: 8500, unit: Some(tr!("hrs", "Std.")) },
+        LineItem { name: tr!("Website – UI design ({})", "Website – UI-Design ({})", today.format("%d.%m.%y")), quantity: 12.5, price_cents: 8500, unit: Some(crate::units::HOURS.into()) },
         LineItem { name: tr!("Hosting (monthly)", "Hosting (monatlich)"), quantity: 1.0, price_cents: 2900, unit: None },
     ];
     let vat_rate = if s.small_business { 0.0 } else { s.default_vat_rate };
     let totals = compute_totals(&line_items, vat_rate, 0);
     Invoice {
         invoice_number: tr!("INV-{}-0001", "RE-{}-0001", today.format("%Y")),
-        customer_name: Some("Example Ltd".into()),
-        customer_details: Some(tr!("Example Ltd\n1 Sample Road\n12345 Sample City", "Beispiel GmbH\nMusterweg 1\n12345 Musterstadt")),
+        customer_name: Some(sample_customer(s).name),
+        customer_number: Some("CUS-001".into()),
         status: "draft".into(),
         issue_date: iso(today),
         due_date: iso(today + chrono::Duration::days(s.default_payment_terms)),
@@ -352,7 +355,7 @@ fn sample_entries() -> Vec<TimesheetEntry> {
         .into_iter()
         .map(|(days_ago, description, duration)| {
             let date = iso(today - chrono::Duration::days(days_ago));
-            TimesheetEntry { start: format!("{date}T09:00:00Z"), date, duration, description: description.into(), customer: "Example Ltd".into() }
+            TimesheetEntry { start: format!("{date}T09:00:00Z"), date, duration, description: description.into(), customer: tr!("Example Ltd", "Beispiel GmbH") }
         })
         .collect()
 }
@@ -440,9 +443,9 @@ mod tests {
         let files = tempfile::tempdir().unwrap();
         init(files.path(), std::env::var("MIDNIGHT_LEGACY_LATEX_DIR").ok()).unwrap();
         let tc = latex::toolchain(files.path()).unwrap();
-        let s = Settings { company_name: "Example Studio".into(), company_owner: "Jane Doe".into(), company_iban: "DE00 0000".into(), ..Settings::default() };
+        let s = sample_settings(&Settings::default());
         let out = files.path().join("out");
-        latex::render_invoice(&tc, &sample_invoice(&s), None, &s, &out.join("invoice.pdf")).unwrap();
+        latex::render_invoice(&tc, &sample_invoice(&s), Some(&sample_customer(&s)), &s, &out.join("invoice.pdf")).unwrap();
         let entries = sample_entries();
         latex::render_timesheet(&tc, &entries, "Preview", crate::util::parse_date(&entries[0].date).unwrap(), &s, &out.join("timesheet.pdf")).unwrap();
         let keep = std::env::var("MIDNIGHT_KEEP_PDFS").ok();
@@ -451,6 +454,7 @@ mod tests {
                 std::fs::copy(out.join(f), Path::new(&target).join(f)).unwrap();
             }
         }
-        assert!(pdf_extract::extract_text(out.join("invoice.pdf")).unwrap().contains("Example Ltd"));
+        let text = pdf_extract::extract_text(out.join("invoice.pdf")).unwrap();
+        assert!(text.contains("Example Ltd") && text.contains("Max Mustermann"), "{text}");
     }
 }

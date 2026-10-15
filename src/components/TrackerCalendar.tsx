@@ -2,7 +2,7 @@ import { Fragment, useMemo } from "react";
 import { AlertTriangle, ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import type { Entry } from "../lib/api";
 import { date, duration, isoDate, todayIso } from "../lib/format";
-import { Badge, Button, Card, Empty, IconButton, cx } from "./ui";
+import { Badge, Button, Card, Checkbox, Empty, IconButton, cx } from "./ui";
 import { locale, t } from "../lib/i18n";
 
 const WEEKDAYS = [t("Mo"), t("Tu"), t("We"), t("Th"), t("Fr"), t("Sa"), t("Su")];
@@ -40,6 +40,7 @@ export function TrackerCalendar({
   onNewEntry,
   onEditEntry,
   onDeleteEntry,
+  onHomeOffice,
   canAdd,
   mondayFirst,
   weeklyLimitHours,
@@ -53,6 +54,7 @@ export function TrackerCalendar({
   onNewEntry: (day: string) => void;
   onEditEntry: (e: Entry) => void;
   onDeleteEntry: (e: Entry) => void;
+  onHomeOffice: (day: string, applies: boolean) => void;
   canAdd: boolean;
   mondayFirst: boolean;
   weeklyLimitHours: number;
@@ -181,9 +183,17 @@ export function TrackerCalendar({
             {selected === today ? t("Today") : date(selected)}
             {dayEntries.length > 0 && <span className="tabular"> · {duration(dayEntries.reduce((s, e) => s + e.duration, 0))}</span>}
           </span>
-          <Button size="sm" variant="ghost" icon={<Plus className="size-3" />} onClick={() => onNewEntry(selected)} disabled={!canAdd}>
-            {t("Add time")}
-          </Button>
+          <div className="flex items-center gap-3">
+            {dayEntries.length > 0 && (
+              <label className="flex cursor-pointer items-center gap-1.5" title={t("Counts towards the home office allowance in the tax return")}>
+                <Checkbox checked={dayEntries[0].home_office} onChange={(applies) => onHomeOffice(selected, applies)} label={t("Home office allowance")} />
+                {t("Home office allowance")}
+              </label>
+            )}
+            <Button size="sm" variant="ghost" icon={<Plus className="size-3" />} onClick={() => onNewEntry(selected)} disabled={!canAdd}>
+              {t("Add time")}
+            </Button>
+          </div>
         </div>
         {dayEntries.length === 0 ? (
           <Empty title={t("No entries on this day")} />

@@ -4,6 +4,7 @@ mod commands;
 mod customers;
 mod db;
 mod desktop;
+mod einvoice;
 mod error;
 mod expense_recurring;
 mod expenses;
@@ -16,6 +17,7 @@ mod latex;
 mod ledger;
 mod mcp;
 mod mcp_setup;
+mod migrations;
 mod products;
 mod reports;
 mod schedule;
@@ -25,7 +27,9 @@ mod tax;
 mod templates;
 mod tracker;
 mod tray;
+mod units;
 mod util;
+mod vat;
 mod vault;
 mod forecast;
 mod places;
@@ -211,6 +215,7 @@ pub fn run() {
             commands::start_timer,
             commands::stop_timer,
             commands::save_entry,
+            commands::set_home_office,
             commands::delete_entry,
             commands::invoice_lines_from_tracker,
             commands::invoice_unbilled_for_customer,
@@ -226,9 +231,11 @@ pub fn run() {
             commands::set_invoice_status,
             commands::delete_invoice,
             commands::duplicate_invoice,
+            commands::list_units,
             commands::render_invoice_pdf,
             commands::render_invoice_timesheet,
             commands::export_invoice_pdf,
+            commands::export_invoice_xrechnung,
             commands::latex_files,
             commands::latex_read,
             commands::latex_write,
@@ -251,6 +258,7 @@ pub fn run() {
             commands::delete_document,
             commands::list_tags,
             commands::tax_forecast,
+            commands::list_countries,
             commands::suggest_places,
             commands::report_summary,
             commands::report_monthly,

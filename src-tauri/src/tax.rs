@@ -232,7 +232,6 @@ pub struct TaxInput {
     pub activity_start: String,
     pub refund_iban: String,
     pub church_tax_rate: f64,
-    pub home_office_days_business: i64,
     pub health_status: String,
     pub health_insurer: String,
     pub health_cents: i64,
@@ -288,9 +287,9 @@ pub struct TaxReport {
     pub expenses: Vec<ExpenseRow>,
     pub expenses_by_line: Vec<(String, i64)>,
     pub expenses_cents: i64,
+    pub home_office_days: i64,
     pub home_office_business_days: i64,
     pub home_office_business_cents: i64,
-    pub suggested_home_office_days: i64,
     pub profit_cents: i64,
     pub employment_gross_cents: i64,
     pub employment_costs_cents: i64,
@@ -396,12 +395,8 @@ pub fn compute_with(conn: &Connection, year: i32, adj: &Adjust) -> AppResult<Tax
     }
     let expenses_cents: i64 = expenses.iter().map(|e| e.deductible_cents).sum::<i64>() + adj.extra_expense_cents;
 
-    let suggested: i64 = conn.query_row(
-        "SELECT COUNT(DISTINCT date) FROM tracker_entries WHERE stop IS NOT NULL AND date BETWEEN ?1 AND ?2",
-        params![from, to],
-        |r| r.get(0),
-    )?;
-    let ho_business = input.home_office_days_business.clamp(0, p.home_office_max_days);
+    let home_office_days = crate::tracker::home_office_days(conn, &from, &to)?;
+    let ho_business = home_office_days.min(p.home_office_max_days);
     let ho_business_cents = ho_business * p.home_office_per_day;
 
     let profit_cents = income_cents - expenses_cents - ho_business_cents;
@@ -511,9 +506,9 @@ pub fn compute_with(conn: &Connection, year: i32, adj: &Adjust) -> AppResult<Tax
         expenses,
         expenses_by_line: by_line.into_iter().collect(),
         expenses_cents,
+        home_office_days,
         home_office_business_days: ho_business,
         home_office_business_cents: ho_business_cents,
-        suggested_home_office_days: suggested,
         profit_cents,
         employment_gross_cents: gross,
         employment_costs_cents: costs,
@@ -610,11 +605,13 @@ mod tests {
                ('c', 'INV-3', 'Beispiel e.V.', 'paid', '2025-12-01', '2025-12-15', 99900, '2025-12-20');
              INSERT INTO expenses (id, date, name, amount_cents, category_slug) VALUES
                ('e1', '2026-04-01', 'JetBrains', 10000, 'software'),
-               ('e2', '2026-04-02', 'Kundenessen', 10000, 'meals');",
+               ('e2', '2026-04-02', 'Kundenessen', 10000, 'meals');
+             INSERT INTO tracker_projects (id, name) VALUES ('p', 'Website');
+             WITH RECURSIVE days(d) AS (SELECT date('2026-01-01') UNION ALL SELECT date(d, '+1 day') FROM days WHERE d < '2026-09-30')
+             INSERT INTO tracker_entries (id, project_id, date, start, stop, duration) SELECT d, 'p', d, d || 'T09:00:00Z', d || 'T10:00:00Z', 3600 FROM days;",
         )
         .unwrap();
         let input = TaxInput {
-            home_office_days_business: 250,
             health_status: "student".into(),
             health_cents: 100_000,
             care_cents: 30_000,
@@ -628,7 +625,7 @@ mod tests {
         let r = compute(&conn, 2026).unwrap();
         assert_eq!(r.income_cents, 1_000_000, "only payments received in 2026 count");
         assert_eq!(r.expenses_cents, 17_000, "Bewirtung only at 70 %");
-        assert_eq!(r.home_office_business_days, 210, "capped at 210 days");
+        assert_eq!((r.home_office_days, r.home_office_business_days), (273, 210), "every tracked day counts, capped at 210 days");
         assert_eq!(r.profit_cents, 1_000_000 - 17_000 - 126_000);
         assert_eq!(r.employment_costs_used_cents, 123_000, "employee allowance when actual costs are lower");
         assert_eq!(r.volunteer_taxable_cents, 70_000, "4.000 € minus the 3.300 € trainer allowance");
@@ -655,12 +652,23 @@ mod tests {
         settings.limits.meals_deductible_percent = 50;
         settings.tax_overrides.insert(2026, ParamOverrides { home_office_per_day: Some(800), ..ParamOverrides::default() });
         crate::db::store_settings(&conn, &settings).unwrap();
-        let input = TaxInput { home_office_days_business: 10, ..TaxInput::default() };
+        conn.execute_batch(
+            "INSERT INTO tracker_projects (id, name) VALUES ('p', 'Website');
+             INSERT INTO tracker_entries (id, project_id, date, start, stop, duration) VALUES
+               ('t1', 'p', '2026-02-02', '2026-02-02T09:00:00Z', '2026-02-02T12:00:00Z', 10800),
+               ('t2', 'p', '2026-02-02', '2026-02-02T13:00:00Z', '2026-02-02T15:00:00Z', 7200),
+               ('t3', 'p', '2026-02-03', '2026-02-03T09:00:00Z', '2026-02-03T12:00:00Z', 10800),
+               ('t4', 'p', '2026-02-04', '2026-02-04T09:00:00Z', NULL, 0);
+             INSERT INTO home_office_exclusions (date) VALUES ('2026-02-03');",
+        )
+        .unwrap();
+        let input = TaxInput::default();
         conn.execute("INSERT INTO tax_years (year, data) VALUES (2026, ?1)", [serde_json::to_string(&input).unwrap()]).unwrap();
 
         let r = compute(&conn, 2026).unwrap();
         assert_eq!(r.params.home_office_per_day, 800);
-        assert_eq!(r.home_office_business_cents, 8_000);
+        assert_eq!(r.home_office_days, 1, "one day per date, excluded days and running timers do not count");
+        assert_eq!(r.home_office_business_cents, 800);
         assert_eq!(r.expenses_cents, 5_000, "meals at the configured 50 %");
         let small_business_warning = |r: &TaxReport| r.warnings.iter().any(|w| w.text.contains("small business scheme"));
         assert!(!small_business_warning(&r), "30.000 € stays below the configured 50.000 €");

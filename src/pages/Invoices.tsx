@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { FileText, Package, Plus } from "lucide-react";
 import { api, errorMessage, type Product, type TrackerInvoiceDraft } from "../lib/api";
-import { centsToInput, date, money, parseMoney } from "../lib/format";
+import { centsToInput, date, HOURS, money, parseMoney } from "../lib/format";
 import { useAsync, useDebounced } from "../lib/hooks";
 import { useApp } from "../lib/nav";
 import { Button, Card, CurrencySelect, Dialog, Empty, ErrorNote, Field, Input, Kpi, PageHeader, Select, Skeleton, StatusBadge, Tabs, useToast } from "../components/ui";
 import { InvoiceEditor } from "./InvoiceEditor";
+import { UnitSelect, useUnits } from "../components/fields";
 import { t } from "../lib/i18n";
 
 type Tab = "invoices" | "products";
@@ -14,6 +15,7 @@ function ProductsTab() {
   const toast = useToast();
   const { settings } = useApp();
   const products = useAsync(() => api.listProducts(), []);
+  const units = useUnits();
   const [draft, setDraft] = useState<(Omit<Product, "price_cents" | "tax_rate"> & { price: string; tax: string }) | null>(null);
 
   const openProduct = (p: Product) => setDraft({ ...p, price: centsToInput(p.price_cents), tax: p.tax_rate?.toString() ?? "" });
@@ -41,7 +43,7 @@ function ProductsTab() {
     <Card
       title={t("Products & services")}
       actions={
-        <Button size="sm" icon={<Plus className="size-3" />} onClick={() => setDraft({ name: "", description: "", price: "", currency: settings.base_currency, unit: t("hrs"), tax: "" })}>
+        <Button size="sm" icon={<Plus className="size-3" />} onClick={() => setDraft({ name: "", description: "", price: "", currency: settings.base_currency, unit: HOURS, tax: "" })}>
           {t("New")}
         </Button>
       }
@@ -67,7 +69,7 @@ function ProductsTab() {
                   {p.name}
                   {p.description && <div className="text-xs text-muted">{p.description}</div>}
                 </td>
-                <td className="py-2.5 text-muted">{p.unit || "–"}</td>
+                <td className="py-2.5 text-muted">{units.find((u) => u.code === p.unit)?.label ?? (p.unit || "–")}</td>
                 <td className="tabular py-2.5 text-right">{money(p.price_cents, p.currency)}</td>
                 <td className="py-2.5 pr-4 text-right text-muted">{p.usage_count}×</td>
               </tr>
@@ -114,7 +116,7 @@ function ProductsTab() {
                 <Input value={draft.price} onChange={(e) => setDraft({ ...draft, price: e.target.value })} placeholder={centsToInput(0)} />
               </Field>
               <Field label={t("Unit")}>
-                <Input value={draft.unit ?? ""} onChange={(e) => setDraft({ ...draft, unit: e.target.value })} />
+                <UnitSelect value={draft.unit ?? ""} onChange={(unit) => setDraft({ ...draft, unit })} />
               </Field>
               <Field label={t("Currency")}>
                 <CurrencySelect value={draft.currency} onChange={(e) => setDraft({ ...draft, currency: e.target.value })} />

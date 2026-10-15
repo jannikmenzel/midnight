@@ -45,13 +45,14 @@ pub async fn save_product(state: &AppState, product: Product) -> AppResult<Strin
     if product.name.trim().is_empty() {
         return Err(msg(tr!("Name is missing", "Name fehlt")));
     }
+    let unit = crate::units::parse(product.unit.as_deref())?;
     let id = product.id.clone().unwrap_or_else(new_id);
     state.conn()?.execute(
         "INSERT INTO invoice_products (id, name, description, price_cents, currency, unit, tax_rate)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
          ON CONFLICT(id) DO UPDATE SET name = excluded.name, description = excluded.description,
             price_cents = excluded.price_cents, currency = excluded.currency, unit = excluded.unit, tax_rate = excluded.tax_rate",
-        params![id, product.name.trim(), product.description, product.price_cents, product.currency, product.unit, product.tax_rate],
+        params![id, product.name.trim(), product.description, product.price_cents, product.currency, unit, product.tax_rate],
     )?;
     Ok(id)
 }

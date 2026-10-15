@@ -2202,7 +2202,9 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "csv",
+ "lopdf",
  "pdf-extract",
+ "quick-xml",
  "regex",
  "rusqlite",
  "schemars 1.2.2",

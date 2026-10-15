@@ -7,7 +7,8 @@ use crate::customers::Customer;
 use crate::db::{AppState, Settings};
 use crate::error::AppResult;
 use crate::expenses::{Expense, ExpenseInput, Receipt, ReceiptDraft};
-use crate::invoices::{Invoice, InvoiceFilter, InvoiceInput, InvoiceList};
+use crate::invoices::{Invoice, InvoiceFilter, InvoiceInput, InvoiceList, RenderedPdf};
+use crate::units::Unit;
 use crate::jobs::JobReport;
 use crate::ledger::{LedgerFilter, LedgerPage};
 use crate::products::Product;
@@ -158,7 +159,7 @@ commands! {
     delete categories::delete_category(slug: String) -> (), "Deletes a category.";
 
     read customers::list_customers(search: Option<String>, include_archived: Option<bool>) -> Vec<Customer>, "Lists customers, optionally filtered.";
-    write customers::save_customer(customer: Customer) -> Customer, "Creates a customer (without id) or updates it (with id).";
+    write customers::save_customer(customer: Customer) -> Customer, "Creates a customer (without id) or updates it (with id). country is an ISO 3166 code from list_countries; empty means the company's own country.";
     delete customers::delete_customer(id: String) -> (), "Deletes a customer.";
 
     read tracker::list_projects(include_completed: Option<bool>) -> Vec<Project>, "Lists time tracking projects.";
@@ -170,6 +171,7 @@ commands! {
     write tracker::start_timer(project_id: String, description: Option<String>) -> Entry, "Starts a timer for a project.";
     write tracker::stop_timer() -> Option<String>, "Stops the running timer.";
     write tracker::save_entry(entry: EntryInput) -> String, "Creates or updates a time entry.";
+    write tracker::set_home_office(date: String, applies: bool) -> (), "Sets whether the home office allowance applies on a day with tracked time (YYYY-MM-DD, default: it applies). The tax return counts these days automatically.";
     delete tracker::delete_entry(id: String) -> (), "Deletes a time entry.";
     read tracker::invoice_lines_from_tracker(project_id: String) -> TrackerInvoiceDraft, "Builds invoice line items from a project's unbilled time (saves nothing).";
     write tracker::invoice_unbilled_for_customer(customer_id: String) -> Invoice, "Creates a draft invoice from all of a customer's unbilled time.";
@@ -183,13 +185,15 @@ commands! {
     read invoices::list_invoices(filter: InvoiceFilter) -> InvoiceList, "Lists invoices with filters and totals per status.";
     read invoices::get_invoice(id: String) -> Invoice, "Reads an invoice.";
     read invoices::next_invoice_number(issue_date: Option<String>) -> String, "Returns the next free invoice number.";
-    write invoices::save_invoice(input: InvoiceInput) -> Invoice, "Creates an invoice (without id) or updates it (with id). Amounts in cents.";
+    write invoices::save_invoice(input: InvoiceInput) -> Invoice, "Creates an invoice (without id) or updates it (with id). Amounts in cents; line item units are codes from list_units.";
     write invoices::set_invoice_status(id: String, status: String, paid_at: Option<String>) -> Invoice, "Sets an invoice's status (draft, unpaid, paid, canceled); paid_at as YYYY-MM-DD.";
     delete invoices::delete_invoice(id: String) -> (), "Deletes an invoice.";
     write invoices::duplicate_invoice(id: String) -> Invoice, "Duplicates an invoice as a new draft.";
-    write invoices::render_invoice_pdf(id: String) -> String, "Renders an invoice's PDF with LaTeX (requires xelatex) and returns the file path.";
+    #[stateless] read units::list_units() -> Vec<Unit>, "Lists the allowed line item units (UN/ECE Recommendation 20 codes such as HUR for hours) with their labels.";
+    write invoices::render_invoice_pdf(id: String) -> RenderedPdf, "Renders an invoice's PDF with LaTeX (requires xelatex) and returns the file path, plus a warning if the e-invoice could not be embedded.";
     write invoices::render_invoice_timesheet(id: String) -> Option<String>, "Renders the timesheet for an invoice if time entries are linked.";
-    write invoices::export_invoice_pdf(id: String, target: String) -> (), "Renders the invoice PDF with LaTeX (requires xelatex) and saves it to an absolute file path.";
+    write invoices::export_invoice_pdf(id: String, target: String) -> Option<String>, "Renders the invoice PDF with LaTeX (requires xelatex) and saves it to an absolute file path. With e-invoicing enabled in the settings, the PDF is a ZUGFeRD/Factur-X hybrid (EN 16931); returns a warning if the e-invoice could not be embedded.";
+    write invoices::export_invoice_xrechnung(id: String, target: String) -> (), "Saves the invoice as an XRechnung 3.0 e-invoice (CII XML) to an absolute file path.";
 
     read templates::latex_files() -> LatexFolder, "Lists the LaTeX template folder (invoice.tex, timesheet.tex, Report.cls, fonts, images) with the placeholders each template supports.";
     read templates::latex_read(path: String) -> String, "Reads a text file (.tex/.cls/.sty) from the LaTeX template folder; path is relative, e.g. invoice.tex.";
@@ -197,10 +201,10 @@ commands! {
     write templates::latex_reset(path: String) -> String, "Restores a built-in template (invoice.tex, timesheet.tex, Report.cls) and returns its content.";
     write templates::latex_import(paths: Vec<String>) -> usize, "Copies local files (absolute paths) into the LaTeX template folder: fonts to Fonts/<family>/, images to Images/, .tex/.cls/.sty to the top level.";
     delete templates::latex_delete(path: String) -> (), "Deletes a file or folder (e.g. a font family) from the LaTeX template folder.";
-    write templates::latex_preview(template: String) -> String, "Compiles invoice.tex or timesheet.tex with the latest data (or samples) and returns the PDF path.";
+    write templates::latex_preview(template: String) -> String, "Compiles invoice.tex or timesheet.tex with sample data (Max Mustermann as sender, an example customer) and returns the PDF path.";
 
     read products::list_products(search: Option<String>) -> Vec<Product>, "Lists saved products and services.";
-    write products::save_product(product: Product) -> String, "Creates or updates a product.";
+    write products::save_product(product: Product) -> String, "Creates or updates a product. unit is a code from list_units.";
     write products::touch_product(id: String) -> (), "Increments a product's usage counter.";
     delete products::delete_product(id: String) -> (), "Deletes a product.";
 
@@ -218,6 +222,7 @@ commands! {
     read vault::list_tags() -> Vec<TagInfo>, "Lists all document tags with counts.";
 
     read forecast::tax_forecast(year: i32) -> Forecast, "Tax forecast for a year: expected payments (open invoices, unbilled time, project budgets), recurring expenses, expected tax at year end and threshold warnings.";
+    #[stateless] read places::list_countries() -> Vec<&'static str>, "Lists the allowed ISO 3166-1 country codes for customers and the company address.";
     #[stateless] read places::suggest_places(query: String, country: Option<String>) -> Vec<Place>, "Offline lookup of postal codes and towns in Germany, Austria and Switzerland (postal code prefix or town name).";
 
     read reports::report_summary(from: String, to: String) -> Summary, "Income, expenses and profit for a period (YYYY-MM-DD).";

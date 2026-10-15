@@ -3,10 +3,66 @@ use std::sync::OnceLock;
 
 use serde::Serialize;
 
-use crate::error::AppResult;
+use crate::error::{msg, AppResult};
+use crate::i18n::{pick, tr};
 
 const DATA: &str = include_str!("../data/postal_codes.tsv");
 const LIMIT: usize = 12;
+
+const COUNTRY_DATA: &str = include_str!("../data/countries.tsv");
+
+struct Country {
+    code: &'static str,
+    en: &'static str,
+    de: &'static str,
+}
+
+fn countries() -> &'static [Country] {
+    static LIST: OnceLock<Vec<Country>> = OnceLock::new();
+    LIST.get_or_init(|| {
+        COUNTRY_DATA
+            .lines()
+            .filter_map(|line| {
+                let mut f = line.split('\t');
+                Some(Country { code: f.next()?, en: f.next()?, de: f.next()? })
+            })
+            .collect()
+    })
+}
+
+pub const HOME_COUNTRY: &str = "DE";
+
+pub fn is_country(code: &str) -> bool {
+    countries().binary_search_by(|c| c.code.cmp(code)).is_ok()
+}
+
+pub fn country_name(code: &str) -> String {
+    let code = code.trim();
+    countries().iter().find(|c| c.code == code).map_or_else(|| code.to_string(), |c| pick(c.en, c.de).to_string())
+}
+
+pub fn country_from_text(raw: &str) -> Option<String> {
+    let text = raw.trim();
+    let upper = text.to_uppercase();
+    if is_country(&upper) {
+        return Some(upper);
+    }
+    let lower = text.to_lowercase();
+    countries().iter().find(|c| c.en.to_lowercase() == lower || c.de.to_lowercase() == lower).map(|c| c.code.to_string())
+}
+
+pub fn parse_country(raw: Option<&str>) -> AppResult<Option<String>> {
+    let Some(code) = raw.map(|c| c.trim().to_ascii_uppercase()).filter(|c| !c.is_empty()) else { return Ok(None) };
+    if is_country(&code) {
+        Ok(Some(code))
+    } else {
+        Err(msg(tr!("Unknown country code {code} (ISO 3166, e.g. DE)", "Unbekannter Ländercode {code} (ISO 3166, z. B. DE)")))
+    }
+}
+
+pub async fn list_countries() -> AppResult<Vec<&'static str>> {
+    Ok(countries().iter().map(|c| c.code).collect())
+}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Place {
@@ -84,5 +140,19 @@ mod tests {
         assert!(search("Zürich", None).iter().any(|p| p.country == "CH" && p.zip == "8001"));
         assert!(search("1010", Some("AT")).iter().all(|p| p.city == "Wien"));
         assert!(search("Deutsche Telekom", None).is_empty(), "company postcodes are filtered out");
+    }
+
+    #[test]
+    fn countries_are_sorted_iso_codes_with_names() {
+        assert!(countries().windows(2).all(|w| w[0].code < w[1].code), "binary search needs a sorted list");
+        assert!(is_country("DE") && is_country("SS") && !is_country("EU") && !is_country("UK"), "only assigned ISO 3166-1 codes");
+        assert_eq!(country_from_text("Frankreich").as_deref(), Some("FR"));
+        assert_eq!(country_from_text("united kingdom").as_deref(), Some("GB"));
+        assert_eq!(country_from_text("ÖSTERREICH").as_deref(), Some("AT"));
+        assert_eq!(country_from_text("Atlantis"), None);
+        assert_eq!(country_name("US"), "United States");
+        assert_eq!(parse_country(Some(" de ")).unwrap().as_deref(), Some("DE"));
+        assert_eq!(parse_country(Some("")).unwrap(), None);
+        assert!(parse_country(Some("UK")).is_err() && parse_country(Some("Deutschland")).is_err());
     }
 }

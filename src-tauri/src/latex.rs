@@ -4,13 +4,14 @@ use std::process::Command;
 
 use chrono::{Datelike, NaiveDate};
 
-use crate::customers::Customer;
+use crate::customers::{country_of, Customer};
 use crate::db::Settings;
 use crate::error::{msg, AppResult};
 use crate::i18n::{fmt_date, is_de, pick, tr};
 use crate::invoices::{fmt_hours, Invoice};
+use crate::places::country_name;
 use crate::templates::{self, INVOICE, TIMESHEET};
-use crate::util::{currency_symbol, new_id, parse_date};
+use crate::util::{amount, currency_symbol, new_id, parse_date};
 
 pub fn find_xelatex() -> Option<PathBuf> {
     let from_path = std::env::var_os("PATH")
@@ -191,10 +192,6 @@ pub fn esc(s: &str) -> String {
     out
 }
 
-fn amount(cents: i64) -> String {
-    format!("{}{}.{:02}", if cents < 0 { "-" } else { "" }, cents.abs() / 100, cents.abs() % 100)
-}
-
 fn short_amount(cents: i64) -> String {
     if cents % 100 == 0 {
         (cents / 100).to_string()
@@ -228,20 +225,17 @@ fn split_period(name: &str) -> (String, Option<String>) {
     (t.to_string(), None)
 }
 
-fn break_after_last_comma(line: &str) -> Vec<String> {
-    match line.rfind(',') {
-        Some(i) if line.matches(',').count() >= 2 => vec![line[..=i].trim().to_string(), line[i + 1..].trim().to_string()],
-        _ => vec![line.trim().to_string()],
-    }
+fn or_empty(v: &Option<String>) -> &str {
+    v.as_deref().unwrap_or("")
 }
 
-fn country_name(code: &str) -> String {
-    match code.trim() {
-        "DE" | "" => pick("Germany", "Deutschland").into(),
-        "AT" => pick("Austria", "Österreich").into(),
-        "CH" => pick("Switzerland", "Schweiz").into(),
-        other => other.into(),
+fn postal_lines(street: [&str; 2], zip: &str, city: &str) -> Vec<String> {
+    let mut lines: Vec<String> = street.into_iter().map(str::trim).filter(|l| !l.is_empty()).map(esc).collect();
+    let place = [zip.trim(), city.trim()].into_iter().filter(|p| !p.is_empty()).collect::<Vec<_>>().join(", ");
+    if !place.is_empty() {
+        lines.push(esc(&format!("{place},")));
     }
+    lines
 }
 
 fn minipage_lines(lines: &[String], gap_after: Option<usize>) -> String {
@@ -272,7 +266,11 @@ pub fn invoice_tex(template: &str, inv: &Invoice, customer: Option<&Customer>, s
         from.push(esc(s.company_email.trim()));
     }
     let from_gap = from.len() - 1;
-    from.extend(s.company_address.lines().filter(|l| !l.trim().is_empty()).flat_map(break_after_last_comma).map(|l| esc(&l)));
+    let company_address = postal_lines([&s.company_address_line1, &s.company_address_line2], &s.company_zip, &s.company_city);
+    if !company_address.is_empty() {
+        from.extend(company_address);
+        from.push(esc(&country_name(&s.company_country)));
+    }
 
     let mut to = Vec::new();
     let to_gap;
@@ -283,15 +281,8 @@ pub fn invoice_tex(template: &str, inv: &Invoice, customer: Option<&Customer>, s
                 to.push(esc(mail));
             }
             to_gap = to.len() - 1;
-            for l in [&c.address_line1, &c.address_line2].into_iter().flatten().filter(|v| !v.trim().is_empty()) {
-                to.push(esc(l));
-            }
-            let zip = c.zip.as_deref().unwrap_or("").trim();
-            let city = c.city.as_deref().unwrap_or("").trim();
-            if !zip.is_empty() || !city.is_empty() {
-                to.push(esc(&format!("{zip}, {city},")));
-            }
-            to.push(esc(&country_name(c.country.as_deref().unwrap_or(""))));
+            to.extend(postal_lines([or_empty(&c.address_line1), or_empty(&c.address_line2)], or_empty(&c.zip), or_empty(&c.city)));
+            to.push(esc(&country_name(&country_of(c, s))));
         }
         None => {
             to.extend(inv.customer_details.as_deref().unwrap_or("").lines().map(esc));
@@ -325,7 +316,7 @@ pub fn invoice_tex(template: &str, inv: &Invoice, customer: Option<&Customer>, s
             let (name, period) = split_period(&li.name);
             let total = li.total_cents();
             let vat = (total as f64 * rate / 100.0).round() as i64;
-            let unit = li.unit.as_deref().filter(|u| !u.trim().is_empty()).map(|u| format!("~{}", esc(u))).unwrap_or_default();
+            let unit = li.unit.as_deref().map(|u| format!("~{}", esc(crate::units::label(u)))).unwrap_or_default();
             let period = period.map(|p| esc(&p).split('–').map(str::trim).collect::<Vec<_>>().join("~–~")).unwrap_or_default();
             format!(
                 "{} &\n{}~{cur} &\n{}{unit} &\n{period} &\n{}~{cur}~({rate_txt}\\%) &\n{}~{cur} \\\\\n",
@@ -347,7 +338,7 @@ pub fn invoice_tex(template: &str, inv: &Invoice, customer: Option<&Customer>, s
     if inv.vat_cents > 0 {
         sums.push_str(&tr!("\\multicolumn{{5}}{{r}}{{VAT ({rate_txt}\\%):}} & {}~{cur} \\\\\n", "\\multicolumn{{5}}{{r}}{{MwSt. ({rate_txt}\\%):}} & {}~{cur} \\\\\n", amount(inv.vat_cents)));
     }
-    let tax_note = if s.small_business && rate == 0.0 { pick("No VAT is shown in accordance with § 19 UStG.", "Gemäß § 19 UStG wird keine Umsatzsteuer ausgewiesen.") } else { "" };
+    let tax_note = crate::vat::TaxCase::of(inv, customer, s).note();
 
     let note = inv
         .note
@@ -556,7 +547,13 @@ mod tests {
         assert_eq!(hm(9000), "2:30 h");
         assert_eq!(split_period("Website – UI-Design (30.08.–09.09.26)"), ("Website – UI-Design".into(), Some("30.08.–09.09.26".into())));
         assert_eq!(split_period("Maintenance (monthly)"), ("Maintenance (monthly)".into(), None), "only dates count as period");
-        assert_eq!(break_after_last_comma("12345, Example City, Germany"), ["12345, Example City,", "Germany"]);
+    }
+
+    #[test]
+    fn postal_lines_skip_empty_parts() {
+        assert_eq!(postal_lines(["Weg 2", " "], "10115", "Berlin"), ["Weg 2", "10115, Berlin,"]);
+        assert_eq!(postal_lines(["Weg 2", ""], "", "Berlin"), ["Weg 2", "Berlin,"]);
+        assert!(postal_lines(["", ""], " ", "").is_empty());
     }
 
     #[test]

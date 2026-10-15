@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { FileText, Plus, Star, Trash2, Users, X } from "lucide-react";
-import { api, errorMessage, type Customer, type CustomerContact, type Place } from "../lib/api";
+import { api, errorMessage, type Customer, type CustomerContact } from "../lib/api";
 import { duration, money } from "../lib/format";
 import { useAsync, useDebounced } from "../lib/hooks";
 import { useApp } from "../lib/nav";
-import { AutocompleteInput, Badge, Button, Card, Checkbox, CurrencySelect, Empty, Field, IconButton, Input, PageHeader, Section, Sheet, Skeleton, Textarea, Toggle, useToast } from "../components/ui";
+import { Badge, Button, Card, Checkbox, CurrencySelect, Empty, Field, IconButton, Input, PageHeader, Section, Sheet, Skeleton, Textarea, Toggle, useToast } from "../components/ui";
+import { CountrySelect, PlaceInput } from "../components/fields";
 import { t } from "../lib/i18n";
 
-const EMPTY: Customer = { name: "", country: "DE", is_archived: false, contacts: [] };
+const EMPTY: Customer = { name: "", is_archived: false, contacts: [] };
 
 const emptyContact = (): CustomerContact => ({ name: null, email: null, phone: null });
 
@@ -68,21 +69,8 @@ function CustomerSheet({ customer, onClose, onSaved }: { customer: Customer | nu
   const { go, settings } = useApp();
   const [form, setForm] = useState<Customer>(EMPTY);
   const [busy, setBusy] = useState(false);
-  useEffect(() => setForm(customer ?? EMPTY), [customer]);
+  useEffect(() => setForm(customer?.id ? customer : { ...EMPTY, country: settings.company_country }), [customer, settings.company_country]);
   const set = (patch: Partial<Customer>) => setForm({ ...form, ...patch });
-  const places = async (query: string) =>
-    (await api.suggestPlaces(query)).map((p) => ({ key: `${p.country}-${p.zip}-${p.city}`, label: `${p.zip} ${p.city}`, sub: `${p.state} · ${p.country}`, data: p }));
-  const pickPlace = (p: Place) => {
-    setPlaceText(`${p.zip} ${p.city}`);
-    set({ zip: p.zip, city: p.city, country: p.country });
-  };
-  const [placeText, setPlaceText] = useState("");
-  useEffect(() => setPlaceText([customer?.zip, customer?.city].filter(Boolean).join(" ")), [customer]);
-  const typePlace = (value: string) => {
-    setPlaceText(value);
-    const m = value.trim().match(/^(\d{4,5})\b\s*(.*)$/);
-    set(m ? { zip: m[1], city: m[2] || null } : { zip: null, city: value.trim() || null });
-  };
   const text = (key: keyof Customer) => ({
     value: (form[key] as string | null | undefined) ?? "",
     onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => set({ [key]: e.target.value || null } as Partial<Customer>),
@@ -170,10 +158,15 @@ function CustomerSheet({ customer, onClose, onSaved }: { customer: Customer | nu
               <Input {...text("address_line1")} />
             </Field>
             <Field label={t("Postcode and town")}>
-              <div className="relative">
-                <AutocompleteInput value={placeText} onChange={typePlace} suggest={places} onPick={pickPlace} inputClassName="pr-9" />
-                {form.country && <span className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-[11px] text-muted">{form.country}</span>}
-              </div>
+              <PlaceInput
+                key={customer?.id ?? "new"}
+                zip={customer?.zip ?? ""}
+                city={customer?.city ?? ""}
+                onChange={(p) => set({ zip: p.zip || null, city: p.city || null, ...(p.country && { country: p.country }) })}
+              />
+            </Field>
+            <Field label={t("Country")}>
+              <CountrySelect value={form.country ?? ""} onChange={(country) => set({ country })} />
             </Field>
             <Field label={t("Website")}>
               <Input {...text("website")} />
@@ -188,6 +181,9 @@ function CustomerSheet({ customer, onClose, onSaved }: { customer: Customer | nu
             </Field>
             <Field label={t("VAT ID")}>
               <Input {...text("vat_number")} />
+            </Field>
+            <Field label={t("Leitweg-ID")} hint={t("For public-sector clients (XRechnung)")}>
+              <Input {...text("leitweg_id")} placeholder="04011000-12345-67" />
             </Field>
             <div className="grid grid-cols-2 gap-x-6">
               <Field label={t("Payment terms (days)")}>

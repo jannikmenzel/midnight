@@ -32,7 +32,7 @@
 | Overview | Income, expenses, profit and open items for the selected period, unbilled time |
 | Income & expenses | Paid invoices as income, expenses with receipts, extracting name, amount and date from PDF receipts, CSV export |
 | Categories | Custom expense categories, pre-filled with typical items for the German EÜR (cash-basis profit statement) |
-| Invoices | Number sequences, line items, VAT and discounts, small business scheme under § 19 UStG, PDF export via LaTeX, duplicating, saved products |
+| Invoices | Number sequences, line items, VAT and discounts, small business scheme under § 19 UStG, PDF export via LaTeX, e-invoices (ZUGFeRD/Factur-X EN 16931 and XRechnung 3.0), duplicating, saved products |
 | Customers | Customer and order numbers, revenue and tracked time per customer, archive |
 | Time tracking | Projects with hourly rate, budget or fixed price, timer, manual entries, billing unbilled time as a draft invoice, timesheet export |
 | Vault | Document storage with document type, customer and tags, full-text search in PDF text |

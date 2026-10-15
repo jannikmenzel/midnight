@@ -48,6 +48,7 @@ pub struct Entry {
     pub billed: bool,
     pub invoice_id: Option<String>,
     pub invoice_number: Option<String>,
+    pub home_office: bool,
 }
 
 pub async fn list_projects(state: &AppState, include_completed: Option<bool>) -> AppResult<Vec<Project>> {
@@ -189,7 +190,8 @@ pub async fn delete_project(state: &AppState, id: String) -> AppResult<()> {
 }
 
 const ENTRY_SELECT: &str = "SELECT e.id, e.project_id, p.name, e.date, e.start, e.stop, e.duration, e.description,
-    e.rate_cents, e.billed, e.invoice_id, i.invoice_number
+    e.rate_cents, e.billed, e.invoice_id, i.invoice_number,
+    NOT EXISTS (SELECT 1 FROM home_office_exclusions h WHERE h.date = e.date)
   FROM tracker_entries e JOIN tracker_projects p ON p.id = e.project_id LEFT JOIN invoices i ON i.id = e.invoice_id";
 
 fn map_entry(r: &rusqlite::Row) -> rusqlite::Result<Entry> {
@@ -206,7 +208,28 @@ fn map_entry(r: &rusqlite::Row) -> rusqlite::Result<Entry> {
         billed: r.get(9)?,
         invoice_id: r.get(10)?,
         invoice_number: r.get(11)?,
+        home_office: r.get(12)?,
     })
+}
+
+pub fn home_office_days(conn: &Connection, from: &str, to: &str) -> AppResult<i64> {
+    Ok(conn.query_row(
+        "SELECT COUNT(DISTINCT date) FROM tracker_entries
+         WHERE stop IS NOT NULL AND date BETWEEN ?1 AND ?2 AND date NOT IN (SELECT date FROM home_office_exclusions)",
+        params![from, to],
+        |r| r.get(0),
+    )?)
+}
+
+pub async fn set_home_office(state: &AppState, date: String, applies: bool) -> AppResult<()> {
+    let date = crate::util::parse_date(&date).map(crate::util::iso).ok_or_else(|| msg(tr!("Invalid date", "Ungültiges Datum")))?;
+    let conn = state.conn()?;
+    if applies {
+        conn.execute("DELETE FROM home_office_exclusions WHERE date = ?1", params![date])?;
+    } else {
+        conn.execute("INSERT OR IGNORE INTO home_office_exclusions (date) VALUES (?1)", params![date])?;
+    }
+    Ok(())
 }
 
 pub async fn list_entries(
@@ -515,11 +538,11 @@ pub fn draft_from_project(conn: &Connection, project_id: &str) -> AppResult<Trac
         let billed = fixed_price_billed(conn, project_id, price)?;
         let remaining = price - billed;
         let line = if billed == 0 {
-            LineItem { name: format!("{name} ({period})"), quantity: 1.0, price_cents: price, unit: Some(tr!("pcs", "Stk.")) }
+            LineItem { name: format!("{name} ({period})"), quantity: 1.0, price_cents: price, unit: Some(crate::units::PIECES.into()) }
         } else if remaining > 0 {
-            LineItem { name: tr!("{name} – remaining amount of fixed price ({period})", "{name} – Restbetrag Festpreis ({period})"), quantity: 1.0, price_cents: remaining, unit: Some(tr!("pcs", "Stk.")) }
+            LineItem { name: tr!("{name} – remaining amount of fixed price ({period})", "{name} – Restbetrag Festpreis ({period})"), quantity: 1.0, price_cents: remaining, unit: Some(crate::units::PIECES.into()) }
         } else {
-            LineItem { name: tr!("{name} – follow-up work, included in fixed price ({period})", "{name} – Nacharbeiten, im Festpreis enthalten ({period})"), quantity: 1.0, price_cents: 0, unit: Some(tr!("pcs", "Stk.")) }
+            LineItem { name: tr!("{name} – follow-up work, included in fixed price ({period})", "{name} – Nacharbeiten, im Festpreis enthalten ({period})"), quantity: 1.0, price_cents: 0, unit: Some(crate::units::PIECES.into()) }
         };
         return Ok(TrackerInvoiceDraft { customer_id, currency, lines: vec![line], entry_ids: entries.into_iter().map(|e| e.0).collect() });
     }
@@ -534,7 +557,7 @@ pub fn draft_from_project(conn: &Connection, project_id: &str) -> AppResult<Trac
             name: format!("{name} ({period})"),
             quantity: seconds as f64 / 3600.0,
             price_cents: rate,
-            unit: Some(tr!("hrs", "Std.")),
+            unit: Some(crate::units::HOURS.into()),
         })
         .collect();
     Ok(TrackerInvoiceDraft {
@@ -794,6 +817,28 @@ mod tests {
 
         conn.execute("UPDATE invoices SET status = 'canceled'", []).unwrap();
         assert_eq!(fixed_price_billed(&conn, "m", 350000).unwrap(), 0, "canceled invoices do not count");
+    }
+
+    #[test]
+    fn home_office_applies_unless_the_day_is_excluded() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::new(crate::db::open_in_memory().unwrap(), dir.path().to_path_buf()).unwrap();
+        state
+            .conn()
+            .unwrap()
+            .execute_batch(
+                "INSERT INTO tracker_projects (id, name) VALUES ('p', 'Website');
+                 INSERT INTO tracker_entries (id, project_id, date, start, stop, duration) VALUES ('e', 'p', '2026-03-02', '2026-03-02T09:00:00Z', '2026-03-02T11:00:00Z', 7200);",
+            )
+            .unwrap();
+        let flag = || tauri::async_runtime::block_on(list_entries(&state, None, None, None)).unwrap()[0].home_office;
+        assert!(flag(), "applies by default");
+        tauri::async_runtime::block_on(set_home_office(&state, "2026-03-02".into(), false)).unwrap();
+        assert!(!flag());
+        assert_eq!(home_office_days(&state.conn().unwrap(), "2026-01-01", "2026-12-31").unwrap(), 0);
+        tauri::async_runtime::block_on(set_home_office(&state, "2026-03-02".into(), true)).unwrap();
+        assert!(flag());
+        assert!(tauri::async_runtime::block_on(set_home_office(&state, "02.03.2026".into(), false)).is_err());
     }
 
     #[test]

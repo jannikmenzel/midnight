@@ -4,9 +4,9 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
 use crate::i18n::tr;
-use crate::db::AppState;
+use crate::db::{AppState, Settings};
 use crate::error::{msg, AppResult};
-use crate::util::new_id;
+use crate::util::{clean, new_id};
 use crate::activities;
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone, schemars::JsonSchema)]
@@ -39,6 +39,7 @@ pub struct Customer {
     pub default_payment_terms: Option<i64>,
     pub is_archived: bool,
     pub customer_number: Option<String>,
+    pub leitweg_id: Option<String>,
     pub invoice_count: i64,
     pub paid_cents: i64,
     pub open_cents: i64,
@@ -48,7 +49,7 @@ pub struct Customer {
 
 const SELECT: &str = "SELECT c.id, c.name, c.contact, c.email, c.billing_email, c.phone, c.website, c.address_line1,
     c.address_line2, c.zip, c.city, c.country, c.vat_number, c.note, c.preferred_currency, c.default_payment_terms,
-    c.is_archived, c.customer_number,
+    c.is_archived, c.customer_number, c.leitweg_id,
     (SELECT COUNT(*) FROM invoices i WHERE i.customer_id = c.id AND i.status != 'canceled'),
     (SELECT COALESCE(SUM(amount_cents), 0) FROM invoices i WHERE i.customer_id = c.id AND i.status = 'paid'),
     (SELECT COALESCE(SUM(amount_cents), 0) FROM invoices i WHERE i.customer_id = c.id AND i.status IN ('unpaid','overdue')),
@@ -75,16 +76,13 @@ fn map_row(r: &rusqlite::Row) -> rusqlite::Result<Customer> {
         default_payment_terms: r.get(15)?,
         is_archived: r.get(16)?,
         customer_number: r.get(17)?,
-        invoice_count: r.get(18)?,
-        paid_cents: r.get(19)?,
-        open_cents: r.get(20)?,
-        tracked_seconds: r.get(21)?,
+        leitweg_id: r.get(18)?,
+        invoice_count: r.get(19)?,
+        paid_cents: r.get(20)?,
+        open_cents: r.get(21)?,
+        tracked_seconds: r.get(22)?,
         contacts: Some(Vec::new()),
     })
-}
-
-fn clean(v: &Option<String>) -> Option<String> {
-    v.as_deref().map(str::trim).filter(|v| !v.is_empty()).map(str::to_string)
 }
 
 fn attach_contacts(conn: &Connection, customers: &mut [Customer]) -> AppResult<()> {
@@ -134,7 +132,11 @@ pub fn next_customer_number(conn: &Connection) -> AppResult<String> {
     Ok(format!("{NUMBER_PREFIX}{:03}", max + 1))
 }
 
-pub fn address_block(c: &Customer) -> String {
+pub fn country_of(c: &Customer, s: &Settings) -> String {
+    clean(&c.country).unwrap_or_else(|| s.company_country.clone())
+}
+
+pub fn address_block(c: &Customer, s: &Settings) -> String {
     let mut lines = vec![c.name.clone()];
     for l in [&c.contact, &c.address_line1, &c.address_line2] {
         if let Some(v) = l.as_ref().filter(|v| !v.trim().is_empty()) {
@@ -145,8 +147,9 @@ pub fn address_block(c: &Customer) -> String {
     if !city.trim().is_empty() {
         lines.push(city.trim().to_string());
     }
-    if let Some(country) = c.country.as_ref().filter(|v| !v.trim().is_empty() && !matches!(v.trim(), "DE" | "Deutschland")) {
-        lines.push(country.clone());
+    let country = country_of(c, s);
+    if country != s.company_country {
+        lines.push(crate::places::country_name(&country));
     }
     if let Some(vat) = c.vat_number.as_ref().filter(|v| !v.trim().is_empty()) {
         lines.push(format!("USt-IdNr.: {vat}"));
@@ -186,6 +189,7 @@ pub async fn save_customer(state: &AppState, customer: Customer) -> AppResult<Cu
         c.email = primary.and_then(|k| clean(&k.email));
         c.phone = primary.and_then(|k| clean(&k.phone));
     }
+    c.country = crate::places::parse_country(c.country.as_deref())?;
     let conn = state.conn()?;
     let id = c.id.clone().unwrap_or_else(new_id);
     let is_new = c.id.is_none();
@@ -193,18 +197,18 @@ pub async fn save_customer(state: &AppState, customer: Customer) -> AppResult<Cu
     conn.execute(
         "INSERT INTO customers (id, name, contact, email, billing_email, phone, website, address_line1, address_line2,
             zip, city, country, vat_number, note, preferred_currency, default_payment_terms, is_archived,
-            customer_number)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
+            customer_number, leitweg_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)
          ON CONFLICT(id) DO UPDATE SET name = excluded.name, contact = excluded.contact, email = excluded.email,
             billing_email = excluded.billing_email, phone = excluded.phone, website = excluded.website,
             address_line1 = excluded.address_line1, address_line2 = excluded.address_line2, zip = excluded.zip,
             city = excluded.city, country = excluded.country, vat_number = excluded.vat_number, note = excluded.note,
             preferred_currency = excluded.preferred_currency, default_payment_terms = excluded.default_payment_terms,
-            is_archived = excluded.is_archived",
+            is_archived = excluded.is_archived, leitweg_id = excluded.leitweg_id",
         params![
             id, c.name.trim(), c.contact, c.email, c.billing_email, c.phone, c.website, c.address_line1, c.address_line2,
             c.zip, c.city, c.country, c.vat_number, c.note, c.preferred_currency, c.default_payment_terms, c.is_archived,
-            number
+            number, clean(&c.leitweg_id)
         ],
     )?;
     match contacts {

@@ -582,6 +582,10 @@ export default function Tracker() {
         onNewEntry={(day) => newEntry(undefined, day)}
         onEditEntry={editEntry}
         onDeleteEntry={deleteEntry}
+        onHomeOffice={async (day, applies) => {
+          await api.setHomeOffice(day, applies);
+          entries.reload();
+        }}
         canAdd={active.length > 0}
         mondayFirst={settings.week_starts_on_monday}
         weeklyLimitHours={settings.weekly_hours_limit}

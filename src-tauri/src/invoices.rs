@@ -5,12 +5,13 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
 use crate::i18n::tr;
-use crate::customers::{address_block, get_customer};
+use crate::customers::{address_block, get_customer, Customer};
 use crate::db::{load_settings, AppState, Settings};
 use crate::error::{msg, AppResult};
 use crate::files::remove_file_quietly;
 use crate::util::{fmt_money, iso, new_id, now_ts, parse_date, safe_file_name, today};
-use crate::{activities, latex, vault};
+use crate::einvoice::{self, Profile};
+use crate::{activities, latex, units, vault};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
 pub struct LineItem {
@@ -27,7 +28,7 @@ impl LineItem {
     }
 
     pub fn is_hours(&self) -> bool {
-        self.unit.as_deref().is_some_and(|u| matches!(u.trim().trim_end_matches('.').to_lowercase().as_str(), "h" | "std" | "stunde" | "stunden" | "hr" | "hrs" | "hour" | "hours"))
+        self.unit.as_deref() == Some(units::HOURS)
     }
 }
 
@@ -157,13 +158,18 @@ pub fn upsert_invoice(conn: &Connection, settings: &Settings, input: &InvoiceInp
     if input.line_items.is_empty() {
         return Err(msg(tr!("The invoice needs at least one line item", "Die Rechnung braucht mindestens eine Position")));
     }
-    let totals = compute_totals(&input.line_items, input.vat_rate, input.discount_cents);
+    let line_items = input
+        .line_items
+        .iter()
+        .map(|li| Ok(LineItem { unit: units::parse(li.unit.as_deref())?, ..li.clone() }))
+        .collect::<AppResult<Vec<_>>>()?;
+    let totals = compute_totals(&line_items, input.vat_rate, input.discount_cents);
     let currency = if input.currency.is_empty() { settings.base_currency.clone() } else { input.currency.clone() };
     let customer_id = input.customer_id.clone().filter(|s| !s.is_empty());
     let (customer_name, customer_details) = match &customer_id {
         Some(cid) => {
             let c = get_customer(conn, cid)?;
-            (Some(c.name.clone()), Some(address_block(&c)))
+            (Some(c.name.clone()), Some(address_block(&c, settings)))
         }
         None => (None, None),
     };
@@ -191,7 +197,7 @@ pub fn upsert_invoice(conn: &Connection, settings: &Settings, input: &InvoiceInp
     if taken.is_some() {
         return Err(msg(tr!("Invoice number {number} is already taken", "Die Rechnungsnummer {number} ist bereits vergeben")));
     }
-    let lines_json = serde_json::to_string(&input.line_items)?;
+    let lines_json = serde_json::to_string(&line_items)?;
     let id = input.id.clone().unwrap_or_else(new_id);
     let (status, paid_at) = match (input.status.clone(), existing) {
         (Some(status), existing) => {
@@ -393,20 +399,36 @@ pub async fn duplicate_invoice(state: &AppState, id: String) -> AppResult<Invoic
     load_invoice(&conn, &new_id)
 }
 
-pub fn render_pdf_for(conn: &Connection, files_dir: &std::path::Path, id: &str) -> AppResult<PathBuf> {
+#[derive(Debug, Serialize)]
+pub struct RenderedPdf {
+    pub path: String,
+    pub e_invoice_warning: Option<String>,
+}
+
+fn invoice_context(conn: &Connection, id: &str) -> AppResult<(Settings, Invoice, Option<Customer>)> {
     let settings = load_settings(conn)?;
     let invoice = load_invoice(conn, id)?;
+    let customer = invoice.customer_id.as_deref().map(|customer_id| get_customer(conn, customer_id)).transpose()?;
+    Ok((settings, invoice, customer))
+}
+
+pub fn render_pdf_for(conn: &Connection, files_dir: &std::path::Path, id: &str) -> AppResult<RenderedPdf> {
+    let (settings, invoice, customer) = invoice_context(conn, id)?;
     let path = files_dir.join("invoices").join(format!("{}.pdf", safe_file_name(&invoice.invoice_number)));
     let tc = latex::toolchain(files_dir).map_err(msg)?;
-    let customer = invoice.customer_id.as_deref().map(|id| get_customer(conn, id)).transpose()?;
+    let xml = settings.e_invoice.then(|| einvoice::cii(&invoice, customer.as_ref(), &settings, Profile::Zugferd));
     latex::render_invoice(&tc, &invoice, customer.as_ref(), &settings, &path)?;
+    let title = tr!("Invoice {}", "Rechnung {}", invoice.invoice_number);
+    let e_invoice_warning = xml
+        .and_then(|xml| xml.and_then(|xml| einvoice::embed(&path, &xml, &title, &einvoice::seller_name(&settings))).err())
+        .map(|e| tr!("The PDF was created without an e-invoice. {e}", "Die PDF wurde ohne E-Rechnung erstellt. {e}"));
     let new_path = path.to_string_lossy().to_string();
     conn.execute("UPDATE invoices SET file_path = ?2 WHERE id = ?1", params![id, new_path])?;
     if let Some(old) = invoice.file_path.filter(|old| *old != new_path) {
         remove_file_quietly(&old);
     }
     vault::sync_invoice(conn, id)?;
-    Ok(path)
+    Ok(RenderedPdf { path: new_path, e_invoice_warning })
 }
 
 pub fn sync_vault(conn: &Connection, files_dir: &std::path::Path, id: &str, rerender: bool) {
@@ -449,15 +471,23 @@ pub async fn render_invoice_timesheet(state: &AppState, id: String) -> AppResult
     Ok(render_timesheet_for(&conn, &state.files_dir, &id)?.map(|p| p.to_string_lossy().to_string()))
 }
 
-pub async fn render_invoice_pdf(state: &AppState, id: String) -> AppResult<String> {
+pub async fn render_invoice_pdf(state: &AppState, id: String) -> AppResult<RenderedPdf> {
     let conn = state.conn()?;
-    Ok(render_pdf_for(&conn, &state.files_dir, &id)?.to_string_lossy().to_string())
+    render_pdf_for(&conn, &state.files_dir, &id)
 }
 
-pub async fn export_invoice_pdf(state: &AppState, id: String, target: String) -> AppResult<()> {
+pub async fn export_invoice_pdf(state: &AppState, id: String, target: String) -> AppResult<Option<String>> {
     let conn = state.conn()?;
-    let path = render_pdf_for(&conn, &state.files_dir, &id)?;
-    std::fs::copy(path, target)?;
+    let rendered = render_pdf_for(&conn, &state.files_dir, &id)?;
+    std::fs::copy(&rendered.path, target)?;
+    Ok(rendered.e_invoice_warning)
+}
+
+pub async fn export_invoice_xrechnung(state: &AppState, id: String, target: String) -> AppResult<()> {
+    let conn = state.conn()?;
+    let (settings, invoice, customer) = invoice_context(&conn, &id)?;
+    let xml = einvoice::cii(&invoice, customer.as_ref(), &settings, Profile::XRechnung)?;
+    std::fs::write(target, xml)?;
     Ok(())
 }
 
@@ -486,12 +516,12 @@ mod tests {
 
     #[test]
     fn tracked_hours_stay_exact_and_print_as_clock_time() {
-        let tracked = LineItem { name: "x".into(), quantity: 38100.0 / 3600.0, price_cents: 7000, unit: Some("Std.".into()) };
+        let tracked = LineItem { name: "x".into(), quantity: 38100.0 / 3600.0, price_cents: 7000, unit: Some(units::HOURS.into()) };
         assert!(tracked.is_hours());
         assert_eq!(fmt_hours(tracked.quantity), "10:35");
         assert_eq!(tracked.total_cents(), 74083);
         assert_eq!(fmt_hours(16.5), "16:30");
-        assert!(!LineItem { unit: Some("Stk.".into()), ..tracked }.is_hours());
+        assert!(!LineItem { unit: Some(units::PIECES.into()), ..tracked }.is_hours());
     }
 
     #[test]
@@ -522,6 +552,13 @@ mod tests {
         assert_eq!(load_invoice(&conn, &id).unwrap().paid_at.as_deref(), Some("2026-09-12"), "a corrected date replaces the old one");
         apply_status(&conn, &id, "unpaid", None).unwrap();
         assert_eq!(load_invoice(&conn, &id).unwrap().paid_at, None);
+    }
+
+    #[test]
+    fn saving_rejects_unknown_units() {
+        let conn = crate::db::open_in_memory().unwrap();
+        let input = InvoiceInput { issue_date: "2026-09-01".into(), due_date: "2026-09-15".into(), line_items: vec![LineItem { unit: Some("Seiten".into()), ..line(1.0, 100) }], ..Default::default() };
+        assert!(upsert_invoice(&conn, &Settings::default(), &input).is_err());
     }
 
     #[test]

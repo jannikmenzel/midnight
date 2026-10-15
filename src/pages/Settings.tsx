@@ -7,6 +7,7 @@ import { useApp, type Theme } from "../lib/nav";
 import { Badge, Button, Card, CardBody, CurrencySelect, Dialog, ErrorNote, Field, Input, PageHeader, Section, Select, Tabs, Textarea, Toggle, useToast } from "../components/ui";
 import { isLang, lang, LANGUAGES, setLang, t } from "../lib/i18n";
 import LatexTemplates from "../components/LatexTemplates";
+import { CountrySelect, PlaceInput } from "../components/fields";
 
 type Tab = "general" | "company" | "invoices" | "latex" | "limits" | "data";
 
@@ -19,6 +20,7 @@ function useSettingsForm(afterSave?: () => Promise<void>) {
   const [busy, setBusy] = useState(false);
   useEffect(() => setForm(settings), [settings]);
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => setForm((f) => ({ ...f, [key]: value }));
+  const setMany = (patch: Partial<Settings>) => setForm((f) => ({ ...f, ...patch }));
   const text = (key: keyof Settings) => ({
     value: String(form[key] ?? ""),
     onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => set(key, e.target.value as never),
@@ -38,7 +40,7 @@ function useSettingsForm(afterSave?: () => Promise<void>) {
     }
   };
   const dirty = JSON.stringify(form) !== JSON.stringify(settings);
-  return { form, set, text, save, busy, dirty };
+  return { form, set, setMany, text, save, busy, dirty, settings };
 }
 
 function SaveBar({ onSave, busy, dirty }: { onSave: () => void; busy: boolean; dirty: boolean }) {
@@ -208,7 +210,8 @@ function McpCard() {
 }
 
 function CompanyTab() {
-  const { form, set, text, save, busy, dirty } = useSettingsForm();
+  const { form, set, setMany, text, save, busy, dirty, settings } = useSettingsForm();
+  const settingsKey = `${settings.company_zip} ${settings.company_city}`;
   return (
     <Card title={t("Company details")}>
       <div className="grid gap-4 p-4 md:grid-cols-2">
@@ -218,8 +221,22 @@ function CompanyTab() {
         <Field label={t("Owner")}>
           <Input {...text("company_owner")} />
         </Field>
-        <Field label={t("Address")} hint={t("One line per address line")} className="md:row-span-2">
-          <Textarea {...text("company_address")} className="min-h-[96px] resize-none" />
+        <Field label={t("Street and number")}>
+          <Input {...text("company_address_line1")} />
+        </Field>
+        <Field label={t("Address line 2")}>
+          <Input {...text("company_address_line2")} placeholder={t("optional")} />
+        </Field>
+        <Field label={t("Postcode and town")}>
+          <PlaceInput
+            key={settingsKey}
+            zip={form.company_zip}
+            city={form.company_city}
+            onChange={(p) => setMany({ company_zip: p.zip, company_city: p.city, ...(p.country && { company_country: p.country }) })}
+          />
+        </Field>
+        <Field label={t("Country")}>
+          <CountrySelect value={form.company_country} onChange={(v) => set("company_country", v)} />
         </Field>
         <Field label={t("Email")}>
           <Input {...text("company_email")} />
@@ -298,6 +315,14 @@ function InvoicesTab() {
         </Field>
         <div className="md:col-span-2">
           <Toggle checked={form.notify_overdue} onChange={(v) => set("notify_overdue", v)} label={t("Report overdue invoices")} hint={t("Post to the activity feed as soon as an invoice becomes overdue")} />
+        </div>
+        <div className="md:col-span-2">
+          <Toggle
+            checked={form.e_invoice}
+            onChange={(v) => set("e_invoice", v)}
+            label={t("E-invoice (ZUGFeRD)")}
+            hint={t("Embeds the invoice data as EN 16931 XML in every invoice PDF (PDF/A-3), the format for B2B invoices in Germany")}
+          />
         </div>
       </div>
       <SaveBar onSave={save} busy={busy} dirty={dirty} />

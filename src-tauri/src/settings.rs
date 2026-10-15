@@ -18,7 +18,8 @@ pub async fn get_settings(state: &AppState) -> AppResult<Settings> {
     load_settings(&conn)
 }
 
-pub async fn save_settings(state: &AppState, settings: Settings) -> AppResult<Settings> {
+pub async fn save_settings(state: &AppState, mut settings: Settings) -> AppResult<Settings> {
+    settings.company_country = crate::places::parse_country(Some(&settings.company_country))?.unwrap_or_else(|| crate::places::HOME_COUNTRY.into());
     let conn = state.conn()?;
     store_settings(&conn, &settings)?;
     crate::i18n::set_language(&settings.language);

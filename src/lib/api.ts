@@ -6,7 +6,11 @@ export interface Settings {
   company_owner: string;
   company_email: string;
   company_phone: string;
-  company_address: string;
+  company_address_line1: string;
+  company_address_line2: string;
+  company_zip: string;
+  company_city: string;
+  company_country: string;
   company_vat_id: string;
   company_tax_number: string;
   company_iban: string;
@@ -24,6 +28,7 @@ export interface Settings {
   default_vat_rate: number;
   default_payment_terms: number;
   invoice_note: string;
+  e_invoice: boolean;
   notify_overdue: boolean;
   menu_bar_icon: boolean;
   menu_bar_show_time: boolean;
@@ -189,6 +194,7 @@ export interface Customer {
   default_payment_terms?: number | null;
   is_archived?: boolean;
   customer_number?: string | null;
+  leitweg_id?: string | null;
   invoice_count?: number;
   paid_cents?: number;
   open_cents?: number;
@@ -252,6 +258,7 @@ export interface Entry {
   billed: boolean;
   invoice_id: string | null;
   invoice_number: string | null;
+  home_office: boolean;
 }
 
 export interface LineItem {
@@ -512,7 +519,6 @@ export interface TaxInput {
   activity_start: string;
   refund_iban: string;
   church_tax_rate: number;
-  home_office_days_business: number;
   health_status: "family" | "student" | "voluntary" | "private";
   health_insurer: string;
   health_cents: number;
@@ -531,6 +537,16 @@ export interface TaxInput {
   craftsmen_cents: number;
   prepayments_cents: number;
   checklist: string[];
+}
+
+export interface Unit {
+  code: string;
+  label: string;
+}
+
+export interface RenderedPdf {
+  path: string;
+  e_invoice_warning: string | null;
 }
 
 export interface Place {
@@ -595,9 +611,9 @@ export interface TaxReport {
   expenses: { name: string; date: string; category: string; euer_line: string; amount_cents: number; deductible_cents: number }[];
   expenses_by_line: [string, number][];
   expenses_cents: number;
+  home_office_days: number;
   home_office_business_days: number;
   home_office_business_cents: number;
-  suggested_home_office_days: number;
   profit_cents: number;
   employment_gross_cents: number;
   employment_costs_cents: number;
@@ -675,6 +691,7 @@ export const api = {
   saveEntry: (entry: { id?: string; project_id: string; start: string; stop: string; description?: string | null }) =>
     invoke<string>("save_entry", { entry }),
   deleteEntry: (id: string) => invoke<void>("delete_entry", { id }),
+  setHomeOffice: (date: string, applies: boolean) => invoke<void>("set_home_office", { date, applies }),
   exportTimesheet: (from: string, to: string, customerId: string | null, target: string) =>
     invoke<number>("export_timesheet", { from, to, customerId, target }),
   invoiceFromTracker: (projectId: string) => invoke<TrackerInvoiceDraft>("invoice_lines_from_tracker", { projectId }),
@@ -688,9 +705,11 @@ export const api = {
     invoke<Invoice>("set_invoice_status", { id, status, paidAt: paidAt ?? null }),
   deleteInvoice: (id: string) => invoke<void>("delete_invoice", { id }),
   duplicateInvoice: (id: string) => invoke<Invoice>("duplicate_invoice", { id }),
-  renderInvoicePdf: (id: string) => invoke<string>("render_invoice_pdf", { id }),
+  renderInvoicePdf: (id: string) => invoke<RenderedPdf>("render_invoice_pdf", { id }),
+  listUnits: () => invoke<Unit[]>("list_units"),
   renderInvoiceTimesheet: (id: string) => invoke<string | null>("render_invoice_timesheet", { id }),
-  exportInvoicePdf: (id: string, target: string) => invoke<void>("export_invoice_pdf", { id, target }),
+  exportInvoicePdf: (id: string, target: string) => invoke<string | null>("export_invoice_pdf", { id, target }),
+  exportInvoiceXRechnung: (id: string, target: string) => invoke<void>("export_invoice_xrechnung", { id, target }),
 
   latexFiles: () => invoke<LatexFolder>("latex_files"),
   latexRead: (path: string) => invoke<string>("latex_read", { path }),
@@ -721,6 +740,7 @@ export const api = {
   getTaxReport: (year: number) => invoke<TaxReport>("get_tax_report", { year }),
   taxForecast: (year: number) => invoke<Forecast>("tax_forecast", { year }),
   suggestPlaces: (query: string, country?: string) => invoke<Place[]>("suggest_places", { query, country: country ?? null }),
+  listCountries: () => invoke<string[]>("list_countries"),
   saveTaxInput: (year: number, input: TaxInput) => invoke<TaxReport>("save_tax_input", { year, input }),
   defaultTaxParams: (year: number) => invoke<TaxParams>("default_tax_params", { year }),
   taxYears: () => invoke<number[]>("tax_years"),

@@ -1,5 +1,17 @@
 use chrono::{Datelike, Duration, Local, Months, NaiveDate, Utc};
 
+pub fn trimmed(s: &str) -> Option<String> {
+    Some(s.trim()).filter(|s| !s.is_empty()).map(String::from)
+}
+
+pub fn clean(v: &Option<String>) -> Option<String> {
+    v.as_deref().and_then(trimmed)
+}
+
+pub fn amount(cents: i64) -> String {
+    format!("{}{}.{:02}", if cents < 0 { "-" } else { "" }, cents.abs() / 100, cents.abs() % 100)
+}
+
 pub fn new_id() -> String {
     uuid::Uuid::new_v4().to_string()
 }

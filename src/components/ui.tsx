@@ -1161,12 +1161,13 @@ export function Dialog({
 
 interface ToastItem {
   id: number;
-  kind: "success" | "error";
+  kind: "success" | "warn" | "error";
   text: string;
 }
 
-const ToastContext = createContext<{ success: (t: string) => void; error: (t: string) => void }>({
+const ToastContext = createContext<{ success: (t: string) => void; warn: (t: string) => void; error: (t: string) => void }>({
   success: () => {},
+  warn: () => {},
   error: () => {},
 });
 
@@ -1175,21 +1176,21 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const push = useCallback((kind: ToastItem["kind"], text: string) => {
     const id = Date.now() + Math.random();
     setItems((xs) => [...xs, { id, kind, text }]);
-    setTimeout(() => setItems((xs) => xs.filter((x) => x.id !== id)), kind === "error" ? 7000 : 3500);
+    setTimeout(() => setItems((xs) => xs.filter((x) => x.id !== id)), kind === "success" ? 3500 : 7000);
   }, []);
   useEffect(() => {
     const onRejection = (e: PromiseRejectionEvent) => push("error", errorMessage(e.reason));
     window.addEventListener("unhandledrejection", onRejection);
     return () => window.removeEventListener("unhandledrejection", onRejection);
   }, [push]);
-  const value = { success: (t: string) => push("success", t), error: (t: string) => push("error", t) };
+  const value = { success: (t: string) => push("success", t), warn: (t: string) => push("warn", t), error: (t: string) => push("error", t) };
   return (
     <ToastContext.Provider value={value}>
       {children}
       <div className="pointer-events-none fixed right-4 bottom-4 z-[60] flex w-[340px] flex-col gap-2" aria-live="polite">
         {items.map((t) => (
           <div key={t.id} className="anim-toast pointer-events-auto flex items-center gap-2 rounded-lg border border-line bg-panel px-4 py-3 text-[13px] shadow-lg">
-            {t.kind === "success" ? <CheckCircle2 className="size-4 shrink-0 text-pos" /> : <AlertCircle className="size-4 shrink-0 text-neg" />}
+            {t.kind === "success" ? <CheckCircle2 className="size-4 shrink-0 text-pos" /> : <AlertCircle className={cx("size-4 shrink-0", t.kind === "warn" ? "text-warn" : "text-neg")} />}
             <span data-selectable>{t.text}</span>
           </div>
         ))}

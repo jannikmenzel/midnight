@@ -164,21 +164,12 @@ export function TaxReturn({ year }: { year: number }) {
                 <dt className="flex flex-col gap-1">
                   <span className="flex items-center gap-2">
                     {t("Home office")}
-                    <Input
-                      type="number"
-                      min={0}
-                      max={p.home_office_max_days}
-                      value={input.home_office_days_business || ""}
-                      placeholder="0"
-                      aria-label={t("Home office days")}
-                      className="w-20 tabular-nums text-right"
-                      onChange={(e) => update({ home_office_days_business: Math.max(0, Math.round(Number(e.target.value) || 0)) })}
-                    />
-                    <span className="text-muted">{t("days ×")} {money(p.home_office_per_day)}</span>
+                    <span className="text-muted tabular">
+                      {r.home_office_business_days} {t("days ×")} {money(p.home_office_per_day)}
+                    </span>
                   </span>
                   <span className="text-xs text-muted">
-                    {t("At most {n} days", { n: p.home_office_max_days })}
-                    {r.suggested_home_office_days > 0 && t(", {n} working days according to time tracking", { n: r.suggested_home_office_days })}
+                    {t("{n} working days in time tracking, at most {max} count", { n: r.home_office_days, max: p.home_office_max_days })}
                   </span>
                 </dt>
                 <dd className="flex h-8 items-center tabular">− {money(r.home_office_business_cents)}</dd>
