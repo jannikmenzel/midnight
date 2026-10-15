@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-15
+
 ### Added
 
 - E-invoices according to the German standard: invoice PDFs are ZUGFeRD/Factur-X hybrids (PDF/A-3 with embedded EN 16931 XML), and invoices can be saved as XRechnung 3.0 XML
@@ -35,5 +37,6 @@ All notable changes to this project are documented in this file. The format is b
 - English and German interface
 - `midnight-mcp` server exposing the app's features as MCP tools
 
-[Unreleased]: https://github.com/jannikmenzel/midnight/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/jannikmenzel/midnight/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/jannikmenzel/midnight/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/jannikmenzel/midnight/releases/tag/v0.1.0
