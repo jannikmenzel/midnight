@@ -40,10 +40,15 @@ pub struct Outlook {
     pub expected_income_cents: i64,
     pub expected_expense_cents: i64,
     pub income_cents: i64,
+    pub expenses_cents: i64,
+    pub home_office_cents: i64,
     pub profit_cents: i64,
     pub taxable_income_cents: i64,
     pub tax_total_cents: i64,
+    pub withheld_cents: i64,
+    pub prepayments_cents: i64,
     pub balance_cents: i64,
+    pub set_aside_cents: i64,
     pub marginal_rate: f64,
 }
 
@@ -455,10 +460,15 @@ pub fn build(conn: &Connection, year: i32, today: NaiveDate) -> AppResult<Foreca
         expected_income_cents: expected,
         expected_expense_cents: expenses.iter().map(|e| e.amount_cents).sum(),
         income_cents: real.income_cents,
+        expenses_cents: real.expenses_cents,
+        home_office_cents: real.home_office_business_cents,
         profit_cents: real.profit_cents,
         taxable_income_cents: real.taxable_income_cents,
         tax_total_cents: real.tax_total_cents,
+        withheld_cents: real.withheld_cents,
+        prepayments_cents: real.prepayments_cents,
         balance_cents: real.balance_cents,
+        set_aside_cents: if active && year == today.year() && real.balance_cents > 0 { real.balance_cents / (13 - today.month() as i64) } else { 0 },
         marginal_rate: marginal,
     };
     let eur = |c: i64| fmt_money(c, "EUR");
@@ -503,10 +513,6 @@ pub fn build(conn: &Connection, year: i32, today: NaiveDate) -> AppResult<Foreca
         }
         if real.taxable_income_cents > params_for(year).basic_allowance && real.tax_total_cents >= 40_000 {
             warnings.push(ForecastWarning { level: "info", text: tr!("Expect prepayments of about {0} per quarter for {1}.", "Für {1} sind Vorauszahlungen von etwa {0} pro Quartal zu erwarten.", eur(real.tax_total_cents / 4), year + 1) });
-        }
-        if real.balance_cents > 0 && year == today.year() {
-            let months_left = 13 - today.month() as i64;
-            warnings.push(ForecastWarning { level: "info", text: tr!("Set aside {} for the tax, or {} per month until December.", "Lege {} für die Steuer zurück, also {} pro Monat bis Dezember.", eur(real.balance_cents), eur(real.balance_cents / months_left)) });
         }
     }
 
@@ -557,9 +563,12 @@ mod tests {
         assert_eq!(f.outlook.income_cents, 2_388_000);
         assert!(f.outlook.tax_total_cents > compute(&conn, 2026).unwrap().tax_total_cents);
         assert!(f.projects_without_end.is_empty());
+        assert!(f.outlook.balance_cents > 0);
+        assert_eq!(f.outlook.set_aside_cents, f.outlook.balance_cents / 3, "October to December");
 
         let past = build(&conn, 2025, today).unwrap();
         assert!(!past.active && past.items.is_empty());
+        assert_eq!(past.outlook.set_aside_cents, 0);
     }
 
     #[test]
@@ -590,6 +599,9 @@ mod tests {
         let dates: Vec<_> = f.expenses.iter().map(|e| (e.date.as_str(), e.amount_cents)).collect();
         assert_eq!(dates, [("2026-10-20", 10000), ("2026-11-01", 50000), ("2026-11-20", 10000), ("2026-12-01", 50000), ("2026-12-20", 10000)]);
         assert_eq!(f.outlook.expected_expense_cents, 130_000);
+        let o = &f.outlook;
+        assert_eq!(o.booked_income_cents + o.expected_income_cents - o.expenses_cents - o.home_office_cents, o.profit_cents, "breakdown adds up to the profit");
+        assert_eq!(o.tax_total_cents - o.withheld_cents - o.prepayments_cents, o.balance_cents, "breakdown adds up to the balance");
         assert_eq!(before.outlook.profit_cents - f.outlook.profit_cents, 100_000 + 3 * 7_000, "meals count at 70 %");
         assert!(f.outlook.tax_total_cents < before.outlook.tax_total_cents);
         assert_eq!(f.outlook.expected_income_cents, before.outlook.expected_income_cents, "income side is unchanged");

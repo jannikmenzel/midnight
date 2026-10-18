@@ -213,10 +213,12 @@ export default function Tracker() {
   const customers = useAsync(() => api.listCustomers(), []);
   const [calMonth, setCalMonth] = useState(() => todayIso().slice(0, 7));
   const [calDay, setCalDay] = useState(todayIso);
-  const entries = useAsync(() => {
-    const { from, to } = calendarRange(calMonth, settings.week_starts_on_monday);
-    return api.listEntries(null, from, to);
+  const entries = useAsync(async () => {
+    const mondayFirst = settings.week_starts_on_monday;
+    const { from, to } = calendarRange(calMonth, mondayFirst);
+    return { month: calMonth, mondayFirst, list: await api.listEntries(null, from, to) };
   }, [calMonth, settings.week_starts_on_monday]);
+  const calendar = entries.error ? null : entries.data;
   const running = useAsync(() => api.runningTimer(), []);
   const week = useAsync(() => api.weeklyHours(), []);
   const [timerProject, setTimerProject] = useState("");
@@ -232,6 +234,10 @@ export default function Tracker() {
   useEffect(() => {
     if (!timerProject && active[0]) setTimerProject(active[0].id);
   }, [active, timerProject]);
+
+  useEffect(() => {
+    if (entries.error) toast.error(entries.error);
+  }, [entries.error]);
 
   useEffect(() => {
     if (params.open && projects.data) {
@@ -570,24 +576,28 @@ export default function Tracker() {
       )}
 
       <TrackerCalendar
-        month={calMonth}
+        month={calendar?.month ?? calMonth}
         onMonth={setCalMonth}
         selected={calDay}
         onSelect={(day) => {
           setCalDay(day);
           if (!day.startsWith(calMonth)) setCalMonth(day.slice(0, 7));
         }}
-        entries={entries.data ?? []}
+        entries={calendar?.list ?? []}
         onOpenProject={setDetailId}
         onNewEntry={(day) => newEntry(undefined, day)}
         onEditEntry={editEntry}
         onDeleteEntry={deleteEntry}
         onHomeOffice={async (day, applies) => {
-          await api.setHomeOffice(day, applies);
-          entries.reload();
+          try {
+            await api.setHomeOffice(day, applies);
+            entries.reload();
+          } catch (e) {
+            toast.error(errorMessage(e));
+          }
         }}
         canAdd={active.length > 0}
-        mondayFirst={settings.week_starts_on_monday}
+        mondayFirst={calendar?.mondayFirst ?? settings.week_starts_on_monday}
         weeklyLimitHours={settings.weekly_hours_limit}
       />
 

@@ -6,6 +6,14 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+### Added
+
+- The calendar in time tracking can be switched to a list view showing all entries of the month as a table, grouped by day
+
+### Changed
+
+- The forecast in reports is restructured: the expected tax payment with the monthly amount to set aside at the top, followed by two cards that show how the profit and the tax payment come about, and one table for expected income and recurring expenses
+
 ## [0.1.1] - 2026-10-15
 
 ### Added

@@ -7,7 +7,7 @@ import { useApp } from "../lib/nav";
 import { YearCompareChart, type YearSeries } from "../components/YearCompare";
 import { TaxReturn } from "../components/TaxReturn";
 import { TaxForecast } from "../components/TaxForecast";
-import { Card, CategoryDot, DateInput, Empty, Kpi, PageHeader, Select, Skeleton, Tabs, cx } from "../components/ui";
+import { Card, CategoryDot, DateInput, Empty, Kpi, PageHeader, Segmented, Select, Skeleton, Tabs, cx } from "../components/ui";
 import { t } from "../lib/i18n";
 
 const CUSTOMER_LIMIT = 8;
@@ -27,23 +27,6 @@ function cumulative(rows: MonthRow[], year: number, metric: "income" | "profit",
     return sum;
   });
   return { year, values };
-}
-
-function Segmented<T extends string>({ items, value, onChange }: { items: { value: T; label: string }[]; value: T; onChange: (v: T) => void }) {
-  return (
-    <div className="flex rounded-md border border-line p-0.5 text-xs">
-      {items.map((it) => (
-        <button
-          key={it.value}
-          type="button"
-          onClick={() => onChange(it.value)}
-          className={cx("rounded px-2 py-0.5", value === it.value ? "bg-subtle font-medium text-fg" : "text-muted hover:text-fg")}
-        >
-          {it.label}
-        </button>
-      ))}
-    </div>
-  );
 }
 
 function Change({ current, previous, invert = false }: { current: number; previous: number; invert?: boolean }) {

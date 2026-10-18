@@ -995,6 +995,23 @@ export function Tabs<T extends string>({
   );
 }
 
+export function Segmented<T extends string>({ items, value, onChange }: { items: { value: T; label: string }[]; value: T; onChange: (v: T) => void }) {
+  return (
+    <div className="flex rounded-md border border-line p-0.5 text-xs">
+      {items.map((it) => (
+        <button
+          key={it.value}
+          type="button"
+          onClick={() => onChange(it.value)}
+          className={cx("rounded px-2 py-0.5", value === it.value ? "bg-subtle font-medium text-fg" : "text-muted hover:text-fg")}
+        >
+          {it.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function TagInput({ value, onChange, suggestions = [], placeholder = t("Add tag…") }: { value: string[]; onChange: (v: string[]) => void; suggestions?: string[]; placeholder?: string }) {
   const [draft, setDraft] = useState("");
   const add = (raw: string) => {

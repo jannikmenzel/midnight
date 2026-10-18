@@ -582,10 +582,15 @@ export interface ForecastOutlook {
   expected_income_cents: number;
   expected_expense_cents: number;
   income_cents: number;
+  expenses_cents: number;
+  home_office_cents: number;
   profit_cents: number;
   taxable_income_cents: number;
   tax_total_cents: number;
+  withheld_cents: number;
+  prepayments_cents: number;
   balance_cents: number;
+  set_aside_cents: number;
   marginal_rate: number;
 }
 
