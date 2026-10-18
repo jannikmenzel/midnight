@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-18
+
 ### Added
 
 - The calendar in time tracking can be switched to a list view showing all entries of the month as a table, grouped by day
@@ -45,6 +47,7 @@ All notable changes to this project are documented in this file. The format is b
 - English and German interface
 - `midnight-mcp` server exposing the app's features as MCP tools
 
-[Unreleased]: https://github.com/jannikmenzel/midnight/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/jannikmenzel/midnight/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/jannikmenzel/midnight/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/jannikmenzel/midnight/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/jannikmenzel/midnight/releases/tag/v0.1.0
