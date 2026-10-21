@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
-import type { Settings } from "./api";
+import type { Release, Settings } from "./api";
 
 export type Route =
   | "overview"
@@ -38,6 +38,11 @@ export function useApp(): AppContextValue {
 export const TIMER_EVENT = "midnight:timer-changed";
 export function notifyTimerChanged() {
   window.dispatchEvent(new Event(TIMER_EVENT));
+}
+
+export const UPDATE_EVENT = "midnight:update-checked";
+export function notifyUpdateChecked(release: Release | null) {
+  window.dispatchEvent(new CustomEvent(UPDATE_EVENT, { detail: release }));
 }
 
 export function useMenuBarTimerChanged(onChange: () => void) {

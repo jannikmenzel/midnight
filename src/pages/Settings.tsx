@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Copy, FolderOpen, RotateCcw, Trash2 } from "lucide-react";
 import { api, errorMessage, type Limits, type Settings, type TaxOverrides, type TaxParamKey } from "../lib/api";
 import { centsToInput, money, parseMoney } from "../lib/format";
 import { useAsync } from "../lib/hooks";
-import { useApp, type Theme } from "../lib/nav";
+import { notifyUpdateChecked, useApp, type Theme } from "../lib/nav";
 import { Badge, Button, Card, CardBody, CurrencySelect, Dialog, ErrorNote, Field, Input, PageHeader, Section, Select, Tabs, Textarea, Toggle, useToast } from "../components/ui";
 import { isLang, lang, LANGUAGES, setLang, t } from "../lib/i18n";
 import LatexTemplates from "../components/LatexTemplates";
@@ -43,6 +43,36 @@ function useSettingsForm(afterSave?: () => Promise<void>) {
   return { form, set, setMany, text, save, busy, dirty, settings };
 }
 
+function useInstantSettings(afterSave?: () => Promise<void>) {
+  const { settings, reloadSettings } = useApp();
+  const toast = useToast();
+  const [current, setCurrent] = useState<Settings>(settings);
+  const latest = useRef(settings);
+  const pending = useRef(0);
+  useEffect(() => {
+    if (pending.current > 0) return;
+    latest.current = settings;
+    setCurrent(settings);
+  }, [settings]);
+  const update = async (patch: Partial<Settings>) => {
+    const next = { ...latest.current, ...patch };
+    latest.current = next;
+    setCurrent(next);
+    pending.current += 1;
+    try {
+      await api.saveSettings(next);
+      await afterSave?.();
+      if (isLang(next.language) && next.language !== lang()) return setLang(next.language);
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      pending.current -= 1;
+    }
+    if (pending.current === 0) await reloadSettings();
+  };
+  return { settings: current, update };
+}
+
 function SaveBar({ onSave, busy, dirty }: { onSave: () => void; busy: boolean; dirty: boolean }) {
   return (
     <div className="flex justify-end border-t border-line px-4 py-3">
@@ -55,7 +85,7 @@ function SaveBar({ onSave, busy, dirty }: { onSave: () => void; busy: boolean; d
 
 function GeneralTab() {
   const { theme, setTheme } = useApp();
-  const { form, set, save, busy, dirty } = useSettingsForm(() => api.refreshMenuBar());
+  const { settings: form, update } = useInstantSettings(() => api.refreshMenuBar());
   return (
     <div className="flex flex-col gap-4">
       <Card title={t("General")}>
@@ -63,7 +93,7 @@ function GeneralTab() {
           <Section title={t("Appearance")}>
             <div className="grid gap-4 md:grid-cols-2">
               <Field label={t("Language")}>
-                <Select value={form.language} onChange={(e) => set("language", e.target.value)}>
+                <Select value={form.language} onChange={(e) => update({ language: e.target.value })}>
                   {LANGUAGES.map((l) => (
                     <option key={l.value} value={l.value}>
                       {l.label}
@@ -84,30 +114,66 @@ function GeneralTab() {
             <Section title={t("Menu bar")}>
               <Toggle
                 checked={form.menu_bar_icon}
-                onChange={(v) => set("menu_bar_icon", v)}
+                onChange={(v) => update({ menu_bar_icon: v })}
                 label={t("Show icon in the menu bar")}
                 hint={t("Start and stop time tracking for a project right from the menu bar")}
               />
               <Toggle
                 checked={form.menu_bar_show_time}
-                onChange={(v) => set("menu_bar_show_time", v)}
+                onChange={(v) => update({ menu_bar_show_time: v })}
                 label={t("Show running time next to the icon")}
                 hint={t("Shows how long the current timer has been running")}
               />
               <Toggle
                 checked={form.menu_bar_keep_running}
-                onChange={(v) => set("menu_bar_keep_running", v)}
+                onChange={(v) => update({ menu_bar_keep_running: v })}
                 label={t("Keep running when the window is closed")}
                 hint={t("Closing the window only hides it. Quit with ⌘Q or from the menu bar.")}
               />
             </Section>
           )}
         </div>
-        <SaveBar onSave={save} busy={busy} dirty={dirty} />
       </Card>
       <AutostartCard menuBar={IS_MAC && form.menu_bar_icon} />
+      <UpdatesCard checkUpdates={form.check_updates} onCheckUpdates={(v) => update({ check_updates: v })} />
       <McpCard />
     </div>
+  );
+}
+
+function UpdatesCard({ checkUpdates, onCheckUpdates }: { checkUpdates: boolean; onCheckUpdates: (v: boolean) => void }) {
+  const toast = useToast();
+  const status = useAsync(() => api.updateStatus(), []);
+  const [checking, setChecking] = useState(false);
+  const s = status.data;
+  const check = async () => {
+    setChecking(true);
+    try {
+      const release = await api.checkUpdate();
+      notifyUpdateChecked(release);
+      if (!release) toast.success(t("Midnight is up to date"));
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setChecking(false);
+    }
+  };
+  return (
+    <Card title={t("Updates")} actions={s && <Badge>{t("Version {current}", { current: s.current })}</Badge>}>
+      <CardBody>
+        <Toggle
+          checked={checkUpdates}
+          onChange={onCheckUpdates}
+          label={t("Check for updates automatically")}
+          hint={t("Checks GitHub for new releases at startup and every six hours")}
+        />
+        <div>
+          <Button loading={checking} onClick={check}>
+            {t("Check now")}
+          </Button>
+        </div>
+      </CardBody>
+    </Card>
   );
 }
 

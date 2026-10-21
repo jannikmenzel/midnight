@@ -65,6 +65,9 @@ and click **Open Anyway**, or remove the quarantine flag:
 xattr -dr com.apple.quarantine /Applications/Midnight.app
 ```
 
+Midnight checks GitHub Releases for new versions and offers to install them. The check can be turned off in
+**Settings / General / Updates**.
+
 **Required for PDFs:** install [MacTeX](https://www.tug.org/mactex/) (or TeX Live). Invoices and timesheets are
 typeset with LaTeX (`xelatex`); without it, no PDFs can be created.
 
@@ -81,7 +84,10 @@ cd src-tauri && cargo test
 ```
 
 Releases are built by GitHub Actions when a `v*` tag is pushed (`.github/workflows/release.yml`) and published as a
-draft release.
+draft release. The workflow signs the update archive and needs the repository secret `TAURI_SIGNING_PRIVATE_KEY`, plus
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if the key has a password. Installed apps pick up an update once the draft is published.
+In development, `MIDNIGHT_FAKE_UPDATE=0.2.0 npm run tauri dev` offers a fake version at startup and on **Check now** instead
+of asking GitHub.
 
 The database schema lives in `src-tauri/migrations/`. New schema changes go into an additional, sequentially numbered
 file and are registered in `MIGRATIONS` in `src-tauri/src/db.rs`.

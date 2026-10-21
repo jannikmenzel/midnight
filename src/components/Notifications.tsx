@@ -4,6 +4,7 @@ import { api, type Activity } from "../lib/api";
 import { relativeTime } from "../lib/format";
 import { Button, cx, Sheet } from "./ui";
 import { t } from "../lib/i18n";
+import { UpdateItem, type UpdateState } from "./Update";
 
 export function useNotifications() {
   const [open, setOpen] = useState(false);
@@ -33,24 +34,24 @@ export function useNotifications() {
 
 type NotificationsState = ReturnType<typeof useNotifications>;
 
-export function NotificationsButton({ state }: { state: NotificationsState }) {
+export function NotificationsButton({ state, update }: { state: NotificationsState; update: UpdateState }) {
   const { open, setOpen, unread } = state;
   return (
     <button
       type="button"
       onClick={() => setOpen(!open)}
       aria-expanded={open}
-      aria-label={unread ? t("Notifications ({n} new)", { n: unread }) : t("Notifications")}
+      aria-label={unread ? t("Notifications ({n} new)", { n: unread }) : update.available ? t("Notifications (update available)") : t("Notifications")}
       title={t("Notifications")}
       className={cx("relative inline-flex size-8 items-center justify-center rounded-md hover:bg-subtle hover:text-fg", open ? "bg-subtle text-fg" : "text-muted")}
     >
       <Bell className="size-4" />
-      {unread > 0 && <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-neg" />}
+      {(unread > 0 || update.available) && <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-neg" />}
     </button>
   );
 }
 
-export function NotificationsPanel({ state }: { state: NotificationsState }) {
+export function NotificationsPanel({ state, update }: { state: NotificationsState; update: UpdateState }) {
   const { open, setOpen, items, clear } = state;
   return (
     <Sheet
@@ -66,7 +67,8 @@ export function NotificationsPanel({ state }: { state: NotificationsState }) {
       }
     >
       <ul className="-m-4">
-        {items.length === 0 && <li className="px-4 py-8 text-center text-[13px] text-muted">{t("Nothing has happened yet.")}</li>}
+        <UpdateItem update={update} />
+        {items.length === 0 && !update.available && <li className="px-4 py-8 text-center text-[13px] text-muted">{t("Nothing has happened yet.")}</li>}
         {items.map((a) => (
           <li key={a.id} className={cx("flex gap-3 border-b border-line px-4 py-2.5", !a.read && "bg-subtle")}>
             <span className={cx("mt-1.5 size-1.5 shrink-0 rounded-full", a.read ? "bg-line" : "bg-info")} />

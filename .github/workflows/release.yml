@@ -12,21 +12,29 @@ jobs:
     name: Create release
     runs-on: ubuntu-latest
     outputs:
-      release_id: ${{ steps.release.outputs.result }}
+      release_id: ${{ steps.release.outputs.id }}
+      notes: ${{ steps.release.outputs.notes }}
     steps:
+      - uses: actions/checkout@v5
+
       - id: release
         uses: actions/github-script@v8
         with:
           script: |
+            const tag = context.ref.replace('refs/tags/', '')
+            const changelog = require('fs').readFileSync('CHANGELOG.md', 'utf8')
+            const section = changelog.split('\n## ').find((s) => s.startsWith(`[${tag.replace(/^v/, '')}]`))
+            const notes = section ? section.slice(section.indexOf('\n') + 1).trim() : ''
             const { data } = await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              tag_name: context.ref.replace('refs/tags/', ''),
-              name: `Midnight ${context.ref.replace('refs/tags/', '')}`,
-              body: `See [CHANGELOG.md](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/CHANGELOG.md) for details.`,
+              tag_name: tag,
+              name: `Midnight ${tag}`,
+              body: notes || `See [CHANGELOG.md](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/CHANGELOG.md) for details.`,
               draft: true,
             })
-            return data.id
+            core.setOutput('id', data.id)
+            core.setOutput('notes', notes)
 
   build:
     name: Build (${{ matrix.target }})
@@ -64,12 +72,15 @@ jobs:
       - name: Generate third-party notices
         run: |
           scripts/third_party_notices.sh "$RUNNER_TEMP/THIRD_PARTY_NOTICES.txt"
-          printf '{"bundle":{"resources":{"%s":"THIRD_PARTY_NOTICES.txt"}}}' "$RUNNER_TEMP/THIRD_PARTY_NOTICES.txt" > "$RUNNER_TEMP/notices.conf.json"
+          printf '{"bundle":{"createUpdaterArtifacts":true,"resources":{"%s":"THIRD_PARTY_NOTICES.txt"}}}' "$RUNNER_TEMP/THIRD_PARTY_NOTICES.txt" > "$RUNNER_TEMP/notices.conf.json"
 
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_BUNDLER_DMG_IGNORE_CI: "true"
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
+          releaseBody: ${{ needs.create-release.outputs.notes }}
           args: --target ${{ matrix.target }} --config ${{ runner.temp }}/notices.conf.json

@@ -28,6 +28,7 @@ mod templates;
 mod tracker;
 mod tray;
 mod units;
+mod updater;
 mod util;
 mod vat;
 mod vault;
@@ -118,6 +119,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec![desktop::BACKGROUND_ARG]),
@@ -138,6 +140,8 @@ pub fn run() {
                 app.set_menu(app_menu(app.handle())?)?;
             }
             app.manage(state);
+            app.manage(updater::UpdateState::default());
+            updater::spawn(app.handle().clone());
             let args: Vec<String> = std::env::args().collect();
             if desktop::starts_in_background(&args, &settings) {
                 #[cfg(target_os = "macos")]
@@ -188,6 +192,9 @@ pub fn run() {
             desktop::quit_app,
             desktop::autostart_enabled,
             desktop::set_autostart,
+            updater::update_status,
+            updater::check_update,
+            updater::install_update,
             files::open_path,
             files::reveal_data_dir,
             files::reveal_latex_dir,

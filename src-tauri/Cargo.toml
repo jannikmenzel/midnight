@@ -34,8 +34,9 @@ lopdf = { version = "0.34", default-features = false, features = ["nom_parser"] 
 quick-xml = "0.42"
 thiserror = "1"
 schemars = "1"
-tokio = { version = "1", features = ["rt"] }
+tokio = { version = "1", features = ["rt", "sync"] }
 tauri-plugin-autostart = "2"
+tauri-plugin-updater = "2"
 
 [dev-dependencies]
 tempfile = "3"

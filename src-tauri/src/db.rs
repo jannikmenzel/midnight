@@ -182,6 +182,7 @@ pub struct Settings {
     pub menu_bar_icon: bool,
     pub menu_bar_show_time: bool,
     pub menu_bar_keep_running: bool,
+    pub check_updates: bool,
     pub weekly_hours_limit: f64,
     pub limits: Limits,
     pub tax_overrides: BTreeMap<i32, crate::tax::ParamOverrides>,
@@ -237,6 +238,7 @@ impl Default for Settings {
             menu_bar_icon: true,
             menu_bar_show_time: true,
             menu_bar_keep_running: true,
+            check_updates: true,
             weekly_hours_limit: 0.0,
             limits: Limits::default(),
             tax_overrides: BTreeMap::new(),
@@ -296,6 +298,7 @@ mod tests {
         assert_eq!(s.company_name, "Alt GmbH");
         assert!(s.menu_bar_icon && s.menu_bar_show_time && s.menu_bar_keep_running);
         assert!(s.e_invoice, "e-invoicing is on for settings saved before it existed");
+        assert!(s.check_updates, "update checks are on for settings saved before they existed");
     }
 
     #[test]

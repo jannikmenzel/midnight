@@ -13,10 +13,11 @@ import {
 import { api, type Entry, type Settings } from "./lib/api";
 import { clock } from "./lib/format";
 import { useTick } from "./lib/hooks";
-import { AppContext, TIMER_EVENT, useMenuBarTimerChanged, type Route, type RouteParams, type Theme } from "./lib/nav";
+import { AppContext, TIMER_EVENT, UPDATE_EVENT, useMenuBarTimerChanged, type Route, type RouteParams, type Theme } from "./lib/nav";
 import { cx } from "./components/ui";
 import { CommandPalette } from "./components/CommandPalette";
 import { NotificationsButton, NotificationsPanel, useNotifications } from "./components/Notifications";
+import { UpdateHint, useUpdate } from "./components/Update";
 import Overview from "./pages/Overview";
 import Ledger from "./pages/Ledger";
 import Categories from "./pages/Categories";
@@ -99,6 +100,8 @@ export default function App() {
   const [systemDark, setSystemDark] = useState(() => window.matchMedia(DARK_QUERY).matches);
   const mainRef = useRef<HTMLElement>(null);
   const notifications = useNotifications();
+  const update = useUpdate();
+  const { setOpen: setNotificationsOpen } = notifications;
   const dark = theme === "dark" || (theme === "system" && systemDark);
 
   const reloadSettings = useCallback(async () => {
@@ -164,6 +167,12 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  useEffect(() => {
+    const open = (e: Event) => (e as CustomEvent<unknown>).detail && setNotificationsOpen(true);
+    window.addEventListener(UPDATE_EVENT, open);
+    return () => window.removeEventListener(UPDATE_EVENT, open);
+  }, [setNotificationsOpen]);
+
   const go = useCallback((r: Route, p: RouteParams = {}) => {
     setRoute(r);
     setParams(p);
@@ -228,6 +237,7 @@ export default function App() {
             })}
           </nav>
           <RunningTimerChip onOpen={() => go("tracker")} />
+          <UpdateHint update={update} onOpen={() => setNotificationsOpen(true)} />
           <div className="border-t border-line p-2">
             <button
               type="button"
@@ -255,7 +265,7 @@ export default function App() {
               <kbd className="ml-auto rounded border border-line px-1 text-[11px]">⌘K</kbd>
             </button>
             <div className="ml-auto flex items-center gap-1">
-              <NotificationsButton state={notifications} />
+              <NotificationsButton state={notifications} update={update} />
             </div>
           </header>
           <main ref={mainRef} className="min-h-0 flex-1 overflow-y-scroll">
@@ -265,7 +275,7 @@ export default function App() {
           </main>
         </div>
       </div>
-      <NotificationsPanel state={notifications} />
+      <NotificationsPanel state={notifications} update={update} />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </AppContext.Provider>
   );

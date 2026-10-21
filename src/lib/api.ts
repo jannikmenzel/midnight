@@ -33,9 +33,20 @@ export interface Settings {
   menu_bar_icon: boolean;
   menu_bar_show_time: boolean;
   menu_bar_keep_running: boolean;
+  check_updates: boolean;
   weekly_hours_limit: number;
   limits: Limits;
   tax_overrides: Record<string, TaxOverrides>;
+}
+
+export interface Release {
+  version: string;
+  notes: { title: string; items: string[] }[];
+}
+
+export interface UpdateStatus {
+  current: string;
+  available: Release | null;
 }
 
 export interface McpSetup {
@@ -660,6 +671,9 @@ export const api = {
   quitApp: () => invoke<void>("quit_app"),
   autostartEnabled: () => invoke<boolean>("autostart_enabled"),
   setAutostart: (enabled: boolean) => invoke<boolean>("set_autostart", { enabled }),
+  updateStatus: () => invoke<UpdateStatus>("update_status"),
+  checkUpdate: () => invoke<Release | null>("check_update"),
+  installUpdate: () => invoke<void>("install_update"),
   mcpSetup: () => invoke<McpSetup>("mcp_setup"),
   mcpInstallClaudeDesktop: () => invoke<void>("mcp_install_claude_desktop"),
   openPath: (path: string) => invoke<void>("open_path", { path }),
