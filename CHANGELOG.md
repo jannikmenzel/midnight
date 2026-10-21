@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-10-21
+
 ### Added
 
 - Update notifications: Midnight checks GitHub Releases at startup and every six hours and shows what is new in the notifications, from where the update is installed with one click
@@ -51,7 +53,8 @@ All notable changes to this project are documented in this file. The format is b
 - English and German interface
 - `midnight-mcp` server exposing the app's features as MCP tools
 
-[Unreleased]: https://github.com/jannikmenzel/midnight/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/jannikmenzel/midnight/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/jannikmenzel/midnight/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/jannikmenzel/midnight/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/jannikmenzel/midnight/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/jannikmenzel/midnight/releases/tag/v0.1.0
