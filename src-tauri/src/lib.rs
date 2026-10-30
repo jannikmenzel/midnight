@@ -24,6 +24,7 @@ mod schedule;
 mod search;
 mod settings;
 mod tax;
+mod tax_export;
 mod templates;
 mod tracker;
 mod tray;
@@ -231,6 +232,7 @@ pub fn run() {
             commands::default_tax_params,
             commands::tax_years,
             commands::save_tax_input,
+            commands::export_tax_year,
             commands::list_invoices,
             commands::get_invoice,
             commands::next_invoice_number,

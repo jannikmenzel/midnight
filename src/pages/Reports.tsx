@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight } from "lucide-react";
-import { api, type Analysis, type MonthRow } from "../lib/api";
+import { ChevronRight, Download } from "lucide-react";
+import { save as saveDialog } from "@tauri-apps/plugin-dialog";
+import { api, errorMessage, type Analysis, type MonthRow } from "../lib/api";
 import { duration, money, MONTHS_SHORT, PERIODS, pctChange, periodRange, type PeriodKey } from "../lib/format";
 import { useAsync } from "../lib/hooks";
 import { useApp } from "../lib/nav";
 import { YearCompareChart, type YearSeries } from "../components/YearCompare";
 import { TaxReturn } from "../components/TaxReturn";
 import { TaxForecast } from "../components/TaxForecast";
-import { Card, CategoryDot, DateInput, Empty, Kpi, PageHeader, Segmented, Select, Skeleton, Tabs, cx } from "../components/ui";
+import { Button, Card, CategoryDot, DateInput, Empty, Kpi, PageHeader, Segmented, Select, Skeleton, Tabs, cx, useToast } from "../components/ui";
 import { t } from "../lib/i18n";
 
 const CUSTOMER_LIMIT = 8;
@@ -330,6 +331,8 @@ function Highlights({ data, currency, onFixedCosts }: { data: Analysis; currency
 
 export default function Reports() {
   const { settings, go, params } = useApp();
+  const toast = useToast();
+  const [exporting, setExporting] = useState(false);
   const [period, setPeriod] = useState<PeriodKey | "custom">("this_year");
   const [custom, setCustom] = useState(periodRange("this_year"));
   const [view, setView] = useState<"analysis" | "tax" | "forecast">(params.view === "tax" || params.view === "forecast" ? params.view : "analysis");
@@ -351,6 +354,25 @@ export default function Reports() {
   const compareYear = useMemo(() => Math.min(new Date().getFullYear(), Number(range.to.slice(0, 4))), [range.to]);
   const a = analysis.data;
 
+  const exportTax = async () => {
+    const path = await saveDialog({ defaultPath: `${t("Tax {year}", { year: taxYear })}.zip`, filters: [{ name: "ZIP", extensions: ["zip"] }] });
+    if (!path) return;
+    setExporting(true);
+    try {
+      const r = await api.exportTaxYear(taxYear, path);
+      toast.success(t("{invoices} invoices and {receipts} receipts exported", { invoices: r.invoices, receipts: r.receipts }));
+      const missing = [
+        r.missing_receipts > 0 && t("{n} expenses without receipt", { n: r.missing_receipts }),
+        r.missing_invoices > 0 && t("{n} invoices without PDF", { n: r.missing_invoices }),
+      ].filter(Boolean);
+      if (missing.length) toast.warn(missing.join(", "));
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
@@ -364,18 +386,25 @@ export default function Reports() {
         }
         actions={
           view !== "analysis" ? (
-            <Select
-              value={view === "tax" ? taxYear : forecastYear}
-              onChange={(e) => (view === "tax" ? setTaxYear : setForecastYear)(Number(e.target.value))}
-              className="w-28"
-              aria-label={t("Tax year")}
-            >
-              {(view === "tax" ? taxYears : forecastYears).map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </Select>
+            <div className="flex items-center gap-2">
+              {view === "tax" && (
+                <Button icon={<Download className="size-3.5" />} onClick={exportTax} loading={exporting}>
+                  {t("Export")}
+                </Button>
+              )}
+              <Select
+                value={view === "tax" ? taxYear : forecastYear}
+                onChange={(e) => (view === "tax" ? setTaxYear : setForecastYear)(Number(e.target.value))}
+                className="w-28"
+                aria-label={t("Tax year")}
+              >
+                {(view === "tax" ? taxYears : forecastYears).map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </Select>
+            </div>
           ) : (
             <div className="flex items-center gap-2">
               {period === "custom" && (

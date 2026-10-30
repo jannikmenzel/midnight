@@ -2318,6 +2318,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "uuid",
+ "zip",
 ]
 
 [[package]]
@@ -5848,7 +5849,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "caa8cd6af31c3b31c6631b8f483848b91589021b28fffe50adada48d4f4d2ed1"
 dependencies = [
  "arbitrary",
+ "chrono",
  "crc32fast",
+ "flate2",
  "indexmap 2.14.2",
  "memchr",
 ]

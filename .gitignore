@@ -10,3 +10,4 @@ src-tauri/gen/
 THIRD_PARTY_NOTICES.txt
 .idea/
 .vscode/
+/docs/wiki/

@@ -263,6 +263,8 @@ pub struct IncomeRow {
 
 #[derive(Debug, Serialize)]
 pub struct ExpenseRow {
+    #[serde(skip)]
+    pub id: String,
     pub name: String,
     pub date: String,
     pub category: String,
@@ -378,7 +380,7 @@ pub fn compute_with(conn: &Connection, year: i32, adj: &Adjust) -> AppResult<Tax
     let income_cents: i64 = income.iter().map(|i| i.amount_cents).sum();
 
     let mut stmt = conn.prepare(
-        "SELECT e.name, e.date, c.name, e.category_slug, e.amount_cents
+        "SELECT e.name, e.date, c.name, e.category_slug, e.amount_cents, e.id
          FROM expenses e LEFT JOIN categories c ON c.slug = e.category_slug WHERE e.date BETWEEN ?1 AND ?2 ORDER BY e.date",
     )?;
     let expenses: Vec<ExpenseRow> = stmt
@@ -386,7 +388,7 @@ pub fn compute_with(conn: &Connection, year: i32, adj: &Adjust) -> AppResult<Tax
             let slug: Option<String> = r.get(3)?;
             let amount: i64 = r.get(4)?;
             let deductible = if slug.as_deref() == Some("meals") { (amount as f64 * limits.meals_deductible_percent as f64 / 100.0).round() as i64 } else { amount };
-            Ok(ExpenseRow { name: r.get(0)?, date: r.get(1)?, category: r.get::<_, Option<String>>(2)?.unwrap_or_else(|| tr!("Uncategorised", "Ohne Kategorie")), euer_line: euer_line(slug.as_deref()).into(), amount_cents: amount, deductible_cents: deductible })
+            Ok(ExpenseRow { id: r.get(5)?, name: r.get(0)?, date: r.get(1)?, category: r.get::<_, Option<String>>(2)?.unwrap_or_else(|| tr!("Uncategorised", "Ohne Kategorie")), euer_line: euer_line(slug.as_deref()).into(), amount_cents: amount, deductible_cents: deductible })
         })?
         .collect::<Result<_, _>>()?;
     let mut by_line: BTreeMap<String, i64> = BTreeMap::new();

@@ -618,6 +618,13 @@ export interface Forecast {
   weekly_hours_limit: number;
 }
 
+export interface TaxExport {
+  invoices: number;
+  receipts: number;
+  missing_invoices: number;
+  missing_receipts: number;
+}
+
 export interface TaxReport {
   year: number;
   params: TaxParams;
@@ -761,6 +768,7 @@ export const api = {
   suggestPlaces: (query: string, country?: string) => invoke<Place[]>("suggest_places", { query, country: country ?? null }),
   listCountries: () => invoke<string[]>("list_countries"),
   saveTaxInput: (year: number, input: TaxInput) => invoke<TaxReport>("save_tax_input", { year, input }),
+  exportTaxYear: (year: number, path: string) => invoke<TaxExport>("export_tax_year", { year, path }),
   defaultTaxParams: (year: number) => invoke<TaxParams>("default_tax_params", { year }),
   taxYears: () => invoke<number[]>("tax_years"),
 

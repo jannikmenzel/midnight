@@ -133,7 +133,7 @@ pub async fn list_ledger(state: &AppState, filter: LedgerFilter) -> AppResult<Le
     query_ledger(&conn, &filter)
 }
 
-fn csv_amount(cents: i64) -> String {
+pub fn csv_amount(cents: i64) -> String {
     let sep = if crate::i18n::is_de() { ',' } else { '.' };
     format!("{}{}{sep}{:02}", if cents < 0 { "-" } else { "" }, cents.unsigned_abs() / 100, cents.unsigned_abs() % 100)
 }

@@ -37,7 +37,7 @@
 | Time tracking | Projects with hourly rate, budget or fixed price, timer, manual entries, billing unbilled time as a draft invoice, timesheet export |
 | Vault | Document storage with document type, customer and tags, full-text search in PDF text |
 | Reports | Monthly trend, margin, categories, forecast for the next three months |
-| Tax | Annual income tax estimate: self-employment, employment, home office allowance, volunteering, health insurance, special expenses, hints on deadlines and limits |
+| Tax | Annual income tax estimate: self-employment, employment, home office allowance, volunteering, health insurance, special expenses, hints on deadlines and limits, ZIP export with profit statement, lists, invoices and receipts |
 | Other | ⌘K search, notifications, background jobs every 15 minutes, light and dark theme, English and German UI |
 
 ## Screenshots

@@ -6,6 +6,10 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+### Added
+
+- Export for tax return: one ZIP per year with EÜR summary, income and expense lists as CSV, all invoice PDFs and receipts
+
 ## [0.1.3] - 2026-10-21
 
 ### Added

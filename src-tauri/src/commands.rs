@@ -16,6 +16,7 @@ use crate::expense_recurring::{ExpenseRecurring, ExpenseRecurringCreated, Expens
 use crate::reports::{Analysis, MonthRow, ShareRow, Summary};
 use crate::search::SearchHit;
 use crate::tax::{Params, TaxInput, TaxReport};
+use crate::tax_export::TaxExport;
 use crate::templates::LatexFolder;
 use crate::tracker::{Entry, EntryInput, Project, ProjectInput, TrackerInvoiceDraft, WeeklyHours};
 use crate::vault::{Document, DocumentUpdate, TagInfo};
@@ -181,6 +182,7 @@ commands! {
     #[stateless] read tax::default_tax_params(year: i32) -> Params, "Returns the built-in tax allowances for a year (without overrides from the settings).";
     #[stateless] read tax::tax_years() -> Vec<i32>, "Lists the years with built-in tax parameters, newest first.";
     write tax::save_tax_input(year: i32, input: TaxInput) -> TaxReport, "Saves the complete manual tax inputs for a year. Read get_tax_report first and adjust its input.";
+    write tax_export::export_tax_year(year: i32, path: String) -> TaxExport, "Exports the documents for a year's tax return as a ZIP to an absolute file path: profit statement (EÜR), income and expense lists as CSV, invoice PDFs and receipts. Returns counts, including invoices without PDF and expenses without receipt.";
 
     read invoices::list_invoices(filter: InvoiceFilter) -> InvoiceList, "Lists invoices with filters and totals per status.";
     read invoices::get_invoice(id: String) -> Invoice, "Reads an invoice.";

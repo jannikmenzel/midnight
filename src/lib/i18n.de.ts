@@ -725,4 +725,8 @@ export const de = {
   "Synced with invoice {number}": "Synchronisiert mit Rechnung {number}",
   "Synced with expense \"{name}\"": "Synchronisiert mit Ausgabe „{name}“",
   "Go to source": "Zur Quelle",
+  "Tax {year}": "Steuer {year}",
+  "{invoices} invoices and {receipts} receipts exported": "{invoices} Rechnungen und {receipts} Belege exportiert",
+  "{n} expenses without receipt": "{n} Ausgaben ohne Beleg",
+  "{n} invoices without PDF": "{n} Rechnungen ohne PDF",
 } satisfies Record<string, string>;
