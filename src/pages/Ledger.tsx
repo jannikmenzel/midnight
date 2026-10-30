@@ -5,7 +5,7 @@ import { api, errorMessage, type Category, type ExpenseRecurring, type LedgerFil
 import { centsToInput, date, FREQUENCY_LABELS, money, parseMoney, todayIso } from "../lib/format";
 import { useAsync, useDebounced, useFileDrop } from "../lib/hooks";
 import { useApp } from "../lib/nav";
-import { Amount, Badge, Button, Card, CategoryBadge, Checkbox, DateInput, Empty, ErrorNote, Field, IconButton, Input, Kpi, PageHeader, PickSelect, Select, Sheet, Skeleton, Tabs, Textarea, cx, useToast, type PickOption } from "../components/ui";
+import { Amount, Badge, Button, Card, CategoryBadge, Checkbox, DateInput, Empty, ErrorNote, Field, IconButton, Input, Kpi, PageHeader, PercentInput, PickSelect, Select, Sheet, Skeleton, Tabs, Textarea, cx, useToast, type PickOption } from "../components/ui";
 import { t } from "../lib/i18n";
 
 const PAGE = 300;
@@ -39,11 +39,12 @@ interface Draft {
   name: string;
   amount: string;
   category: string;
+  deductible: string;
   description: string;
   note: string;
 }
 
-const emptyDraft = (): Draft => ({ date: todayIso(), name: "", amount: "", category: "", description: "", note: "" });
+const emptyDraft = (): Draft => ({ date: todayIso(), name: "", amount: "", category: "", deductible: "100", description: "", note: "" });
 
 type SheetTarget = { id: string } | { draft: Draft; files: string[] };
 
@@ -123,6 +124,7 @@ function ExpenseSheet({
   onSaved: () => void;
   onShowSeries: () => void;
 }) {
+  const { settings } = useApp();
   const toast = useToast();
   const [draft, setDraft] = useState<Draft>(emptyDraft());
   const [receipts, setReceipts] = useState<Receipt[]>([]);
@@ -145,7 +147,7 @@ function ExpenseSheet({
       api
         .getExpense(target.id)
         .then((e) => {
-          setDraft({ date: e.date, name: e.name, amount: centsToInput(e.amount_cents), category: e.category_slug ?? "", description: e.description ?? "", note: e.note ?? "" });
+          setDraft({ date: e.date, name: e.name, amount: centsToInput(e.amount_cents), category: e.category_slug ?? "", deductible: String(e.deductible_percent), description: e.description ?? "", note: e.note ?? "" });
           setSeriesId(e.expense_recurring_id);
         })
         .catch((e) => setError(errorMessage(e)));
@@ -158,6 +160,9 @@ function ExpenseSheet({
   }, [target]);
 
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setDraft((d) => ({ ...d, [k]: v }));
+  const suggestedShare = (category: string) => String(category === "meals" ? settings.limits.meals_deductible_percent : 100);
+  const setCategory = (category: string) =>
+    setDraft((d) => ({ ...d, category, deductible: d.deductible === suggestedShare(d.category) ? suggestedShare(category) : d.deductible }));
 
   const attach = async () => {
     const files = await openDialog({ multiple: true, filters: RECEIPT_TYPES });
@@ -175,6 +180,8 @@ function ExpenseSheet({
   const save = async () => {
     const cents = parseMoney(draft.amount);
     if (cents === null || cents <= 0) return setError(t("Please enter an amount greater than 0."));
+    const percent = Number(draft.deductible);
+    if (draft.deductible.trim() === "" || !Number.isInteger(percent) || percent < 0 || percent > 100) return setError(t("Please enter a deductible share from 0 to 100."));
     setBusy(true);
     setError(null);
     try {
@@ -184,6 +191,7 @@ function ExpenseSheet({
         name: draft.name,
         amount_cents: cents,
         category_slug: draft.category || null,
+        deductible_percent: percent,
         description: draft.description || null,
         note: draft.note || null,
       });
@@ -257,9 +265,14 @@ function ExpenseSheet({
             <Input value={draft.amount} onChange={(e) => set("amount", e.target.value)} placeholder={centsToInput(0)} className="tabular-nums" />
           </Field>
         </div>
-        <Field label={t("Category")}>
-          <CategorySelect categories={categories} value={draft.category} onChange={(v) => set("category", v)} />
-        </Field>
+        <div className="grid grid-cols-[1fr_6rem] gap-4">
+          <Field label={t("Category")}>
+            <CategorySelect categories={categories} value={draft.category} onChange={setCategory} />
+          </Field>
+          <Field label={t("Deductible")}>
+            <PercentInput value={draft.deductible} onChange={(v) => set("deductible", v)} />
+          </Field>
+        </div>
         {seriesId ? (
           <div className="flex items-center gap-2 rounded-md bg-subtle px-3 py-2 text-xs">
             <Repeat className="size-3.5 shrink-0 text-muted" />

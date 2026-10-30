@@ -394,11 +394,10 @@ fn rows_for(items: &[ForecastItem]) -> Vec<IncomeRow> {
 }
 
 fn expected_expenses(conn: &Connection, year: i32, today: NaiveDate, horizon: NaiveDate) -> AppResult<(Vec<ForecastItem>, i64)> {
-    let meals_percent = load_settings(conn)?.limits.meals_deductible_percent;
     let mut deductible = 0;
     let mut items = Vec::new();
     for e in crate::expense_recurring::expected(conn, today, horizon)?.into_iter().filter(|e| e.date.year() == year) {
-        deductible += if e.category_slug.as_deref() == Some("meals") { (e.amount_cents as f64 * meals_percent as f64 / 100.0).round() as i64 } else { e.amount_cents };
+        deductible += crate::tax::deductible_cents(e.amount_cents, e.deductible_percent);
         let category: Option<String> = match &e.category_slug {
             Some(slug) => conn.query_row("SELECT name FROM categories WHERE slug = ?1", params![slug], |r| r.get(0)).ok(),
             None => None,
@@ -577,9 +576,9 @@ mod tests {
         conn.execute_batch(
             "INSERT INTO invoices (id, invoice_number, customer_name, status, issue_date, due_date, amount_cents, paid_at) VALUES
                ('a', 'INV-1', 'Acme', 'paid', '2026-03-01', '2026-03-15', 6000000, '2026-03-10');
-             INSERT INTO expenses (id, date, name, amount_cents, category_slug) VALUES
-               ('rent', '2026-09-01', 'Büro', 50000, NULL),
-               ('lunch', '2026-09-20', 'Kundenessen', 10000, 'meals');",
+             INSERT INTO expenses (id, date, name, amount_cents, category_slug, deductible_percent) VALUES
+               ('rent', '2026-09-01', 'Büro', 50000, NULL, 50),
+               ('lunch', '2026-09-20', 'Kundenessen', 10000, 'meals', 70);",
         )
         .unwrap();
         let today = NaiveDate::from_ymd_opt(2026, 10, 5).unwrap();
@@ -602,7 +601,7 @@ mod tests {
         let o = &f.outlook;
         assert_eq!(o.booked_income_cents + o.expected_income_cents - o.expenses_cents - o.home_office_cents, o.profit_cents, "breakdown adds up to the profit");
         assert_eq!(o.tax_total_cents - o.withheld_cents - o.prepayments_cents, o.balance_cents, "breakdown adds up to the balance");
-        assert_eq!(before.outlook.profit_cents - f.outlook.profit_cents, 100_000 + 3 * 7_000, "meals count at 70 %");
+        assert_eq!(before.outlook.profit_cents - f.outlook.profit_cents, 2 * 25_000 + 3 * 7_000, "each series counts at its own share");
         assert!(f.outlook.tax_total_cents < before.outlook.tax_total_cents);
         assert_eq!(f.outlook.expected_income_cents, before.outlook.expected_income_cents, "income side is unchanged");
     }

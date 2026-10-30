@@ -470,6 +470,8 @@ export const de = {
   "Phone": "Telefon",
   "Please choose a valid period": "Bitte einen gültigen Zeitraum wählen",
   "Please enter an amount greater than 0.": "Bitte einen Betrag größer als 0 eingeben.",
+  "Please enter a deductible share from 0 to 100.": "Bitte einen abziehbaren Anteil von 0 bis 100 eingeben.",
+  "Deductible": "Abziehbar",
   "Post to the activity feed as soon as an invoice becomes overdue": "Meldung im Aktivitäts-Feed, sobald eine Rechnung überfällig wird",
   "Previous month": "Vorheriger Monat",
   "Price": "Preis",

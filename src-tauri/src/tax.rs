@@ -270,6 +270,7 @@ pub struct ExpenseRow {
     pub category: String,
     pub euer_line: String,
     pub amount_cents: i64,
+    pub deductible_percent: i64,
     pub deductible_cents: i64,
 }
 
@@ -320,6 +321,10 @@ pub struct TaxReport {
     pub largest_customer: Option<(String, f64)>,
     pub deadline: String,
     pub warnings: Vec<Warning>,
+}
+
+pub fn deductible_cents(amount_cents: i64, percent: i64) -> i64 {
+    (amount_cents as f64 * percent as f64 / 100.0).round() as i64
 }
 
 pub fn euer_line(slug: Option<&str>) -> &'static str {
@@ -380,15 +385,15 @@ pub fn compute_with(conn: &Connection, year: i32, adj: &Adjust) -> AppResult<Tax
     let income_cents: i64 = income.iter().map(|i| i.amount_cents).sum();
 
     let mut stmt = conn.prepare(
-        "SELECT e.name, e.date, c.name, e.category_slug, e.amount_cents, e.id
+        "SELECT e.name, e.date, c.name, e.category_slug, e.amount_cents, e.id, e.deductible_percent
          FROM expenses e LEFT JOIN categories c ON c.slug = e.category_slug WHERE e.date BETWEEN ?1 AND ?2 ORDER BY e.date",
     )?;
     let expenses: Vec<ExpenseRow> = stmt
         .query_map(params![from, to], |r| {
             let slug: Option<String> = r.get(3)?;
             let amount: i64 = r.get(4)?;
-            let deductible = if slug.as_deref() == Some("meals") { (amount as f64 * limits.meals_deductible_percent as f64 / 100.0).round() as i64 } else { amount };
-            Ok(ExpenseRow { id: r.get(5)?, name: r.get(0)?, date: r.get(1)?, category: r.get::<_, Option<String>>(2)?.unwrap_or_else(|| tr!("Uncategorised", "Ohne Kategorie")), euer_line: euer_line(slug.as_deref()).into(), amount_cents: amount, deductible_cents: deductible })
+            let percent: i64 = r.get(6)?;
+            Ok(ExpenseRow { id: r.get(5)?, name: r.get(0)?, date: r.get(1)?, category: r.get::<_, Option<String>>(2)?.unwrap_or_else(|| tr!("Uncategorised", "Ohne Kategorie")), euer_line: euer_line(slug.as_deref()).into(), amount_cents: amount, deductible_percent: percent, deductible_cents: deductible_cents(amount, percent) })
         })?
         .collect::<Result<_, _>>()?;
     let mut by_line: BTreeMap<String, i64> = BTreeMap::new();
@@ -605,9 +610,9 @@ mod tests {
                ('a', 'INV-1', 'Acme GmbH', 'paid', '2026-03-01', '2026-03-15', 600000, '2026-03-10'),
                ('b', 'INV-2', 'Beispiel e.V.', 'paid', '2026-05-01', '2026-05-15', 400000, '2026-05-10'),
                ('c', 'INV-3', 'Beispiel e.V.', 'paid', '2025-12-01', '2025-12-15', 99900, '2025-12-20');
-             INSERT INTO expenses (id, date, name, amount_cents, category_slug) VALUES
-               ('e1', '2026-04-01', 'JetBrains', 10000, 'software'),
-               ('e2', '2026-04-02', 'Kundenessen', 10000, 'meals');
+             INSERT INTO expenses (id, date, name, amount_cents, category_slug, deductible_percent) VALUES
+               ('e1', '2026-04-01', 'JetBrains', 10000, 'software', 100),
+               ('e2', '2026-04-02', 'Kundenessen', 10000, 'meals', 70);
              INSERT INTO tracker_projects (id, name) VALUES ('p', 'Website');
              WITH RECURSIVE days(d) AS (SELECT date('2026-01-01') UNION ALL SELECT date(d, '+1 day') FROM days WHERE d < '2026-09-30')
              INSERT INTO tracker_entries (id, project_id, date, start, stop, duration) SELECT d, 'p', d, d || 'T09:00:00Z', d || 'T10:00:00Z', 3600 FROM days;",
@@ -640,12 +645,30 @@ mod tests {
     }
 
     #[test]
+    fn deductions_follow_the_share_of_each_expense() {
+        let conn = crate::db::open_in_memory().unwrap();
+        conn.execute_batch(
+            "INSERT INTO expenses (id, date, name, amount_cents, category_slug, deductible_percent) VALUES
+               ('a', '2026-04-01', 'Telefon', 10000, 'telecom', 50),
+               ('b', '2026-04-02', 'Essen', 10000, 'meals', 100),
+               ('c', '2026-04-03', 'Privat', 10000, 'other', 0),
+               ('d', '2026-04-04', 'Rundung', 333, 'telecom', 50);",
+        )
+        .unwrap();
+        let r = compute(&conn, 2026).unwrap();
+        let rows: Vec<_> = r.expenses.iter().map(|e| (e.amount_cents, e.deductible_percent, e.deductible_cents)).collect();
+        assert_eq!(rows, [(10000, 50, 5000), (10000, 100, 10000), (10000, 0, 0), (333, 50, 167)]);
+        assert_eq!(r.expenses_cents, 15_167);
+        assert!(r.expenses_by_line.contains(&("Telecommunications".to_string(), 5_167)));
+    }
+
+    #[test]
     fn settings_override_params_and_limits() {
         let conn = crate::db::open_in_memory().unwrap();
         conn.execute_batch(
             "INSERT INTO invoices (id, invoice_number, customer_name, status, issue_date, due_date, amount_cents, paid_at) VALUES
                ('a', 'INV-1', 'Acme GmbH', 'paid', '2026-03-01', '2026-03-15', 3_000_000, '2026-03-10');
-             INSERT INTO expenses (id, date, name, amount_cents, category_slug) VALUES ('e', '2026-04-02', 'Kundenessen', 10000, 'meals');",
+             INSERT INTO expenses (id, date, name, amount_cents, category_slug, deductible_percent) VALUES ('e', '2026-04-02', 'Kundenessen', 10000, 'meals', 70);",
         )
         .unwrap();
         let mut settings = load_settings(&conn).unwrap();
@@ -671,7 +694,7 @@ mod tests {
         assert_eq!(r.params.home_office_per_day, 800);
         assert_eq!(r.home_office_days, 1, "one day per date, excluded days and running timers do not count");
         assert_eq!(r.home_office_business_cents, 800);
-        assert_eq!(r.expenses_cents, 5_000, "meals at the configured 50 %");
+        assert_eq!(r.expenses_cents, 7_000, "the suggested share does not change existing expenses");
         let small_business_warning = |r: &TaxReport| r.warnings.iter().any(|w| w.text.contains("small business scheme"));
         assert!(!small_business_warning(&r), "30.000 € stays below the configured 50.000 €");
         assert_eq!(compute(&conn, 2025).unwrap().params.home_office_per_day, 600, "overrides only apply to their year");

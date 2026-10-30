@@ -142,6 +142,7 @@ export interface Expense {
   receipt_count: number;
   created_at: string;
   expense_recurring_id: string | null;
+  deductible_percent: number;
 }
 
 export interface ExpenseInput {
@@ -153,6 +154,7 @@ export interface ExpenseInput {
   currency?: string;
   category_slug?: string | null;
   note?: string | null;
+  deductible_percent?: number;
 }
 
 export interface Receipt {
@@ -631,7 +633,7 @@ export interface TaxReport {
   input: TaxInput;
   income: { number: string; issue_date: string; customer: string; paid_at: string; amount_cents: number }[];
   income_cents: number;
-  expenses: { name: string; date: string; category: string; euer_line: string; amount_cents: number; deductible_cents: number }[];
+  expenses: { name: string; date: string; category: string; euer_line: string; amount_cents: number; deductible_percent: number; deductible_cents: number }[];
   expenses_by_line: [string, number][];
   expenses_cents: number;
   home_office_days: number;

@@ -4,7 +4,7 @@ import { api, errorMessage, type Limits, type Settings, type TaxOverrides, type 
 import { centsToInput, money, parseMoney } from "../lib/format";
 import { useAsync } from "../lib/hooks";
 import { notifyUpdateChecked, useApp, type Theme } from "../lib/nav";
-import { Badge, Button, Card, CardBody, CurrencySelect, Dialog, ErrorNote, Field, Input, PageHeader, Section, Select, Tabs, Textarea, Toggle, useToast } from "../components/ui";
+import { Badge, Button, Card, CardBody, CurrencySelect, Dialog, ErrorNote, Field, Input, PageHeader, PercentInput, Section, Select, Tabs, Textarea, Toggle, useToast } from "../components/ui";
 import { isLang, lang, LANGUAGES, setLang, t } from "../lib/i18n";
 import LatexTemplates from "../components/LatexTemplates";
 import { CountrySelect, PlaceInput } from "../components/fields";
@@ -511,17 +511,10 @@ function LimitsTab() {
             <CentsInput cents={limits.gwg_gross_cents} onChange={(c) => setLimit({ gwg_gross_cents: c ?? 0 })} />
           </Field>
           <Field label={t("Business meals, deductible share")}>
-            <div className="relative">
-              <Input
-                type="number"
-                min={0}
-                max={100}
-                value={limits.meals_deductible_percent}
-                className="w-full pr-7 tabular-nums text-right"
-                onChange={(e) => setLimit({ meals_deductible_percent: Math.min(100, Math.max(0, Math.round(Number(e.target.value) || 0))) })}
-              />
-              <span className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-xs text-muted">%</span>
-            </div>
+            <PercentInput
+              value={limits.meals_deductible_percent}
+              onChange={(v) => setLimit({ meals_deductible_percent: Math.min(100, Math.max(0, Math.round(Number(v) || 0))) })}
+            />
           </Field>
         </div>
         <SaveBar onSave={save} busy={busy} dirty={dirty} />

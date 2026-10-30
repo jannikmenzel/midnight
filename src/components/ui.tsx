@@ -646,6 +646,15 @@ export function Field({ label, hint, children, className }: { label: string; hin
   );
 }
 
+export function PercentInput({ value, onChange }: { value: string | number; onChange: (value: string) => void }) {
+  return (
+    <div className="relative">
+      <Input type="number" min={0} max={100} value={value} className="w-full pr-7 tabular-nums text-right" onChange={(e) => onChange(e.target.value)} />
+      <span className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-xs text-muted">%</span>
+    </div>
+  );
+}
+
 export function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-3">

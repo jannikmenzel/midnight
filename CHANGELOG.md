@@ -9,6 +9,7 @@ All notable changes to this project are documented in this file. The format is b
 ### Added
 
 - Export for tax return: one ZIP per year with EÜR summary, income and expense lists as CSV, all invoice PDFs and receipts
+- Deductible share per expense: each expense stores its own percentage, business meals suggest the value from the settings
 
 ## [0.1.3] - 2026-10-21
 

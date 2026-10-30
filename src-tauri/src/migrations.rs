@@ -13,7 +13,16 @@ pub struct Migration {
 pub const ALL: &[Migration] = &[
     Migration { sql: include_str!("../migrations/0.1.0.sql"), data: None },
     Migration { sql: include_str!("../migrations/0.1.1.sql"), data: Some(v0_1_1) },
+    Migration { sql: include_str!("../migrations/0.1.4.sql"), data: Some(v0_1_4) },
 ];
+
+fn v0_1_4(conn: &Connection) -> AppResult<()> {
+    let meals = load_settings(conn)?.limits.meals_deductible_percent.clamp(0, 100);
+    for table in ["expenses", "expense_recurring"] {
+        conn.execute(&format!("UPDATE {table} SET deductible_percent = ?1 WHERE category_slug = 'meals'"), params![meals])?;
+    }
+    Ok(())
+}
 
 fn v0_1_1(conn: &Connection) -> AppResult<()> {
     customer_countries(conn)?;
@@ -166,6 +175,54 @@ mod tests {
         crate::tax::compute(&conn, 2026).unwrap();
         drop(conn);
         assert_eq!(version(&crate::db::open(&path).unwrap()), ALL.len(), "opening again changes nothing");
+    }
+
+    #[test]
+    fn writes_the_deductible_share_into_existing_expenses() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("midnight.db");
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(ALL[0].sql).unwrap();
+            conn.execute_batch(ALL[1].sql).unwrap();
+            conn.execute_batch("PRAGMA user_version = 2").unwrap();
+            let settings = serde_json::json!({ "limits": { "meals_deductible_percent": 50 } });
+            conn.execute("INSERT INTO settings (key, value) VALUES ('app', ?1)", [settings.to_string()]).unwrap();
+            conn.execute_batch(
+                "INSERT INTO expenses (id, date, name, amount_cents, category_slug) VALUES
+                   ('m', '2026-03-01', 'Kundenessen', 10000, 'meals'),
+                   ('s', '2026-03-02', 'Figma', 10000, 'software');
+                 INSERT INTO expense_recurring (id, name, amount_cents, category_slug, frequency, next_scheduled_at) VALUES
+                   ('rm', 'Essen', 10000, 'meals', 'annual', '2030-01-01'),
+                   ('rs', 'Figma', 10000, 'software', 'annual', '2030-01-01');",
+            )
+            .unwrap();
+        }
+
+        let conn = crate::db::open(&path).unwrap();
+        assert_eq!(version(&conn), ALL.len());
+        let shares = |sql: &str| conn.prepare(sql).unwrap().query_map([], |r| r.get(0)).unwrap().collect::<Result<Vec<i64>, _>>().unwrap();
+        assert_eq!(shares("SELECT deductible_percent FROM expenses ORDER BY id"), [50, 100]);
+        assert_eq!(shares("SELECT deductible_percent FROM expense_recurring ORDER BY id"), [50, 100]);
+        assert_eq!(crate::tax::compute(&conn, 2026).unwrap().expenses_cents, 15_000, "the deducted amounts stay the same");
+    }
+
+    #[test]
+    fn an_invalid_meals_setting_does_not_block_the_upgrade() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("midnight.db");
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(ALL[0].sql).unwrap();
+            conn.execute_batch(ALL[1].sql).unwrap();
+            conn.execute_batch("PRAGMA user_version = 2").unwrap();
+            let settings = serde_json::json!({ "limits": { "meals_deductible_percent": 150 } });
+            conn.execute("INSERT INTO settings (key, value) VALUES ('app', ?1)", [settings.to_string()]).unwrap();
+            conn.execute("INSERT INTO expenses (id, date, name, amount_cents, category_slug) VALUES ('m', '2026-03-01', 'Essen', 10000, 'meals')", []).unwrap();
+        }
+        let conn = crate::db::open(&path).unwrap();
+        let share: i64 = conn.query_row("SELECT deductible_percent FROM expenses", [], |r| r.get(0)).unwrap();
+        assert_eq!(share, 100);
     }
 
     #[test]

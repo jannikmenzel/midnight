@@ -97,13 +97,13 @@ pub fn create_series(conn: &Connection, input: &ExpenseRecurringInput) -> AppRes
     let id = crate::util::new_id();
     conn.execute(
         "INSERT INTO expense_recurring (id, name, description, amount_cents, currency, category_slug, note, frequency,
-            frequency_interval, anchor_day, end_type, end_date, end_count, expenses_generated, next_scheduled_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, 1, ?14)",
+            frequency_interval, anchor_day, end_type, end_date, end_count, expenses_generated, next_scheduled_at, deductible_percent)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, 1, ?14, ?15)",
         params![
             id, src.name, src.description, src.amount_cents, src.currency, src.category_slug, src.note, input.frequency,
             input.frequency_interval.filter(|_| input.frequency == "custom"), anchor, input.end_type,
             input.end_date.as_ref().filter(|_| input.end_type == "on_date"),
-            input.end_count.filter(|_| input.end_type == "after_count"), iso(next)
+            input.end_count.filter(|_| input.end_type == "after_count"), iso(next), src.deductible_percent
         ],
     )?;
     conn.execute("UPDATE expenses SET expense_recurring_id = ?2 WHERE id = ?1", params![src.id, id])?;
@@ -154,12 +154,13 @@ struct Series {
     end_count: Option<i64>,
     generated: i64,
     next: String,
+    deductible_percent: i64,
 }
 
 fn active_series(conn: &Connection, due_by: Option<NaiveDate>) -> AppResult<Vec<Series>> {
     let mut stmt = conn.prepare(
         "SELECT id, name, description, amount_cents, currency, category_slug, note, frequency, frequency_interval,
-                anchor_day, end_type, end_date, end_count, expenses_generated, next_scheduled_at
+                anchor_day, end_type, end_date, end_count, expenses_generated, next_scheduled_at, deductible_percent
          FROM expense_recurring WHERE status = 'active' AND (?1 IS NULL OR next_scheduled_at <= ?1)",
     )?;
     let rows = stmt.query_map(params![due_by.map(iso)], |r| {
@@ -179,6 +180,7 @@ fn active_series(conn: &Connection, due_by: Option<NaiveDate>) -> AppResult<Vec<
             end_count: r.get(12)?,
             generated: r.get(13)?,
             next: r.get(14)?,
+            deductible_percent: r.get(15)?,
         })
     })?;
     Ok(rows.collect::<Result<_, _>>()?)
@@ -218,6 +220,7 @@ fn run_due_on(conn: &Connection, today: NaiveDate) -> AppResult<Vec<String>> {
                 currency: Some(s.currency.clone()),
                 category_slug: s.category_slug.clone(),
                 note: s.note.clone(),
+                deductible_percent: Some(s.deductible_percent),
             };
             let id = upsert_expense(conn, &input)?;
             conn.execute("UPDATE expenses SET expense_recurring_id = ?2 WHERE id = ?1", params![id, s.id])?;
@@ -254,6 +257,7 @@ pub struct ExpectedExpense {
     pub name: String,
     pub category_slug: Option<String>,
     pub amount_cents: i64,
+    pub deductible_percent: i64,
 }
 
 pub fn expected(conn: &Connection, today: NaiveDate, horizon: NaiveDate) -> AppResult<Vec<ExpectedExpense>> {
@@ -261,7 +265,7 @@ pub fn expected(conn: &Connection, today: NaiveDate, horizon: NaiveDate) -> AppR
     for s in active_series(conn, None)? {
         walk(&s, horizon, |date| {
             if date > today {
-                out.push(ExpectedExpense { date, name: s.name.clone(), category_slug: s.category_slug.clone(), amount_cents: s.amount_cents });
+                out.push(ExpectedExpense { date, name: s.name.clone(), category_slug: s.category_slug.clone(), amount_cents: s.amount_cents, deductible_percent: s.deductible_percent });
             }
             Ok(())
         })?;
@@ -390,6 +394,17 @@ mod tests {
         conn.execute("DELETE FROM expense_recurring WHERE id = ?1", params![id]).unwrap();
         assert_eq!(count(&conn, "SELECT COUNT(*) FROM expenses"), 3);
         assert_eq!(count(&conn, "SELECT COUNT(*) FROM expenses WHERE expense_recurring_id IS NOT NULL"), 0);
+    }
+
+    #[test]
+    fn a_series_keeps_the_share_of_its_first_expense() {
+        let conn = setup("2026-01-01");
+        conn.execute("UPDATE expenses SET deductible_percent = 40", []).unwrap();
+        create_series(&conn, &input("monthly_date", "never")).unwrap();
+        conn.execute("UPDATE expenses SET deductible_percent = 90", []).unwrap();
+        run_due_on(&conn, d(2026, 3, 1)).unwrap();
+        assert_eq!(count(&conn, "SELECT COUNT(*) FROM expenses WHERE id != 'e1' AND deductible_percent = 40"), 2);
+        assert!(expected(&conn, d(2026, 3, 1), d(2026, 6, 1)).unwrap().iter().all(|e| e.deductible_percent == 40));
     }
 
     #[test]

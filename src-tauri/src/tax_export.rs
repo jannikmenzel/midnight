@@ -170,6 +170,7 @@ pub fn collect(conn: &Connection, year: i32) -> AppResult<Bundle> {
             text(&e.category),
             e.euer_line.clone(),
             csv_amount(e.amount_cents),
+            e.deductible_percent.to_string(),
             csv_amount(e.deductible_cents),
             names.join(", "),
         ]);
@@ -216,9 +217,9 @@ pub fn collect(conn: &Connection, year: i32) -> AppResult<Bundle> {
             tr!("Expenses {year}.csv", "Ausgaben {year}.csv"),
             csv_bytes(
                 &if is_de() {
-                    s(&["Datum", "Name", "Kategorie", "EÜR-Position", "Betrag", "Abziehbar", "Belege"])
+                    s(&["Datum", "Name", "Kategorie", "EÜR-Position", "Betrag", "Abziehbar %", "Abziehbar", "Belege"])
                 } else {
-                    s(&["Date", "Name", "Category", "EÜR item", "Amount", "Deductible", "Receipts"])
+                    s(&["Date", "Name", "Category", "EÜR item", "Amount", "Deductible %", "Deductible", "Receipts"])
                 },
                 &expense_rows,
             )?,
@@ -283,11 +284,11 @@ mod tests {
         )
         .unwrap();
         conn.execute(
-            "INSERT INTO expenses (id, date, name, amount_cents, category_slug) VALUES
-               ('e1', '2026-04-01', 'JetBrains', 10000, 'software'),
-               ('e2', '2026-04-01', 'JetBrains', 5000, 'software'),
-               ('e3', '2026-05-02', 'Kundenessen', 10000, 'meals'),
-               ('e4', '2026-06-01', ?1, 100, 'other')",
+            "INSERT INTO expenses (id, date, name, amount_cents, category_slug, deductible_percent) VALUES
+               ('e1', '2026-04-01', 'JetBrains', 10000, 'software', 100),
+               ('e2', '2026-04-01', 'JetBrains', 5000, 'software', 100),
+               ('e3', '2026-05-02', 'Kundenessen', 10000, 'meals', 70),
+               ('e4', '2026-06-01', ?1, 100, 'other', 100)",
             [format!("=HYPERLINK(\"x\") {}", "a".repeat(300))],
         )
         .unwrap();
@@ -319,6 +320,8 @@ mod tests {
         let mut expenses = String::new();
         zip.by_name("Expenses 2026.csv").unwrap().read_to_string(&mut expenses).unwrap();
         assert!(expenses.contains("'=HYPERLINK"), "formulas are neutralised: {expenses}");
+        assert!(expenses.starts_with("\u{feff}Date,Name,Category,EÜR item,Amount,Deductible %,Deductible,Receipts"), "{expenses}");
+        assert!(expenses.contains(",100.00,70,70.00,"), "the share explains the deductible amount: {expenses}");
         assert!(names.iter().all(|n| n.len() < 120), "long names are shortened: {names:?}");
     }
 
