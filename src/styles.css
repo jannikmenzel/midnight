@@ -16,6 +16,8 @@
   --warn: #a8640a;
   --info: #2457c5;
   --overlay: rgb(0 0 0 / 0.28);
+  --surface: linear-gradient(180deg, #ffffff, #fcfcfb);
+  --surface-shadow: inset 0 1px 0 rgb(255 255 255 / 0.9), 0 1px 2px rgb(17 17 17 / 0.05), 0 8px 20px -12px rgb(17 17 17 / 0.12);
   color-scheme: light;
 }
 
@@ -33,6 +35,8 @@
   --warn: #e6a644;
   --info: #7aa2ff;
   --overlay: rgb(0 0 0 / 0.55);
+  --surface: linear-gradient(180deg, #181818, #131313);
+  --surface-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05), 0 1px 2px rgb(0 0 0 / 0.5), 0 12px 28px -14px rgb(0 0 0 / 0.8);
   color-scheme: dark;
 }
 
@@ -133,68 +137,45 @@ input[type="number"]::-webkit-inner-spin-button {
     opacity: 0;
   }
 }
-@keyframes page-in {
-  from {
+@keyframes draw {
+  0% {
     opacity: 0;
-    transform: translateY(4px);
+    stroke-dashoffset: 1;
+  }
+  1% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    stroke-dashoffset: 0;
   }
 }
-@keyframes sheet-in {
+@keyframes breathe {
   from {
-    opacity: 0;
-    transform: translateX(28px);
+    opacity: 0.15;
   }
-}
-@keyframes sheet-out {
   to {
-    opacity: 0;
-    transform: translateX(28px);
-  }
-}
-@keyframes dialog-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px) scale(0.98);
-  }
-}
-@keyframes dialog-out {
-  to {
-    opacity: 0;
-    transform: translateY(6px) scale(0.98);
-  }
-}
-@keyframes pop-in {
-  from {
-    opacity: 0;
-    transform: translateY(var(--pop-y, -4px)) scale(0.98);
+    opacity: 0.6;
   }
 }
 
 :root {
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-draw: cubic-bezier(0.65, 0, 0.35, 1);
 }
 
 .anim-page {
-  animation: page-in 200ms var(--ease-out) 40ms backwards;
+  animation: fade-in 220ms ease-out;
 }
 
-[data-state="open"] > .anim-overlay {
+[data-state="open"] > .anim-overlay,
+[data-state="open"] > .anim-sheet,
+[data-state="open"] > .anim-dialog {
   animation: fade-in 180ms ease-out;
 }
-[data-state="closed"] > .anim-overlay {
-  animation: fade-out 140ms ease-in forwards;
-}
-[data-state="open"] > .anim-sheet {
-  animation: sheet-in 240ms var(--ease-out);
-}
-[data-state="closed"] > .anim-sheet {
-  animation: sheet-out 140ms ease-in forwards;
-}
-[data-state="open"] > .anim-dialog {
-  animation: dialog-in 200ms var(--ease-out);
-}
+[data-state="closed"] > .anim-overlay,
+[data-state="closed"] > .anim-sheet,
 [data-state="closed"] > .anim-dialog {
-  animation: dialog-out 140ms ease-in forwards;
+  animation: fade-out 140ms ease-in forwards;
 }
 [data-state="pre"] > .anim-overlay,
 [data-state="pre"] > .anim-sheet,
@@ -206,14 +187,35 @@ input[type="number"]::-webkit-inner-spin-button {
 }
 
 .anim-pop {
-  animation: pop-in 140ms var(--ease-out);
-}
-.anim-pop-up {
-  --pop-y: 4px;
+  animation: fade-in 120ms ease-out;
 }
 .anim-toast {
-  --pop-y: 8px;
-  animation: pop-in 220ms var(--ease-out);
+  animation: fade-in 200ms ease-out;
+}
+
+.moment {
+  animation: fade-in 240ms ease-out;
+}
+.moment[data-leaving] {
+  pointer-events: none;
+  animation: fade-out 280ms ease-in forwards;
+}
+.moment-draw {
+  stroke-dasharray: 1;
+  animation: draw var(--ms) var(--ease-draw) var(--at) both;
+}
+.moment-text {
+  animation: fade-in 420ms ease-out 180ms backwards;
+}
+.moment-breathe {
+  animation: breathe 1200ms ease-in-out infinite alternate;
+}
+
+@layer components {
+  .surface {
+    background-image: var(--surface);
+    box-shadow: var(--surface-shadow);
+  }
 }
 
 .theme-switching,
@@ -230,6 +232,14 @@ input[type="number"]::-webkit-inner-spin-button {
   [data-state] > .anim-dialog {
     animation-duration: 1ms !important;
     animation-delay: 0ms !important;
+  }
+  .moment-draw {
+    stroke-dashoffset: 0;
+    animation: none;
+  }
+  .moment-breathe {
+    animation: none;
+    opacity: 0.4;
   }
 }
 

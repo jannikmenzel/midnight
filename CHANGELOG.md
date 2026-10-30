@@ -11,6 +11,14 @@ All notable changes to this project are documented in this file. The format is b
 - Export for tax return: one ZIP per year with EÜR summary, income and expense lists as CSV, all invoice PDFs and receipts
 - Deductible share per expense: each expense stores its own percentage, business meals suggest the value from the settings
 
+### Changed
+
+- Calmer, more refined interface: cards with depth, screens and overlays fade, amounts count up, and tax export, time tracking export, issuing an invoice and receiving a payment get a full-screen moment
+
+### Fixed
+
+- Marking an invoice as sent now saves pending edits first instead of discarding them
+
 ## [0.1.3] - 2026-10-21
 
 ### Added

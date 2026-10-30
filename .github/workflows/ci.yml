@@ -33,6 +33,9 @@ jobs:
       - name: Typecheck and build frontend
         run: npm run build
 
+      - name: Test frontend
+        run: npm test
+
       - name: Install Rust toolchain
         run: rustup toolchain install
 

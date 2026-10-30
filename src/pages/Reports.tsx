@@ -8,6 +8,7 @@ import { useApp } from "../lib/nav";
 import { YearCompareChart, type YearSeries } from "../components/YearCompare";
 import { TaxReturn } from "../components/TaxReturn";
 import { TaxForecast } from "../components/TaxForecast";
+import { useMoment } from "../components/ActionMoment";
 import { Button, Card, CategoryDot, DateInput, Empty, Kpi, PageHeader, Segmented, Select, Skeleton, Tabs, cx, useToast } from "../components/ui";
 import { t } from "../lib/i18n";
 
@@ -332,6 +333,7 @@ function Highlights({ data, currency, onFixedCosts }: { data: Analysis; currency
 export default function Reports() {
   const { settings, go, params } = useApp();
   const toast = useToast();
+  const moment = useMoment();
   const [exporting, setExporting] = useState(false);
   const [period, setPeriod] = useState<PeriodKey | "custom">("this_year");
   const [custom, setCustom] = useState(periodRange("this_year"));
@@ -359,8 +361,15 @@ export default function Reports() {
     if (!path) return;
     setExporting(true);
     try {
-      const r = await api.exportTaxYear(taxYear, path);
-      toast.success(t("{invoices} invoices and {receipts} receipts exported", { invoices: r.invoices, receipts: r.receipts }));
+      const r = await moment.run(
+        { kind: "export", title: t("Preparing tax documents for {year}", { year: taxYear }) },
+        () => api.exportTaxYear(taxYear, path),
+        (result) => ({
+          kind: "export",
+          title: t("Tax documents for {year} exported", { year: taxYear }),
+          detail: `${result.invoices === 1 ? t("1 invoice") : t("{n} invoices", { n: result.invoices })} · ${result.receipts === 1 ? t("1 receipt") : t("{n} receipts", { n: result.receipts })}`,
+        }),
+      );
       const missing = [
         r.missing_receipts > 0 && t("{n} expenses without receipt", { n: r.missing_receipts }),
         r.missing_invoices > 0 && t("{n} invoices without PDF", { n: r.missing_invoices }),

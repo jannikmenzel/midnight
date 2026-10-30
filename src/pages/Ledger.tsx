@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { ask, open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { CircleAlert, Download, ExternalLink, FileText, Paperclip, Pause, Play, Plus, Receipt as ReceiptIcon, Repeat, Tags, Trash2, Upload, X } from "lucide-react";
 import { api, errorMessage, type Category, type ExpenseRecurring, type LedgerFilter, type Receipt } from "../lib/api";
-import { centsToInput, date, FREQUENCY_LABELS, money, parseMoney, todayIso } from "../lib/format";
+import { centsToInput, date, FREQUENCY_LABELS, parseMoney, todayIso } from "../lib/format";
 import { useAsync, useDebounced, useFileDrop } from "../lib/hooks";
 import { useApp } from "../lib/nav";
-import { Amount, Badge, Button, Card, CategoryBadge, Checkbox, DateInput, Empty, ErrorNote, Field, IconButton, Input, Kpi, PageHeader, PercentInput, PickSelect, Select, Sheet, Skeleton, Tabs, Textarea, cx, useToast, type PickOption } from "../components/ui";
+import { Amount, AnimatedMoney, Badge, Button, Card, CategoryBadge, Checkbox, DateInput, Empty, ErrorNote, Field, IconButton, Input, Kpi, PageHeader, PercentInput, PickSelect, Select, Sheet, Skeleton, Tabs, Textarea, cx, useToast, type PickOption } from "../components/ui";
 import { t } from "../lib/i18n";
 
 const PAGE = 300;
@@ -532,9 +532,9 @@ export default function Ledger() {
       />
 
       <div className="grid grid-cols-3 gap-4">
-        <Kpi label={t("Income")} value={d ? money(d.income_cents, settings.base_currency) : "…"} tone="pos" />
-        <Kpi label={t("Expenses")} value={d ? money(d.expense_cents, settings.base_currency) : "…"} />
-        <Kpi label={t("Result")} value={d ? money(d.income_cents - d.expense_cents, settings.base_currency) : "…"} tone={d && d.income_cents - d.expense_cents < 0 ? "neg" : undefined} />
+        <Kpi label={t("Income")} value={d ? <AnimatedMoney cents={d.income_cents} currency={settings.base_currency} /> : "…"} tone="pos" />
+        <Kpi label={t("Expenses")} value={d ? <AnimatedMoney cents={d.expense_cents} currency={settings.base_currency} /> : "…"} />
+        <Kpi label={t("Result")} value={d ? <AnimatedMoney cents={d.income_cents - d.expense_cents} currency={settings.base_currency} /> : "…"} tone={d && d.income_cents - d.expense_cents < 0 ? "neg" : undefined} />
       </div>
 
       <Tabs

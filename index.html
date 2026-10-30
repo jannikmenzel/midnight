@@ -25,7 +25,6 @@
         --splash-bg: #f7f7f6;
         --splash-fg: #111111;
         --splash-line: #e5e5e2;
-        --splash-ease: cubic-bezier(0.16, 1, 0.3, 1);
         position: fixed;
         inset: 0;
         z-index: 1000;
@@ -54,12 +53,10 @@
         overflow: visible;
       }
       #splash .sun {
-        animation: splash-rise 1100ms var(--splash-ease) 80ms backwards;
+        animation: splash-fade 900ms ease-out 80ms backwards;
       }
       #splash .horizon {
-        transform-box: fill-box;
-        transform-origin: center;
-        animation: splash-draw 700ms var(--splash-ease) backwards;
+        animation: splash-fade 700ms ease-out backwards;
       }
       #splash .wordmark {
         margin: 0;
@@ -68,7 +65,7 @@
         font-weight: 400;
         line-height: 1;
         letter-spacing: -0.02em;
-        animation: splash-in 900ms var(--splash-ease) 260ms backwards;
+        animation: splash-fade 900ms ease-out 260ms backwards;
       }
       #splash .loader {
         position: absolute;
@@ -83,50 +80,29 @@
         content: "";
         position: absolute;
         inset: 0;
-        width: 40%;
         background: var(--splash-fg);
-        opacity: 0.55;
-        animation: splash-scan 1400ms ease-in-out 900ms infinite;
+        animation: splash-breathe 1200ms ease-in-out 900ms infinite alternate backwards;
       }
       #splash.out {
         pointer-events: none;
         animation: splash-out 380ms ease-in forwards;
-      }
-      @keyframes splash-rise {
-        from {
-          transform: translateY(9px);
-        }
-      }
-      @keyframes splash-draw {
-        from {
-          transform: scaleX(0.2);
-          opacity: 0;
-        }
-      }
-      @keyframes splash-in {
-        from {
-          opacity: 0;
-          transform: translateY(6px);
-          letter-spacing: 0.04em;
-        }
       }
       @keyframes splash-fade {
         from {
           opacity: 0;
         }
       }
-      @keyframes splash-scan {
+      @keyframes splash-breathe {
         from {
-          transform: translateX(-100%);
+          opacity: 0.15;
         }
         to {
-          transform: translateX(250%);
+          opacity: 0.6;
         }
       }
       @keyframes splash-out {
         to {
           opacity: 0;
-          transform: scale(1.015);
         }
       }
       @media (prefers-reduced-motion: reduce) {

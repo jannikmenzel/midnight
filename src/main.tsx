@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import App from "./App";
+import { MomentProvider } from "./components/ActionMoment";
 import MenuBarPanel from "./components/MenuBarPanel";
 import { ToastProvider } from "./components/ui";
 import { dismissSplash } from "./lib/splash";
@@ -22,7 +23,9 @@ const render = () =>
         <MenuBarPanel />
       ) : (
         <ToastProvider>
-          <App />
+          <MomentProvider>
+            <App />
+          </MomentProvider>
         </ToastProvider>
       )}
     </React.StrictMode>,

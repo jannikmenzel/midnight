@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { api, errorMessage, type Invoice } from "../lib/api";
 import { money, todayIso } from "../lib/format";
+import { useMoment } from "./ActionMoment";
 import { Button, DateInput, Dialog, Field, useToast } from "./ui";
 import { t } from "../lib/i18n";
 
 export function PaidDialog({ invoice, open, onClose, onPaid }: { invoice: Invoice; open: boolean; onClose: () => void; onPaid: (inv: Invoice) => void }) {
   const toast = useToast();
+  const moment = useMoment();
   const [paidAt, setPaidAt] = useState(todayIso());
   const [busy, setBusy] = useState(false);
 
@@ -16,8 +18,18 @@ export function PaidDialog({ invoice, open, onClose, onPaid }: { invoice: Invoic
   const save = async () => {
     setBusy(true);
     try {
+      const wasPaid = invoice.status === "paid";
       onPaid(await api.setInvoiceStatus(invoice.id, "paid", paidAt));
-      toast.success(t("Invoice {number} marked as paid", { number: invoice.invoice_number }));
+      if (wasPaid) {
+        toast.success(t("Invoice {number} marked as paid", { number: invoice.invoice_number }));
+      } else {
+        moment.show({
+          kind: "paid",
+          title: t("Payment received"),
+          amount: { cents: invoice.amount_cents, currency: invoice.currency },
+          detail: invoice.customer_name ? `${invoice.invoice_number} · ${invoice.customer_name}` : invoice.invoice_number,
+        });
+      }
       onClose();
     } catch (e) {
       toast.error(errorMessage(e));

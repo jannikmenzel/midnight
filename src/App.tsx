@@ -226,7 +226,7 @@ export default function App() {
                   onClick={() => go(n.route)}
                   aria-current={active ? "page" : undefined}
                   className={cx(
-                    "flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px]",
+                    "flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px] transition-colors duration-150",
                     active ? "bg-subtle font-medium text-fg" : "text-muted hover:bg-subtle hover:text-fg",
                   )}
                 >
@@ -243,7 +243,7 @@ export default function App() {
               type="button"
               onClick={() => go("settings")}
               className={cx(
-                "flex h-8 w-full items-center gap-2.5 rounded-md px-2.5 text-[13px]",
+                "flex h-8 w-full items-center gap-2.5 rounded-md px-2.5 text-[13px] transition-colors duration-150",
                 route === "settings" ? "bg-subtle font-medium" : "text-muted hover:bg-subtle hover:text-fg",
               )}
             >

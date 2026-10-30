@@ -5,6 +5,7 @@
 ## Checklist
 
 - [ ] `npm run build` passes (includes the TypeScript typecheck)
+- [ ] `npm test` passes
 - [ ] `cargo clippy --all-targets -- -D warnings` and `cargo test` pass in `src-tauri/`
 - [ ] New UI strings have a German translation in `src/lib/i18n.de.ts`
 - [ ] New backend messages use `tr!("English", "Deutsch")`

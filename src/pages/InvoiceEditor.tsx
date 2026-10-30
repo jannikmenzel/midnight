@@ -5,6 +5,7 @@ import { api, errorMessage, type Customer, type Invoice, type InvoiceStatus, typ
 import { addDays, centsToInput, date, hours, money, parseMoney, parseQuantity, quantityInput, todayIso } from "../lib/format";
 import { useAsync } from "../lib/hooks";
 import { useApp } from "../lib/nav";
+import { useMoment } from "../components/ActionMoment";
 import { ActionMenu, Button, CurrencySelect, DateInput, Field, IconButton, Input, Section, Select, Sheet, StatusBadge, Textarea, useToast } from "../components/ui";
 import { PaidDialog } from "../components/PaidDialog";
 import { UnitSelect } from "../components/fields";
@@ -41,6 +42,7 @@ export function InvoiceEditor({
   onChanged: () => void;
 }) {
   const toast = useToast();
+  const moment = useMoment();
   const { settings } = useApp();
   const open = isNew || invoiceId !== null;
   const customers = useAsync(() => (open ? api.listCustomers() : Promise.resolve([] as Customer[])), [open]);
@@ -215,6 +217,18 @@ export function InvoiceEditor({
     }
   };
 
+  const markSent = () =>
+    withSaved(async (saved) => {
+      applyInvoice(await api.setInvoiceStatus(saved.id, "unpaid"));
+      onChanged();
+      moment.show({
+        kind: "sent",
+        title: t("Invoice {number} issued", { number: saved.invoice_number }),
+        amount: { cents: saved.amount_cents, currency: saved.currency },
+        detail: saved.customer_name ?? undefined,
+      });
+    });
+
   const remove = async () => {
     if (!invoice) return;
     if (!(await ask(t("Delete invoice {number}? Linked time entries will be marked as unbilled again.", { number: invoice.invoice_number }), { title: t("Delete"), kind: "warning" }))) return;
@@ -324,7 +338,7 @@ export function InvoiceEditor({
                         }
                       }),
                   },
-                  invoice.status === "draft" && { label: t("Mark as sent"), icon: <Send className="size-3.5" />, onClick: () => setStatus("unpaid") },
+                  invoice.status === "draft" && { label: t("Mark as sent"), icon: <Send className="size-3.5" />, onClick: markSent },
                   invoice.status === "paid" && { label: t("Change payment date"), icon: <CheckCircle2 className="size-3.5" />, onClick: () => setPaidOpen(true) },
                   invoice.status === "paid" && { label: t("Undo payment"), icon: <X className="size-3.5" />, onClick: () => setStatus("unpaid") },
                   {

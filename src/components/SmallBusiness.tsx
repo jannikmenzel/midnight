@@ -21,7 +21,7 @@ export function SmallBusinessCard({ data, currency, className, projectedCents, b
       : t("{amount} left until the limit for {year}.", { amount: money(data.limit_cents - data.revenue_cents, currency), year: data.year + 1 });
 
   return (
-    <div className={cx("flex flex-col gap-2", !bare && "rounded-lg border border-line bg-panel p-4", className)}>
+    <div className={cx("flex flex-col gap-2", !bare && "surface rounded-[10px] border border-line bg-panel p-4", className)}>
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-xs text-muted">{t("Small business limit {year}", { year: data.year })}</span>
         <span className="tabular text-xs text-muted">{Math.round(pct)} %</span>

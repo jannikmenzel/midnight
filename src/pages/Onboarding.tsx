@@ -35,7 +35,7 @@ export default function Onboarding({ settings, onDone }: { settings: Settings; o
 
   return (
     <div className="flex h-full items-center justify-center bg-bg p-6">
-      <div className="w-full max-w-lg rounded-lg border border-line bg-panel p-8">
+      <div className="surface w-full max-w-lg rounded-[10px] border border-line bg-panel p-8">
         <div className="mb-6 flex items-center gap-2">
           <svg viewBox="0 0 24 24" className="size-6" aria-hidden>
             <path d="M5 15a7 7 0 0 1 14 0z" fill="currentColor" />

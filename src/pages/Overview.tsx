@@ -6,7 +6,7 @@ import { useAsync } from "../lib/hooks";
 import { useApp } from "../lib/nav";
 import { CashflowChart } from "../components/Cashflow";
 import { SmallBusinessCard } from "../components/SmallBusiness";
-import { Amount, Badge, Button, Card, CategoryDot, Empty, Kpi, PageHeader, Select, Skeleton, cx } from "../components/ui";
+import { Amount, AnimatedMoney, Badge, Button, Card, CategoryDot, Empty, Kpi, PageHeader, Select, Skeleton, cx } from "../components/ui";
 import { locale, t } from "../lib/i18n";
 
 function Trend({ current, previous, invert = false }: { current: number; previous: number; invert?: boolean }) {
@@ -79,7 +79,7 @@ function TaxSummary({ year, forecast, report, currency }: { year: number; foreca
         )}
       </div>
       <div className="tabular text-xl font-semibold tracking-tight">
-        <span className={cx(refund && "text-pos")}>{expected !== undefined ? money(Math.abs(expected), currency) : "…"}</span>{" "}
+        <span className={cx(refund && "text-pos")}>{expected !== undefined ? <AnimatedMoney cents={Math.abs(expected)} currency={currency} /> : "…"}</span>{" "}
         <span className="text-[13px] font-normal text-muted">{refund ? t("refund") : t("additional payment")}</span>
       </div>
       <Meter solid={share} faded={expected && expected > 0 ? 100 : 0} color="bg-warn" label={t("Booked so far")} />
@@ -105,7 +105,7 @@ function OutstandingSummary({ s, unbilledCents, currency }: { s?: Summary; unbil
         <span className="text-xs text-muted">{t("Money outstanding")}</span>
         {s && s.open_invoices_count > 0 && <span className="tabular text-xs text-muted">{t("{n} open", { n: s.open_invoices_count })}</span>}
       </div>
-      <div className="tabular text-xl font-semibold tracking-tight">{ready ? money(total, currency) : "…"}</div>
+      <div className="tabular text-xl font-semibold tracking-tight">{ready ? <AnimatedMoney cents={total} currency={currency} /> : "…"}</div>
       <div
         className="flex h-1.5 w-full overflow-hidden rounded-full bg-line"
         role="img"
@@ -199,19 +199,19 @@ export default function Overview() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Kpi
           label={t("Income")}
-          value={s ? money(s.revenue_cents, cur) : "…"}
+          value={s ? <AnimatedMoney cents={s.revenue_cents} currency={cur} /> : "…"}
           sub={s ? <Trend current={s.revenue_cents} previous={s.prev_revenue_cents} /> : "…"}
           onClick={() => go("ledger", { kind: "income", from: range.from, to: range.to })}
         />
         <Kpi
           label={t("Expenses")}
-          value={s ? money(s.expenses_cents, cur) : "…"}
+          value={s ? <AnimatedMoney cents={s.expenses_cents} currency={cur} /> : "…"}
           sub={s ? <Trend current={s.expenses_cents} previous={s.prev_expenses_cents} invert /> : "…"}
           onClick={() => go("ledger", { kind: "expense", from: range.from, to: range.to })}
         />
         <Kpi
           label={t("Profit")}
-          value={s ? money(s.profit_cents, cur) : "…"}
+          value={s ? <AnimatedMoney cents={s.profit_cents} currency={cur} /> : "…"}
           tone={s && s.profit_cents < 0 ? "neg" : undefined}
           sub={
             s && averageReady
@@ -226,7 +226,7 @@ export default function Overview() {
         />
       </div>
 
-      <section className="overflow-hidden rounded-lg border border-line bg-panel" aria-label={t("Cash flow")}>
+      <section className="surface overflow-hidden rounded-[10px] border border-line bg-panel" aria-label={t("Cash flow")}>
         <div className="px-4 pt-5 pb-3">
           {monthly.data ? (
             monthly.data.length === 0 ? (
@@ -240,7 +240,7 @@ export default function Overview() {
         </div>
       </section>
 
-      <section className={cx("grid divide-line overflow-hidden rounded-lg border border-line bg-panel max-lg:divide-y lg:divide-x", settings.small_business ? "lg:grid-cols-3" : "lg:grid-cols-2")}>
+      <section className={cx("surface grid divide-line overflow-hidden rounded-[10px] border border-line bg-panel max-lg:divide-y lg:divide-x", settings.small_business ? "lg:grid-cols-3" : "lg:grid-cols-2")}>
         {settings.small_business &&
           (sb ? (
             <Cell onClick={() => go("reports", { view: "forecast" })}>

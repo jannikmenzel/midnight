@@ -4,7 +4,7 @@ import { api, errorMessage, type Product, type TrackerInvoiceDraft } from "../li
 import { centsToInput, date, HOURS, money, parseMoney } from "../lib/format";
 import { useAsync, useDebounced } from "../lib/hooks";
 import { useApp } from "../lib/nav";
-import { Button, Card, CurrencySelect, Dialog, Empty, ErrorNote, Field, Input, Kpi, PageHeader, Select, Skeleton, StatusBadge, Tabs, useToast } from "../components/ui";
+import { AnimatedMoney, Button, Card, CurrencySelect, Dialog, Empty, ErrorNote, Field, Input, Kpi, PageHeader, Select, Skeleton, StatusBadge, Tabs, useToast } from "../components/ui";
 import { InvoiceEditor } from "./InvoiceEditor";
 import { UnitSelect, useUnits } from "../components/fields";
 import { t } from "../lib/i18n";
@@ -189,10 +189,10 @@ export default function Invoices() {
       {tab === "invoices" && (
         <>
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <Kpi label={t("Drafts ({n})", { n: d?.draft.count ?? 0 })} value={money(d?.draft.cents ?? 0, cur)} onClick={() => setStatus("draft")} />
-            <Kpi label={t("Open ({n})", { n: d?.open.count ?? 0 })} value={money(d?.open.cents ?? 0, cur)} onClick={() => setStatus("open")} />
-            <Kpi label={t("Overdue ({n})", { n: d?.overdue.count ?? 0 })} value={money(d?.overdue.cents ?? 0, cur)} tone={d && d.overdue.count > 0 ? "neg" : undefined} onClick={() => setStatus("overdue")} />
-            <Kpi label={t("Paid ({n})", { n: d?.paid.count ?? 0 })} value={money(d?.paid.cents ?? 0, cur)} tone="pos" onClick={() => setStatus("paid")} />
+            <Kpi label={t("Drafts ({n})", { n: d?.draft.count ?? 0 })} value={<AnimatedMoney cents={d?.draft.cents ?? 0} currency={cur} />} onClick={() => setStatus("draft")} />
+            <Kpi label={t("Open ({n})", { n: d?.open.count ?? 0 })} value={<AnimatedMoney cents={d?.open.cents ?? 0} currency={cur} />} onClick={() => setStatus("open")} />
+            <Kpi label={t("Overdue ({n})", { n: d?.overdue.count ?? 0 })} value={<AnimatedMoney cents={d?.overdue.cents ?? 0} currency={cur} />} tone={d && d.overdue.count > 0 ? "neg" : undefined} onClick={() => setStatus("overdue")} />
+            <Kpi label={t("Paid ({n})", { n: d?.paid.count ?? 0 })} value={<AnimatedMoney cents={d?.paid.cents ?? 0} currency={cur} />} tone="pos" onClick={() => setStatus("paid")} />
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("Number or customer…")} className="w-64" />

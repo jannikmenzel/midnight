@@ -6,6 +6,7 @@ import { centsToInput, clock, duration, hours, isoDate, money, parseMoney, today
 import { useAsync, useRetained, useTick } from "../lib/hooks";
 import { notifyTimerChanged, useApp, useMenuBarTimerChanged } from "../lib/nav";
 import { TrackerCalendar, calendarRange } from "../components/TrackerCalendar";
+import { useMoment } from "../components/ActionMoment";
 import { Badge, Button, Card, cx, DateInput, DateTimeInput, Dialog, Empty, Field, IconButton, Input, PageHeader, Select, Sheet, Skeleton, Textarea, Toggle, useToast } from "../components/ui";
 import { lang, locale, t } from "../lib/i18n";
 import { PastWeeksBanner, WeeklyLimitBar } from "../components/WeeklyLimit";
@@ -209,6 +210,7 @@ function ProjectDetail({
 export default function Tracker() {
   const { go, params, settings } = useApp();
   const toast = useToast();
+  const moment = useMoment();
   const projects = useAsync(() => api.listProjects(true), []);
   const customers = useAsync(() => api.listCustomers(), []);
   const [calMonth, setCalMonth] = useState(() => todayIso().slice(0, 7));
@@ -400,8 +402,11 @@ export default function Tracker() {
     if (!target) return;
     setExporting(true);
     try {
-      const n = await api.exportTimesheet(from, to, exportCustomer || null, target);
-      toast.success(t("{n} entries exported", { n }));
+      await moment.run(
+        { kind: "timesheet", title: t("Preparing time tracking export") },
+        () => api.exportTimesheet(from, to, exportCustomer || null, target),
+        (n) => ({ kind: "timesheet", title: t("Time tracking exported"), detail: n === 1 ? t("1 entry") : t("{n} entries", { n }) }),
+      );
       setExportOpen(false);
       api.openPath(target).catch(() => {});
     } catch (e) {

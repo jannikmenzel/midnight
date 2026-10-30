@@ -26,6 +26,7 @@ Please make sure these pass before opening a pull request. CI runs the same chec
 
 ```bash
 npm run build
+npm test
 cd src-tauri
 cargo clippy --all-targets -- -D warnings
 cargo test

@@ -160,19 +160,14 @@ export function TaxReturn({ year }: { year: number }) {
                 </dt>
                 <dd className="tabular">− {money(r.expenses_cents)}</dd>
               </div>
-              <div className="flex items-start justify-between gap-3 py-0.5">
-                <dt className="flex flex-col gap-1">
-                  <span className="flex items-center gap-2">
-                    {t("Home office")}
-                    <span className="text-muted tabular">
-                      {r.home_office_business_days} {t("days ×")} {money(p.home_office_per_day)}
-                    </span>
-                  </span>
-                  <span className="text-xs text-muted">
-                    {t("{n} working days in time tracking, at most {max} count", { n: r.home_office_days, max: p.home_office_max_days })}
+              <div className="flex h-9 items-center justify-between gap-3">
+                <dt className="flex items-center gap-2">
+                  {t("Home office")}
+                  <span className="text-muted tabular">
+                    {r.home_office_business_days} {t("days ×")} {money(p.home_office_per_day)}
                   </span>
                 </dt>
-                <dd className="flex h-8 items-center tabular">− {money(r.home_office_business_cents)}</dd>
+                <dd className="tabular">− {money(r.home_office_business_cents)}</dd>
               </div>
               <div className="mt-2 flex h-9 items-center justify-between border-t border-line font-medium">
                 <dt>{t("Profit")}</dt>
