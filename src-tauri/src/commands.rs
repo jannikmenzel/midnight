@@ -144,7 +144,7 @@ commands! {
     #[stateless] app mcp_setup::mcp_setup() -> McpSetup, "Shows how to connect the MCP server to Claude.";
     #[stateless] app mcp_setup::mcp_install_claude_desktop() -> (), "Registers the MCP server in Claude Desktop.";
 
-    read ledger::list_ledger(filter: LedgerFilter) -> LedgerPage, "Lists transactions (income from paid invoices and expenses) with filters and totals.";
+    read ledger::list_ledger(filter: LedgerFilter) -> LedgerPage, "Lists transactions (income from paid invoices and expenses) with filters and totals. For expenses, amount_cents and the totals are the deductible share, full_amount_cents is the invoice amount.";
     write ledger::export_ledger_csv(filter: LedgerFilter, path: String) -> usize, "Exports filtered transactions as CSV to an absolute file path. Returns the number of rows.";
 
     read expenses::get_expense(id: String) -> Expense, "Reads an expense.";
@@ -210,7 +210,7 @@ commands! {
     write products::touch_product(id: String) -> (), "Increments a product's usage counter.";
     delete products::delete_product(id: String) -> (), "Deletes a product.";
 
-    read expense_recurring::list_expense_recurring() -> Vec<ExpenseRecurring>, "Lists recurring expenses (series).";
+    read expense_recurring::list_expense_recurring() -> Vec<ExpenseRecurring>, "Lists recurring expenses (series). amount_cents is the full amount, deductible_cents the deductible share.";
     write expense_recurring::save_expense_recurring(input: ExpenseRecurringInput) -> ExpenseRecurringCreated, "Turns an existing expense into a recurring series; it is the first expense and the template. Following expenses are booked automatically on their dates; past dates are booked right away (returned as caught_up).";
     write expense_recurring::set_expense_recurring_status(id: String, status: String) -> (), "Sets the status of a recurring expense (active, paused, canceled).";
     delete expense_recurring::delete_expense_recurring(id: String) -> (), "Deletes a recurring expense series; expenses already booked are kept.";
@@ -223,16 +223,16 @@ commands! {
     delete vault::delete_document(id: String) -> (), "Deletes a document.";
     read vault::list_tags() -> Vec<TagInfo>, "Lists all document tags with counts.";
 
-    read forecast::tax_forecast(year: i32) -> Forecast, "Tax forecast for a year: expected payments (open invoices, unbilled time, project budgets), recurring expenses, expected tax at year end and threshold warnings.";
+    read forecast::tax_forecast(year: i32) -> Forecast, "Tax forecast for a year: expected payments (open invoices, unbilled time, project budgets), recurring expenses, expected tax at year end and threshold warnings. Expenses count with their deductible share.";
     #[stateless] read places::list_countries() -> Vec<&'static str>, "Lists the allowed ISO 3166-1 country codes for customers and the company address.";
     #[stateless] read places::suggest_places(query: String, country: Option<String>) -> Vec<Place>, "Offline lookup of postal codes and towns in Germany, Austria and Switzerland (postal code prefix or town name).";
 
-    read reports::report_summary(from: String, to: String) -> Summary, "Income, expenses and profit for a period (YYYY-MM-DD).";
-    read reports::report_monthly(from: String, to: String) -> Vec<MonthRow>, "Monthly figures for a period (YYYY-MM-DD).";
-    read reports::report_categories(from: String, to: String, kind: Option<String>) -> Vec<ShareRow>, "Shares by category for a period.";
-    read reports::report_analysis(from: String, to: String) -> Analysis, "Analysis for a period (YYYY-MM-DD): revenue, tracked hours, payment days and open amounts per customer, expenses per category against the previous period, hours per project and monthly fixed costs from active recurring expenses.";
+    read reports::report_summary(from: String, to: String) -> Summary, "Income, expenses and profit for a period (YYYY-MM-DD). Expenses count with their deductible share.";
+    read reports::report_monthly(from: String, to: String) -> Vec<MonthRow>, "Monthly figures for a period (YYYY-MM-DD). Expenses count with their deductible share.";
+    read reports::report_categories(from: String, to: String, kind: Option<String>) -> Vec<ShareRow>, "Shares by category for a period. Expenses count with their deductible share.";
+    read reports::report_analysis(from: String, to: String) -> Analysis, "Analysis for a period (YYYY-MM-DD): revenue, tracked hours, payment days and open amounts per customer, expenses per category against the previous period, hours per project and monthly fixed costs from active recurring expenses. Expenses and fixed costs count with their deductible share.";
 
-    read search::global_search(query: String) -> Vec<SearchHit>, "Searches expenses, invoices, customers, projects and documents.";
+    read search::global_search(query: String) -> Vec<SearchHit>, "Searches expenses, invoices, customers, projects and documents. Expense amounts are the deductible share.";
 
     read activities::list_activities() -> Vec<Activity>, "Lists the most recent notifications.";
     write activities::mark_activities_read() -> (), "Marks all notifications as read.";

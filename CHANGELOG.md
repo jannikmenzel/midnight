@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+### Added
+
+- Full-screen moment for updates, while installing and after the restart
+
+### Changed
+
+- The window controls now sit inside the app, without an extra title bar
+- The top bar spans the whole window with the search in the center, the logo and name in the sidebar are gone
+- Overview, reports, ledger, search and forecast count expenses with their deductible share
+
 ## [0.1.4] - 2026-10-30
 
 ### Added

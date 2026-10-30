@@ -141,7 +141,7 @@ export function TaxForecast({ year }: { year: number }) {
       </div>
 
       <Card
-        title={t("Expected payments until year end")}
+        title={t("Expected income and deductible expenses until year end")}
         actions={
           flows.length > 0 && (
             <span className="tabular flex gap-3 text-xs">

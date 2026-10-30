@@ -327,6 +327,15 @@ pub fn deductible_cents(amount_cents: i64, percent: i64) -> i64 {
     (amount_cents as f64 * percent as f64 / 100.0).round() as i64
 }
 
+macro_rules! deductible_sql {
+    () => {
+        "CAST(ROUND(e.amount_cents * e.deductible_percent / 100.0) AS INTEGER)"
+    };
+}
+pub(crate) use deductible_sql;
+
+pub const DEDUCTIBLE_SQL: &str = deductible_sql!();
+
 pub fn euer_line(slug: Option<&str>) -> &'static str {
     let (en, de) = match slug.unwrap_or("") {
         "software" => ("Ongoing IT costs", "Laufende EDV-Kosten"),

@@ -5,6 +5,7 @@ use crate::i18n::tr;
 use crate::activities;
 use crate::db::AppState;
 use crate::error::{msg, AppResult, Context};
+use crate::tax::deductible_cents;
 use crate::util::fmt_date_de;
 
 #[derive(Debug, Serialize, Clone)]
@@ -15,6 +16,8 @@ pub struct LedgerEntry {
     pub name: String,
     pub description: Option<String>,
     pub amount_cents: i64,
+    pub full_amount_cents: i64,
+    pub deductible_percent: Option<i64>,
     pub currency: String,
     pub category_slug: Option<String>,
     pub category_name: Option<String>,
@@ -61,13 +64,16 @@ fn income(conn: &Connection, f: &LedgerFilter) -> AppResult<Vec<LedgerEntry>> {
     )?;
     let rows = stmt.query_map(params![non_empty(&f.from), non_empty(&f.to), like, tr!("No customer", "Ohne Kunde")], |r| {
         let number: String = r.get(3)?;
+        let amount: i64 = r.get(4)?;
         Ok(LedgerEntry {
             kind: "income".into(),
             id: r.get(0)?,
             date: r.get(1)?,
             name: r.get(2)?,
             description: Some(tr!("Invoice {number}", "Rechnung {number}")),
-            amount_cents: r.get(4)?,
+            amount_cents: amount,
+            full_amount_cents: amount,
+            deductible_percent: None,
             currency: r.get(5)?,
             category_slug: None,
             category_name: None,
@@ -87,7 +93,7 @@ fn expenses(conn: &Connection, f: &LedgerFilter) -> AppResult<Vec<LedgerEntry>> 
     let like = non_empty(&f.search).map(|s| format!("%{s}%"));
     let mut stmt = conn.prepare(
         "SELECT e.id, e.date, e.name, e.description, e.amount_cents, e.currency, e.category_slug, c.name, c.color,
-                (SELECT COUNT(*) FROM receipts r WHERE r.expense_id = e.id) AS receipts, e.expense_recurring_id IS NOT NULL
+                (SELECT COUNT(*) FROM receipts r WHERE r.expense_id = e.id) AS receipts, e.expense_recurring_id IS NOT NULL, e.deductible_percent
          FROM expenses e LEFT JOIN categories c ON c.slug = e.category_slug
          WHERE (?1 IS NULL OR e.date >= ?1) AND (?2 IS NULL OR e.date <= ?2)
            AND (?3 IS NULL OR e.name LIKE ?3 OR COALESCE(e.description, '') LIKE ?3 OR COALESCE(e.note, '') LIKE ?3)
@@ -97,13 +103,17 @@ fn expenses(conn: &Connection, f: &LedgerFilter) -> AppResult<Vec<LedgerEntry>> 
     let rows = stmt.query_map(
         params![non_empty(&f.from), non_empty(&f.to), like, non_empty(&f.category), f.missing_receipt],
         |r| {
+            let amount: i64 = r.get(4)?;
+            let percent: i64 = r.get(11)?;
             Ok(LedgerEntry {
                 kind: "expense".into(),
                 id: r.get(0)?,
                 date: r.get(1)?,
                 name: r.get(2)?,
                 description: r.get(3)?,
-                amount_cents: -r.get::<_, i64>(4)?,
+                amount_cents: -deductible_cents(amount, percent),
+                full_amount_cents: -amount,
+                deductible_percent: Some(percent),
                 currency: r.get(5)?,
                 category_slug: r.get(6)?,
                 category_name: r.get(7)?,
@@ -144,16 +154,21 @@ pub async fn export_ledger_csv(state: &AppState, filter: LedgerFilter, path: Str
     f.limit = Some(usize::MAX);
     let mut page = query_ledger(&conn, &f)?;
     page.items.reverse();
+    std::fs::write(&path, ledger_csv(&page.items)?)?;
+    activities::log(&conn, "ledger_exported", &tr!("{} transactions exported", "{} Buchungen exportiert", page.items.len()), None)?;
+    Ok(page.items.len())
+}
 
+fn ledger_csv(items: &[LedgerEntry]) -> AppResult<Vec<u8>> {
     let de = crate::i18n::is_de();
     let mut wtr = csv::WriterBuilder::new().delimiter(if de { b';' } else { b',' }).from_writer(Vec::new());
     let header = if de {
-        ["Datum", "Art", "Name", "Beschreibung", "Kategorie", "Betrag", "Währung", "Rechnung", "Belege"]
+        ["Datum", "Art", "Name", "Beschreibung", "Kategorie", "Rechnungsbetrag", "Abziehbar %", "Betrag", "Währung", "Rechnung", "Belege"]
     } else {
-        ["Date", "Type", "Name", "Description", "Category", "Amount", "Currency", "Invoice", "Receipts"]
+        ["Date", "Type", "Name", "Description", "Category", "Invoice amount", "Deductible %", "Amount", "Currency", "Invoice", "Receipts"]
     };
     wtr.write_record(header).ctx(&tr!("Writing CSV", "CSV schreiben"))?;
-    for e in &page.items {
+    for e in items {
         let receipts = if e.kind == "expense" { e.receipt_count.to_string() } else { String::new() };
         wtr.write_record([
             if de { fmt_date_de(&e.date) } else { e.date.clone() },
@@ -161,6 +176,8 @@ pub async fn export_ledger_csv(state: &AppState, filter: LedgerFilter, path: Str
             e.name.clone(),
             e.description.clone().unwrap_or_default(),
             e.category_name.clone().unwrap_or_default(),
+            csv_amount(e.full_amount_cents),
+            e.deductible_percent.map(|p| p.to_string()).unwrap_or_default(),
             csv_amount(e.amount_cents),
             e.currency.clone(),
             e.invoice_number.clone().unwrap_or_default(),
@@ -170,9 +187,7 @@ pub async fn export_ledger_csv(state: &AppState, filter: LedgerFilter, path: Str
     }
     let mut bytes = vec![0xEF, 0xBB, 0xBF];
     bytes.extend(wtr.into_inner().map_err(|e| msg(e.to_string()))?);
-    std::fs::write(&path, bytes)?;
-    activities::log(&conn, "ledger_exported", &tr!("{} transactions exported", "{} Buchungen exportiert", page.items.len()), None)?;
-    Ok(page.items.len())
+    Ok(bytes)
 }
 
 #[cfg(test)]
@@ -203,6 +218,27 @@ mod tests {
         assert_eq!(page.income_cents, 100000);
         assert_eq!(page.expense_cents, 4430);
         assert_eq!(page.items[1].date, "2026-09-10", "income counts on the payment date");
+    }
+
+    #[test]
+    fn expenses_count_with_their_deductible_share() {
+        let conn = setup();
+        conn.execute("UPDATE expenses SET amount_cents = 1222, deductible_percent = 20 WHERE id = 'e1'", []).unwrap();
+        let page = query_ledger(&conn, &LedgerFilter { kind: Some("expense".into()), ..Default::default() }).unwrap();
+        let e1 = &page.items[0];
+        assert_eq!((e1.amount_cents, e1.full_amount_cents, e1.deductible_percent), (-244, -1222, Some(20)));
+        assert_eq!(page.expense_cents, 244 + 2990);
+    }
+
+    #[test]
+    fn csv_shows_invoice_amount_share_and_deductible_amount() {
+        let conn = setup();
+        conn.execute("UPDATE expenses SET amount_cents = 1222, deductible_percent = 20 WHERE id = 'e1'", []).unwrap();
+        let page = query_ledger(&conn, &LedgerFilter::default()).unwrap();
+        let text = String::from_utf8(ledger_csv(&page.items).unwrap()).unwrap();
+        assert!(text.contains("Category,Invoice amount,Deductible %,Amount,Currency"), "{text}");
+        assert!(text.contains(",-12.22,20,-2.44,EUR,"), "{text}");
+        assert!(text.contains(",1000.00,,1000.00,EUR,"), "income has no share: {text}");
     }
 
     #[test]

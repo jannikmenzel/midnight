@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { createPortal } from "react-dom";
 import { AnimatedMoney, cx, prefersReducedMotion } from "./ui";
 
-export type MomentKind = "export" | "timesheet" | "sent" | "paid";
+export type MomentKind = "export" | "timesheet" | "sent" | "paid" | "update";
 
 export interface Moment {
   kind: MomentKind;
@@ -18,6 +18,7 @@ interface ActiveMoment extends Moment {
 
 const HOLD_MS = 2600;
 const AFTER_WORK_HOLD_MS = 2000;
+const UPDATE_HOLD_MS = 3600;
 const REDUCED_HOLD_MS = 1200;
 const MIN_WORK_MS = 1400;
 const EXIT_MS = 280;
@@ -66,6 +67,17 @@ function MomentIcon({ kind, working }: { kind: MomentKind; working: boolean }) {
           <Stroke d="M21 33l8 8 14-16" at={850} ms={400} />
         </>
       )}
+      {kind === "update" && (
+        <>
+          <Stroke d="M32 8a16 16 0 0 0 24 24a24 24 0 1 1-24-24z" at={100} ms={1300} />
+          {!working && (
+            <>
+              <Stroke d="M47 8v8M43 12h8" at={1200} ms={350} />
+              <Stroke d="M55 19v4M53 21h4" at={1450} ms={300} />
+            </>
+          )}
+        </>
+      )}
     </svg>
   );
 }
@@ -92,7 +104,7 @@ function useMomentLifecycle(active: ActiveMoment | null, leaving: boolean, onLea
 
   useEffect(() => {
     if (id === undefined || working) return;
-    const hold = prefersReducedMotion() ? REDUCED_HOLD_MS : kind === "export" || kind === "timesheet" ? AFTER_WORK_HOLD_MS : HOLD_MS;
+    const hold = prefersReducedMotion() ? REDUCED_HOLD_MS : kind === "update" ? UPDATE_HOLD_MS : kind === "export" || kind === "timesheet" ? AFTER_WORK_HOLD_MS : HOLD_MS;
     const timer = setTimeout(onLeave, hold);
     return () => clearTimeout(timer);
   }, [id, working, kind, onLeave]);

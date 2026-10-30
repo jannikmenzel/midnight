@@ -402,7 +402,7 @@ function RecurringExpenses() {
                   {r.end_type === "after_count" && r.end_count ? ` / ${r.end_count}` : ""}
                 </td>
                 <td className="py-2.5 text-right">
-                  <Amount cents={-r.amount_cents} currency={r.currency} />
+                  <Amount cents={-r.deductible_cents} currency={r.currency} />
                 </td>
                 <td className="py-2.5 pl-3">
                   <Badge tone={STATUS[r.status].tone}>{STATUS[r.status].label}</Badge>
@@ -602,13 +602,13 @@ export default function Ledger() {
               action={!filtersActive && <Button onClick={() => setTarget({ draft: emptyDraft(), files: [] })}>{t("Record expense")}</Button>}
             />
           ) : (
-            <table className="w-full table-fixed text-[13px]">
+            <table className="w-full text-[13px]">
               <thead>
                 <tr className="border-b border-line text-left text-xs text-muted">
-                  <th className="w-28 py-2.5 pl-4 font-medium">{t("Date")}</th>
-                  <th className="py-2.5 font-medium">{t("Description")}</th>
-                  <th className="w-56 py-2.5 font-medium">{t("Category")}</th>
-                  <th className="w-32 py-2.5 pr-4 text-right font-medium">{t("Amount")}</th>
+                  <th className="min-w-28 py-2.5 pl-4 font-medium">{t("Date")}</th>
+                  <th className="w-full py-2.5 font-medium">{t("Description")}</th>
+                  <th className="py-2.5 pr-6 font-medium whitespace-nowrap">{t("Category")}</th>
+                  <th className="py-2.5 pr-4 text-right font-medium whitespace-nowrap">{t("Amount")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -634,7 +634,7 @@ export default function Ledger() {
                       </div>
                       {e.description && <div className="truncate text-xs text-muted">{e.description}</div>}
                     </td>
-                    <td className="py-2.5 pr-3">
+                    <td className="py-2.5 pr-6">
                       {e.kind === "income" ? (
                         <Badge tone="pos">{t("Income")}</Badge>
                       ) : (

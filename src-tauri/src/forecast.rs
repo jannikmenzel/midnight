@@ -397,7 +397,8 @@ fn expected_expenses(conn: &Connection, year: i32, today: NaiveDate, horizon: Na
     let mut deductible = 0;
     let mut items = Vec::new();
     for e in crate::expense_recurring::expected(conn, today, horizon)?.into_iter().filter(|e| e.date.year() == year) {
-        deductible += crate::tax::deductible_cents(e.amount_cents, e.deductible_percent);
+        let share = crate::tax::deductible_cents(e.amount_cents, e.deductible_percent);
+        deductible += share;
         let category: Option<String> = match &e.category_slug {
             Some(slug) => conn.query_row("SELECT name FROM categories WHERE slug = ?1", params![slug], |r| r.get(0)).ok(),
             None => None,
@@ -407,8 +408,8 @@ fn expected_expenses(conn: &Connection, year: i32, today: NaiveDate, horizon: Na
             label: e.name,
             customer: category.unwrap_or_else(|| tr!("Uncategorised", "Ohne Kategorie")),
             date: iso(e.date),
-            amount_cents: e.amount_cents,
-            detail: String::new(),
+            amount_cents: share,
+            detail: if e.deductible_percent < 100 { tr!("{} % of {}", "{} % von {}", e.deductible_percent, fmt_money(e.amount_cents, "EUR")) } else { String::new() },
         });
     }
     Ok((items, deductible))
@@ -596,8 +597,9 @@ mod tests {
         }
         let f = build(&conn, 2026, today).unwrap();
         let dates: Vec<_> = f.expenses.iter().map(|e| (e.date.as_str(), e.amount_cents)).collect();
-        assert_eq!(dates, [("2026-10-20", 10000), ("2026-11-01", 50000), ("2026-11-20", 10000), ("2026-12-01", 50000), ("2026-12-20", 10000)]);
-        assert_eq!(f.outlook.expected_expense_cents, 130_000);
+        assert_eq!(dates, [("2026-10-20", 7000), ("2026-11-01", 25000), ("2026-11-20", 7000), ("2026-12-01", 25000), ("2026-12-20", 7000)]);
+        assert_eq!(f.outlook.expected_expense_cents, 2 * 25_000 + 3 * 7_000, "the list shows the deductible share");
+        assert_eq!(f.expenses[0].detail, "70 % of €100.00");
         let o = &f.outlook;
         assert_eq!(o.booked_income_cents + o.expected_income_cents - o.expenses_cents - o.home_office_cents, o.profit_cents, "breakdown adds up to the profit");
         assert_eq!(o.tax_total_cents - o.withheld_cents - o.prepayments_cents, o.balance_cents, "breakdown adds up to the balance");

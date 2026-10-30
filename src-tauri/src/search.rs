@@ -9,10 +9,14 @@ use crate::vault::search_documents;
 const QUERIES: [(&str, &str); 4] = [
     (
         "expense",
-        "SELECT e.id, e.name, COALESCE(c.name, e.description), -e.amount_cents, e.currency, e.date
+        concat!(
+            "SELECT e.id, e.name, COALESCE(c.name, e.description), -",
+            crate::tax::deductible_sql!(),
+            ", e.currency, e.date
          FROM expenses e LEFT JOIN categories c ON c.slug = e.category_slug
          WHERE e.name LIKE ?1 OR COALESCE(e.description, '') LIKE ?1 OR COALESCE(e.note, '') LIKE ?1
-         ORDER BY e.date DESC LIMIT 6",
+         ORDER BY e.date DESC LIMIT 6"
+        ),
     ),
     (
         "invoice",
@@ -113,6 +117,17 @@ mod tests {
         assert_eq!(h.amount_cents, Some(-4999));
         assert_eq!(h.currency.as_deref(), Some("EUR"));
         assert_eq!(h.date.as_deref(), Some("2026-01-02"));
+    }
+
+    #[test]
+    fn expense_hits_show_the_deductible_share() {
+        let conn = open_in_memory().unwrap();
+        conn.execute(
+            "INSERT INTO expenses (id, date, name, amount_cents, deductible_percent) VALUES ('e1', '2026-01-02', 'Mobilfunk', 1222, 20)",
+            [],
+        )
+        .unwrap();
+        assert_eq!(hits(&conn, "expense", "%mobil%")[0].amount_cents, Some(-244));
     }
 
     #[test]

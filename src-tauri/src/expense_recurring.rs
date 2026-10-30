@@ -29,18 +29,25 @@ pub struct ExpenseRecurring {
     pub expenses_generated: i64,
     pub next_scheduled_at: String,
     pub last_generated_at: Option<String>,
+    pub deductible_percent: i64,
+    pub deductible_cents: i64,
 }
 
 pub async fn list_expense_recurring(state: &AppState) -> AppResult<Vec<ExpenseRecurring>> {
     let conn = state.conn()?;
+    load_series(&conn)
+}
+
+fn load_series(conn: &Connection) -> AppResult<Vec<ExpenseRecurring>> {
     let mut stmt = conn.prepare(
         "SELECT r.id, r.name, r.description, r.amount_cents, r.currency, r.category_slug, c.name, c.color, r.frequency,
                 r.frequency_interval, r.end_type, r.end_date, r.end_count, r.status, r.expenses_generated,
-                r.next_scheduled_at, r.last_generated_at
+                r.next_scheduled_at, r.last_generated_at, r.deductible_percent
          FROM expense_recurring r LEFT JOIN categories c ON c.slug = r.category_slug
          ORDER BY r.status, r.next_scheduled_at",
     )?;
     let rows = stmt.query_map([], |r| {
+        let percent: i64 = r.get(17)?;
         Ok(ExpenseRecurring {
             id: r.get(0)?,
             name: r.get(1)?,
@@ -59,6 +66,8 @@ pub async fn list_expense_recurring(state: &AppState) -> AppResult<Vec<ExpenseRe
             expenses_generated: r.get(14)?,
             next_scheduled_at: r.get(15)?,
             last_generated_at: r.get(16)?,
+            deductible_percent: percent,
+            deductible_cents: crate::tax::deductible_cents(r.get(3)?, percent),
         })
     })?;
     Ok(rows.collect::<Result<_, _>>()?)
@@ -394,6 +403,15 @@ mod tests {
         conn.execute("DELETE FROM expense_recurring WHERE id = ?1", params![id]).unwrap();
         assert_eq!(count(&conn, "SELECT COUNT(*) FROM expenses"), 3);
         assert_eq!(count(&conn, "SELECT COUNT(*) FROM expenses WHERE expense_recurring_id IS NOT NULL"), 0);
+    }
+
+    #[test]
+    fn the_list_shows_full_amount_and_deductible_share() {
+        let conn = setup("2026-01-01");
+        conn.execute("UPDATE expenses SET deductible_percent = 40", []).unwrap();
+        create_series(&conn, &input("monthly_date", "never")).unwrap();
+        let series = load_series(&conn).unwrap();
+        assert_eq!((series[0].amount_cents, series[0].deductible_percent, series[0].deductible_cents), (6599, 40, 2640));
     }
 
     #[test]

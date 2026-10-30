@@ -102,6 +102,8 @@ export interface LedgerEntry {
   name: string;
   description: string | null;
   amount_cents: number;
+  full_amount_cents: number;
+  deductible_percent: number | null;
   currency: string;
   category_slug: string | null;
   category_name: string | null;
@@ -364,6 +366,8 @@ export interface ExpenseRecurring {
   expenses_generated: number;
   next_scheduled_at: string;
   last_generated_at: string | null;
+  deductible_percent: number;
+  deductible_cents: number;
 }
 
 export interface ExpenseRecurringInput {

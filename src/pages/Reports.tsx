@@ -321,7 +321,7 @@ function Highlights({ data, currency, onFixedCosts }: { data: Analysis; currency
         tone={share !== null && share >= 0.5 ? "warn" : undefined}
       />
       <Kpi
-        label={t("Fixed costs per month")}
+        label={t("Deductible fixed costs per month")}
         value={money(data.fixed_costs_monthly_cents, currency)}
         sub={data.fixed_costs_count > 0 ? t("{n} recurring expenses", { n: data.fixed_costs_count }) : t("No recurring expenses")}
         onClick={onFixedCosts}

@@ -226,7 +226,7 @@ export default function Overview() {
         />
       </div>
 
-      <section className="surface overflow-hidden rounded-[10px] border border-line bg-panel" aria-label={t("Cash flow")}>
+      <section className="surface overflow-hidden rounded-[10px] border border-line bg-panel" aria-label={t("Income and deductible expenses")}>
         <div className="px-4 pt-5 pb-3">
           {monthly.data ? (
             monthly.data.length === 0 ? (

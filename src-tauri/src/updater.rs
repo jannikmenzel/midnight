@@ -10,7 +10,11 @@ use crate::i18n::tr;
 const INTERVAL: Duration = Duration::from_secs(6 * 60 * 60);
 const RETRY: Duration = Duration::from_secs(15 * 60);
 const TICK: Duration = Duration::from_secs(60);
+#[cfg(not(debug_assertions))]
+const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 const FAKE_UPDATE: &str = "MIDNIGHT_FAKE_UPDATE";
+#[cfg(debug_assertions)]
+const FAKE_INSTALLED: &str = "MIDNIGHT_FAKE_INSTALLED";
 const AVAILABLE_EVENT: &str = "update-available";
 
 #[derive(Default)]
@@ -91,7 +95,17 @@ fn is_new(announced: Option<&Release>, version: &str) -> bool {
 
 #[cfg(debug_assertions)]
 fn fake_version() -> Option<String> {
-    std::env::var(FAKE_UPDATE).ok()
+    std::env::var(FAKE_UPDATE).ok().filter(|_| std::env::var_os(FAKE_INSTALLED).is_none())
+}
+
+#[cfg(debug_assertions)]
+fn current_version(app: &AppHandle) -> String {
+    std::env::var(FAKE_INSTALLED).unwrap_or_else(|_| app.package_info().version.to_string())
+}
+
+#[cfg(not(debug_assertions))]
+fn current_version(app: &AppHandle) -> String {
+    app.package_info().version.to_string()
 }
 
 #[cfg(debug_assertions)]
@@ -111,10 +125,12 @@ async fn fetch(_app: &AppHandle) -> AppResult<Option<Release>> {
 
 #[cfg(debug_assertions)]
 async fn download_and_install(_app: &AppHandle) -> AppResult<()> {
-    if fake_version().is_none() {
+    let Some(version) = fake_version() else {
         return Err(crate::error::msg(tr!("No update available", "Kein Update verfügbar")));
-    }
-    pause().await
+    };
+    pause().await?;
+    std::env::set_var(FAKE_INSTALLED, version);
+    Ok(())
 }
 
 #[cfg(not(debug_assertions))]
@@ -127,7 +143,8 @@ async fn fetch(app: &AppHandle) -> AppResult<Option<Release>> {
 #[cfg(not(debug_assertions))]
 async fn download_and_install(app: &AppHandle) -> AppResult<()> {
     use tauri_plugin_updater::UpdaterExt;
-    let Some(update) = app.updater().ctx("Update")?.check().await.ctx("Update")? else {
+    let updater = app.updater_builder().timeout(DOWNLOAD_TIMEOUT).build().ctx("Update")?;
+    let Some(update) = updater.check().await.ctx("Update")? else {
         return Err(crate::error::msg(tr!("No update available", "Kein Update verfügbar")));
     };
     update.download_and_install(|_, _| {}, || {}).await.ctx("Update")
@@ -173,7 +190,7 @@ pub fn spawn(app: AppHandle) {
 
 #[tauri::command]
 pub fn update_status(app: AppHandle) -> UpdateStatus {
-    UpdateStatus { current: app.package_info().version.to_string(), available: app.state::<UpdateState>().available() }
+    UpdateStatus { current: current_version(&app), available: app.state::<UpdateState>().available() }
 }
 
 #[tauri::command]

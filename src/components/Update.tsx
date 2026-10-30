@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { Download, X } from "lucide-react";
 import { api, errorMessage, type Release } from "../lib/api";
 import { UPDATE_EVENT } from "../lib/nav";
+import { useMoment } from "./ActionMoment";
 import { Badge, Button, IconButton, useToast } from "./ui";
 import { t } from "../lib/i18n";
 
@@ -14,6 +15,7 @@ const HEADINGS: Record<string, string> = {
 };
 
 const DISMISSED_KEY = "update-dismissed";
+const VERSION_KEY = "last-version";
 
 function readDismissed() {
   try {
@@ -23,14 +25,33 @@ function readDismissed() {
   }
 }
 
+function swapLastVersion(current: string) {
+  try {
+    const last = localStorage.getItem(VERSION_KEY);
+    localStorage.setItem(VERSION_KEY, current);
+    return last;
+  } catch {
+    return current;
+  }
+}
+
 export function useUpdate() {
   const toast = useToast();
+  const moment = useMoment();
   const [available, setAvailable] = useState<Release | null>(null);
   const [installing, setInstalling] = useState(false);
   const [dismissed, setDismissed] = useState(readDismissed);
 
   useEffect(() => {
-    api.updateStatus().then((s) => setAvailable(s.available)).catch(() => {});
+    api
+      .updateStatus()
+      .then(async (s) => {
+        setAvailable(s.available);
+        const last = swapLastVersion(s.current);
+        if (last === s.current) return;
+        if (last || (await api.getSettings()).onboarded) void moment.show({ kind: "update", title: `Midnight ${s.current}`, detail: t("Update installed") });
+      })
+      .catch(() => {});
     const onChecked = (e: Event) => setAvailable((e as CustomEvent<Release | null>).detail);
     window.addEventListener(UPDATE_EVENT, onChecked);
     const unlisten = listen<Release>("update-available", (e) => setAvailable(e.payload));
@@ -38,12 +59,18 @@ export function useUpdate() {
       window.removeEventListener(UPDATE_EVENT, onChecked);
       unlisten.then((off) => off()).catch(() => {});
     };
-  }, []);
+  }, [moment]);
 
   const install = async () => {
+    if (!available) return;
+    const title = `Midnight ${available.version}`;
     setInstalling(true);
     try {
-      await api.installUpdate();
+      await moment.run(
+        { kind: "update", title: t("Installing update"), detail: t("Version {current}, Midnight restarts afterwards", { current: available.version }) },
+        () => api.installUpdate(),
+        () => ({ kind: "update", title, detail: t("Update installed") }),
+      );
     } catch (e) {
       toast.error(errorMessage(e));
       setInstalling(false);

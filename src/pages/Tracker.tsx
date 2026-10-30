@@ -401,15 +401,16 @@ export default function Tracker() {
     });
     if (!target) return;
     setExporting(true);
+    setExportOpen(false);
     try {
       await moment.run(
         { kind: "timesheet", title: t("Preparing time tracking export") },
         () => api.exportTimesheet(from, to, exportCustomer || null, target),
         (n) => ({ kind: "timesheet", title: t("Time tracking exported"), detail: n === 1 ? t("1 entry") : t("{n} entries", { n }) }),
       );
-      setExportOpen(false);
       api.openPath(target).catch(() => {});
     } catch (e) {
+      setExportOpen(true);
       toast.error(errorMessage(e));
     } finally {
       setExporting(false);

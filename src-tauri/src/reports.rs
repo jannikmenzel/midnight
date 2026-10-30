@@ -5,6 +5,7 @@ use serde::Serialize;
 use crate::i18n::tr;
 use crate::db::{load_settings, AppState};
 use crate::error::{msg, AppResult};
+use crate::tax::{deductible_cents, DEDUCTIBLE_SQL};
 use crate::util::{iso, parse_date, today_date};
 
 
@@ -17,7 +18,7 @@ fn revenue(conn: &Connection, from: &str, to: &str) -> AppResult<i64> {
 }
 
 fn expenses(conn: &Connection, from: &str, to: &str) -> AppResult<i64> {
-    Ok(conn.query_row("SELECT COALESCE(SUM(amount_cents), 0) FROM expenses WHERE date BETWEEN ?1 AND ?2", params![from, to], |r| r.get(0))?)
+    Ok(conn.query_row(&format!("SELECT COALESCE(SUM({DEDUCTIBLE_SQL}), 0) FROM expenses e WHERE e.date BETWEEN ?1 AND ?2"), params![from, to], |r| r.get(0))?)
 }
 
 fn month_start(d: NaiveDate) -> NaiveDate {
@@ -131,7 +132,7 @@ pub fn monthly(conn: &Connection, from: &str, to: &str) -> AppResult<Vec<MonthRo
         from,
         to,
     )?;
-    let exp = sums_by_month(conn, "SELECT substr(date, 1, 7), SUM(amount_cents) FROM expenses WHERE date BETWEEN ?1 AND ?2 GROUP BY 1", from, to)?;
+    let exp = sums_by_month(conn, &format!("SELECT substr(e.date, 1, 7), SUM({DEDUCTIBLE_SQL}) FROM expenses e WHERE e.date BETWEEN ?1 AND ?2 GROUP BY 1"), from, to)?;
     let mut rows = Vec::new();
     let mut cursor = month_start(f);
     while cursor <= t {
@@ -165,13 +166,16 @@ pub fn shares(conn: &Connection, from: &str, to: &str, kind: Option<&str>) -> Ap
     let sql = if income {
         "SELECT COALESCE(customer_id, customer_name, '-'), customer_name, '', SUM(amount_cents), COUNT(*)
          FROM invoices WHERE status = 'paid' AND paid_at BETWEEN ?1 AND ?2 GROUP BY 1 ORDER BY 4 DESC"
+            .to_string()
     } else {
-        "SELECT COALESCE(c.slug, 'uncategorized'), c.name, COALESCE(c.color, '#9CA3AF'),
-                SUM(e.amount_cents), COUNT(*)
+        format!(
+            "SELECT COALESCE(c.slug, 'uncategorized'), c.name, COALESCE(c.color, '#9CA3AF'),
+                SUM({DEDUCTIBLE_SQL}), COUNT(*)
          FROM expenses e LEFT JOIN categories c ON c.slug = e.category_slug
          WHERE e.date BETWEEN ?1 AND ?2 GROUP BY 1 ORDER BY 4 DESC"
+        )
     };
-    let mut stmt = conn.prepare(sql)?;
+    let mut stmt = conn.prepare(&sql)?;
     let rows = stmt.query_map(params![from, to], |r| {
         let name: Option<String> = r.get(1)?;
         let fallback = || if income { tr!("No customer", "Ohne Kunde") } else { tr!("Uncategorised", "Ohne Kategorie") };
@@ -324,14 +328,14 @@ fn customer_stats(conn: &Connection, from: &str, to: &str) -> AppResult<Vec<Cust
 }
 
 fn category_stats(conn: &Connection, from: &str, to: &str, prev_from: &str, prev_to: &str) -> AppResult<Vec<CategoryStat>> {
-    let mut stmt = conn.prepare(
+    let mut stmt = conn.prepare(&format!(
         "SELECT COALESCE(c.slug, 'uncategorized'), c.name, COALESCE(c.color, '#9CA3AF'),
-                SUM(CASE WHEN e.date BETWEEN ?1 AND ?2 THEN e.amount_cents ELSE 0 END),
-                SUM(CASE WHEN e.date BETWEEN ?3 AND ?4 THEN e.amount_cents ELSE 0 END)
+                SUM(CASE WHEN e.date BETWEEN ?1 AND ?2 THEN {DEDUCTIBLE_SQL} ELSE 0 END),
+                SUM(CASE WHEN e.date BETWEEN ?3 AND ?4 THEN {DEDUCTIBLE_SQL} ELSE 0 END)
          FROM expenses e LEFT JOIN categories c ON c.slug = e.category_slug
          WHERE e.date BETWEEN ?1 AND ?2 OR e.date BETWEEN ?3 AND ?4
-         GROUP BY 1 ORDER BY 4 DESC, 5 DESC",
-    )?;
+         GROUP BY 1 ORDER BY 4 DESC, 5 DESC"
+    ))?;
     let rows = stmt.query_map(params![from, to, prev_from, prev_to], |r| {
         let name: Option<String> = r.get(1)?;
         Ok(CategoryStat { key: r.get(0)?, name: name.unwrap_or_else(|| tr!("Uncategorised", "Ohne Kategorie")), color: r.get(2)?, total_cents: r.get(3)?, prev_cents: r.get(4)? })
@@ -352,12 +356,12 @@ fn project_stats(conn: &Connection, from: &str, to: &str) -> AppResult<Vec<Proje
 }
 
 fn fixed_costs(conn: &Connection) -> AppResult<(i64, i64)> {
-    let mut stmt = conn.prepare("SELECT amount_cents, frequency, frequency_interval FROM expense_recurring WHERE status = 'active'")?;
-    let rows = stmt.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, Option<i64>>(2)?)))?;
+    let mut stmt = conn.prepare("SELECT amount_cents, frequency, frequency_interval, deductible_percent FROM expense_recurring WHERE status = 'active'")?;
+    let rows = stmt.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, Option<i64>>(2)?, r.get::<_, i64>(3)?)))?;
     let (mut total, mut count) = (0.0, 0);
     for row in rows {
-        let (amount, frequency, interval) = row?;
-        total += amount as f64 * monthly_factor(&frequency, interval);
+        let (amount, frequency, interval, percent) = row?;
+        total += deductible_cents(amount, percent) as f64 * monthly_factor(&frequency, interval);
         count += 1;
     }
     Ok((total.round() as i64, count))
@@ -424,6 +428,38 @@ mod tests {
         assert_eq!((by_customer.len(), by_customer[0].total_cents), (1, 456000));
         let by_category = shares(&conn, "2026-08-01", "2026-09-30", None).unwrap();
         assert_eq!(by_category[0].name, "Travel");
+    }
+
+    #[test]
+    fn reports_count_only_the_deductible_share() {
+        let conn = crate::db::open_in_memory().unwrap();
+        conn.execute_batch(
+            "INSERT INTO invoices (id, invoice_number, customer_name, status, issue_date, due_date, amount_cents, paid_at) VALUES
+               ('a', 'INV-1', 'Acme GmbH', 'paid', '2026-09-01', '2026-09-15', 100000, '2026-09-04');
+             INSERT INTO expenses (id, date, name, amount_cents, category_slug, deductible_percent) VALUES
+               ('x', '2026-09-12', 'Mobilfunk', 1222, 'telecom', 20),
+               ('y', '2026-09-13', 'NAS', 35999, 'hardware', 70),
+               ('z', '2026-08-13', 'Mobilfunk', 1200, 'telecom', 20);
+             INSERT INTO expense_recurring (id, name, amount_cents, frequency, next_scheduled_at, status, deductible_percent) VALUES
+               ('r', 'Mobilfunk', 1200, 'monthly_date', '2026-10-01', 'active', 20);",
+        )
+        .unwrap();
+        let expected = deductible_cents(1222, 20) + deductible_cents(35999, 70);
+        assert_eq!(expected, 244 + 25199, "rounded per expense, like the tax report");
+
+        let s = summary(&conn, "2026-09-01", "2026-09-30").unwrap();
+        assert_eq!((s.expenses_cents, s.profit_cents, s.prev_expenses_cents), (expected, 100000 - expected, 240));
+
+        let months = monthly(&conn, "2026-09-01", "2026-09-30").unwrap();
+        assert_eq!((months[0].expenses_cents, months[0].profit_cents), (expected, 100000 - expected));
+
+        let by_category = shares(&conn, "2026-09-01", "2026-09-30", None).unwrap();
+        assert_eq!(by_category.iter().map(|c| c.total_cents).collect::<Vec<_>>(), [25199, 244]);
+
+        let a = analysis(&conn, "2026-09-01", "2026-09-30").unwrap();
+        let telecom = a.categories.iter().find(|c| c.key == "telecom").unwrap();
+        assert_eq!((telecom.total_cents, telecom.prev_cents), (244, 240));
+        assert_eq!(a.fixed_costs_monthly_cents, 240);
     }
 
     #[test]

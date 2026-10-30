@@ -51,15 +51,6 @@ function readTheme(): Theme {
 
 const DARK_QUERY = "(prefers-color-scheme: dark)";
 
-function SunMark() {
-  return (
-    <svg viewBox="0 0 24 24" className="size-5" aria-hidden>
-      <path d="M5 15a7 7 0 0 1 14 0z" fill="currentColor" />
-      <rect x="3" y="16.5" width="18" height="1.6" rx="0.8" fill="currentColor" />
-    </svg>
-  );
-}
-
 function RunningTimerChip({ onOpen }: { onOpen: () => void }) {
   const [entry, setEntry] = useState<Entry | null>(null);
   const load = useCallback(() => {
@@ -180,7 +171,12 @@ export default function App() {
   }, []);
 
   if (loadError) {
-    return <div className="p-8 text-neg" data-selectable>{t("The database could not be loaded:")} {loadError}</div>;
+    return (
+      <div className="p-8 pt-14 text-neg" data-selectable>
+        <div className="fixed inset-x-0 top-0 h-12" data-tauri-drag-region />
+        {t("The database could not be loaded:")} {loadError}
+      </div>
+    );
   }
   if (!settings) return null;
   if (!settings.onboarded) return <Onboarding settings={settings} onDone={reloadSettings} />;
@@ -210,65 +206,61 @@ export default function App() {
 
   return (
     <AppContext.Provider value={{ route, params, go, settings, reloadSettings, theme, setTheme }}>
-      <div className="flex h-full">
-        <aside className="flex w-[216px] shrink-0 flex-col border-r border-line bg-panel">
-          <div className="flex h-12 items-center gap-2 px-4" data-tauri-drag-region>
-            <SunMark />
-            <span className="text-[14px] font-semibold tracking-tight">Midnight</span>
+      <div className="flex h-full flex-col">
+        <header className="grid h-12 shrink-0 grid-cols-[1fr_minmax(0,28rem)_1fr] items-center gap-4 border-b border-line bg-panel" data-tauri-drag-region="deep">
+          <button
+            type="button"
+            onClick={() => setPaletteOpen(true)}
+            className="col-start-2 flex h-8 w-full items-center gap-2 rounded-md border border-line bg-bg px-2.5 text-[13px] text-muted hover:bg-subtle"
+          >
+            <Search className="size-3.5" />
+            {t("Search or run an action…")}
+            <kbd className="ml-auto rounded border border-line px-1 text-[11px]">⌘K</kbd>
+          </button>
+          <div className="flex items-center justify-end gap-1 pr-4">
+            <NotificationsButton state={notifications} update={update} />
           </div>
-          <nav className="flex flex-1 flex-col gap-0.5 px-2 pt-2" aria-label={t("Main navigation")}>
-            {NAV.map((n) => {
-              const active = route === n.route || (n.route === "ledger" && route === "categories");
-              return (
-                <button
-                  key={n.route}
-                  type="button"
-                  onClick={() => go(n.route)}
-                  aria-current={active ? "page" : undefined}
-                  className={cx(
-                    "flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px] transition-colors duration-150",
-                    active ? "bg-subtle font-medium text-fg" : "text-muted hover:bg-subtle hover:text-fg",
-                  )}
-                >
-                  {n.icon}
-                  {n.label}
-                </button>
-              );
-            })}
-          </nav>
-          <RunningTimerChip onOpen={() => go("tracker")} />
-          <UpdateHint update={update} onOpen={() => setNotificationsOpen(true)} />
-          <div className="border-t border-line p-2">
-            <button
-              type="button"
-              onClick={() => go("settings")}
-              className={cx(
-                "flex h-8 w-full items-center gap-2.5 rounded-md px-2.5 text-[13px] transition-colors duration-150",
-                route === "settings" ? "bg-subtle font-medium" : "text-muted hover:bg-subtle hover:text-fg",
-              )}
-            >
-              <SettingsIcon className="size-4" />
-              {t("Settings")}
-            </button>
-          </div>
-        </aside>
-
-        <div className="flex min-w-0 flex-1 flex-col">
-          <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line bg-panel px-4" data-tauri-drag-region>
-            <button
-              type="button"
-              onClick={() => setPaletteOpen(true)}
-              className="flex h-8 w-full max-w-md items-center gap-2 rounded-md border border-line bg-bg px-2.5 text-[13px] text-muted hover:bg-subtle"
-            >
-              <Search className="size-3.5" />
-              {t("Search or run an action…")}
-              <kbd className="ml-auto rounded border border-line px-1 text-[11px]">⌘K</kbd>
-            </button>
-            <div className="ml-auto flex items-center gap-1">
-              <NotificationsButton state={notifications} update={update} />
+        </header>
+        <div className="flex min-h-0 flex-1">
+          <aside className="flex w-[216px] shrink-0 flex-col border-r border-line bg-panel">
+            <nav className="flex flex-1 flex-col gap-0.5 px-2 pt-2" aria-label={t("Main navigation")}>
+              {NAV.map((n) => {
+                const active = route === n.route || (n.route === "ledger" && route === "categories");
+                return (
+                  <button
+                    key={n.route}
+                    type="button"
+                    onClick={() => go(n.route)}
+                    aria-current={active ? "page" : undefined}
+                    className={cx(
+                      "flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px] transition-colors duration-150",
+                      active ? "bg-subtle font-medium text-fg" : "text-muted hover:bg-subtle hover:text-fg",
+                    )}
+                  >
+                    {n.icon}
+                    {n.label}
+                  </button>
+                );
+              })}
+            </nav>
+            <RunningTimerChip onOpen={() => go("tracker")} />
+            <UpdateHint update={update} onOpen={() => setNotificationsOpen(true)} />
+            <div className="border-t border-line p-2">
+              <button
+                type="button"
+                onClick={() => go("settings")}
+                className={cx(
+                  "flex h-8 w-full items-center gap-2.5 rounded-md px-2.5 text-[13px] transition-colors duration-150",
+                  route === "settings" ? "bg-subtle font-medium" : "text-muted hover:bg-subtle hover:text-fg",
+                )}
+              >
+                <SettingsIcon className="size-4" />
+                {t("Settings")}
+              </button>
             </div>
-          </header>
-          <main ref={mainRef} className="min-h-0 flex-1 overflow-y-scroll">
+          </aside>
+
+          <main ref={mainRef} className="min-h-0 min-w-0 flex-1 overflow-y-scroll">
             <div key={visit} className="anim-page mx-auto w-full max-w-[1240px] px-6 py-6">
               {page}
             </div>
