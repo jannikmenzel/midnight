@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-10-30
+
 ### Added
 
 - Full-screen moment for updates, while installing and after the restart
@@ -78,7 +80,8 @@ All notable changes to this project are documented in this file. The format is b
 - English and German interface
 - `midnight-mcp` server exposing the app's features as MCP tools
 
-[Unreleased]: https://github.com/jannikmenzel/midnight/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/jannikmenzel/midnight/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/jannikmenzel/midnight/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/jannikmenzel/midnight/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/jannikmenzel/midnight/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/jannikmenzel/midnight/compare/v0.1.1...v0.1.2
