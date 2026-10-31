@@ -27,6 +27,7 @@ use crate::mcp_setup::McpSetup;
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Access {
     Read,
+    Append,
     Write,
     Delete,
     AppOnly,
@@ -45,6 +46,9 @@ macro_rules! call {
 macro_rules! access {
     (read) => {
         Access::Read
+    };
+    (add) => {
+        Access::Append
     };
     (write) => {
         Access::Write
@@ -65,7 +69,7 @@ fn inline_schema<T: schemars::JsonSchema>() -> Value {
     serde_json::to_value(schema).unwrap_or_else(|_| json!({ "type": "object" }))
 }
 
-fn unstring_json_args(input: Value) -> Value {
+pub fn unstring_json_args(input: Value) -> Value {
     match input {
         Value::Object(map) => Value::Object(
             map.into_iter()
@@ -151,7 +155,7 @@ commands! {
     write expenses::save_expense(input: ExpenseInput) -> Expense, "Creates an expense (without id) or updates it (with id). Amounts in cents, dates as YYYY-MM-DD.";
     delete expenses::delete_expense(id: String) -> (), "Deletes an expense including its receipts.";
     read expenses::list_receipts(expense_id: String) -> Vec<Receipt>, "Lists the receipts of an expense.";
-    write expenses::add_receipts(expense_id: String, paths: Vec<String>) -> usize, "Attaches local files (absolute paths) to an expense as receipts.";
+    add expenses::add_receipts(expense_id: String, paths: Vec<String>) -> usize, "Attaches local files (absolute paths) to an expense as receipts.";
     delete expenses::delete_receipt(id: String) -> (), "Deletes a receipt.";
     #[stateless] read expenses::extract_receipt(path: String) -> ReceiptDraft, "Extracts name, amount and date from a local receipt file (PDF/text) without saving anything.";
 
@@ -190,7 +194,7 @@ commands! {
     write invoices::save_invoice(input: InvoiceInput) -> Invoice, "Creates an invoice (without id) or updates it (with id). Amounts in cents; line item units are codes from list_units.";
     write invoices::set_invoice_status(id: String, status: String, paid_at: Option<String>) -> Invoice, "Sets an invoice's status (draft, unpaid, paid, canceled); paid_at as YYYY-MM-DD.";
     delete invoices::delete_invoice(id: String) -> (), "Deletes an invoice.";
-    write invoices::duplicate_invoice(id: String) -> Invoice, "Duplicates an invoice as a new draft.";
+    add invoices::duplicate_invoice(id: String) -> Invoice, "Duplicates an invoice as a new draft.";
     #[stateless] read units::list_units() -> Vec<Unit>, "Lists the allowed line item units (UN/ECE Recommendation 20 codes such as HUR for hours) with their labels.";
     write invoices::render_invoice_pdf(id: String) -> RenderedPdf, "Renders an invoice's PDF with LaTeX (requires xelatex) and returns the file path, plus a warning if the e-invoice could not be embedded.";
     write invoices::render_invoice_timesheet(id: String) -> Option<String>, "Renders the timesheet for an invoice if time entries are linked.";
@@ -216,7 +220,7 @@ commands! {
     delete expense_recurring::delete_expense_recurring(id: String) -> (), "Deletes a recurring expense series; expenses already booked are kept.";
 
 
-    write vault::vault_upload(paths: Vec<String>) -> usize, "Adds local files (absolute paths) to the document vault.";
+    add vault::vault_upload(paths: Vec<String>) -> usize, "Adds local files (absolute paths) to the document vault.";
     read vault::list_documents(search: Option<String>, tag: Option<String>) -> Vec<Document>, "Searches the document vault (full text).";
     write vault::update_document(update: DocumentUpdate) -> (), "Changes a document's title, tags, type or customer.";
     write vault::rename_document(id: String, name: String) -> String, "Renames a document's stored file on disk (the extension is kept if omitted) and returns the new file name.";

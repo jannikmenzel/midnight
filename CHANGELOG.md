@@ -6,6 +6,12 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+### Changed
+
+- The MCP server rejects updates with missing fields instead of clearing them
+- The MCP server only changes or deletes draft invoices
+- MCP tools state correctly whether they can overwrite data, and their results are more compact
+
 ## [0.1.6] - 2026-10-31
 
 ### Changed
