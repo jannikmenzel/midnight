@@ -10,7 +10,7 @@ type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
   primary: "primary bg-accent text-accent-fg hover:opacity-90",
   secondary: "raised border border-line bg-panel text-fg hover:bg-subtle hover:bg-none",
-  ghost: "text-fg hover:bg-subtle",
+  ghost: "text-fg hover:bg-hover",
   danger: "raised border border-line bg-panel text-neg hover:bg-subtle hover:bg-none",
 };
 
@@ -24,7 +24,7 @@ export const Button = forwardRef<
       type="button"
       disabled={disabled || loading}
       className={cx(
-        "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md font-medium whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+        "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md font-medium whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50",
         size === "sm" ? "h-7 px-2.5 text-xs" : "h-8 px-3 text-[13px]",
         BUTTON_VARIANTS[variant],
         className,

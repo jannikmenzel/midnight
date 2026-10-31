@@ -134,9 +134,12 @@ function ProjectDetail({
       }
     >
       <div className="flex flex-col gap-4">
-        <div className="text-[13px] text-muted">
-          {project.customer_name ?? t("No customer")}
-          {` · ${priceLabel(project)}`} · <PeriodLabel p={project} />
+        <div className="flex items-center gap-2 text-[13px] text-muted">
+          <span className="min-w-0 truncate">{project.customer_name ?? t("No customer")}</span>
+          {priceLabel(project) && <Badge className="tabular shrink-0">{priceLabel(project)}</Badge>}
+          <span className="ml-auto shrink-0 whitespace-nowrap tabular-nums">
+            <PeriodLabel p={project} />
+          </span>
         </div>
         <div className="grid grid-cols-4 gap-2 rounded-lg bg-subtle px-4 py-3">
           <div>
@@ -725,7 +728,7 @@ export default function Tracker() {
                   <Input value={projectDraft.rate} onChange={(e) => setProjectDraft({ ...projectDraft, rate: e.target.value })} placeholder={centsToInput(9500)} />
                 </Field>
               ) : (
-                <Field label={t("Fixed price")} hint={t("Tracked time is for documentation only")}>
+                <Field label={t("Fixed price")}>
                   <Input value={projectDraft.fixedPrice} onChange={(e) => setProjectDraft({ ...projectDraft, fixedPrice: e.target.value })} placeholder={centsToInput(350000)} />
                 </Field>
               )}

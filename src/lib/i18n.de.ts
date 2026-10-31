@@ -580,7 +580,6 @@ export const de = {
   "Track working time per project and bill it.": "Arbeitszeit pro Projekt erfassen und abrechnen.",
   "Tracked": "Erfasst",
   "Tracked time": "Erfasste Zeit",
-  "Tracked time is for documentation only": "Erfasste Zeiten dienen nur der Dokumentation",
   "Tracked working time shows up here.": "Erfasste Arbeitszeiten erscheinen hier.",
   "Tu": "Di",
   "Type": "Art",
