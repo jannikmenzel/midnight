@@ -55,9 +55,9 @@ function Cell({ onClick, children }: { onClick: () => void; children: ReactNode 
 
 function Meter({ solid, faded, color, label }: { solid: number; faded: number; color: string; label: string }) {
   return (
-    <div className="relative h-1.5 w-full rounded-full bg-line" role="progressbar" aria-label={label} aria-valuenow={Math.round(solid)} aria-valuemin={0} aria-valuemax={100}>
-      {faded > 0 && <div className={cx("absolute inset-y-0 left-0 rounded-full opacity-30", color)} style={{ width: `${Math.min(100, faded)}%` }} />}
-      {solid > 0 && <div className={cx("relative h-1.5 rounded-full", color)} style={{ width: `${Math.min(100, solid)}%`, minWidth: 6 }} />}
+    <div className="track relative h-1.5 w-full rounded-full bg-line" role="progressbar" aria-label={label} aria-valuenow={Math.round(solid)} aria-valuemin={0} aria-valuemax={100}>
+      {faded > 0 && <div className={cx("grain-fill absolute inset-y-0 left-0 rounded-full opacity-30", color)} style={{ width: `${Math.min(100, faded)}%` }} />}
+      {solid > 0 && <div className={cx("grain-fill relative h-1.5 rounded-full", color)} style={{ width: `${Math.min(100, solid)}%`, minWidth: 6 }} />}
     </div>
   );
 }
@@ -107,13 +107,13 @@ function OutstandingSummary({ s, unbilledCents, currency }: { s?: Summary; unbil
       </div>
       <div className="tabular text-xl font-semibold tracking-tight">{ready ? <AnimatedMoney cents={total} currency={currency} /> : "…"}</div>
       <div
-        className="flex h-1.5 w-full overflow-hidden rounded-full bg-line"
+        className="track flex h-1.5 w-full overflow-hidden rounded-full bg-line"
         role="img"
         aria-label={t("{invoiced} invoiced, {unbilled} not yet billed", { invoiced: money(invoiced, currency), unbilled: money(unbilled, currency) })}
       >
-        {overdue > 0 && <div className="h-full bg-neg" style={{ width: width(overdue) }} />}
-        {invoiced - overdue > 0 && <div className="h-full bg-pos" style={{ width: width(invoiced - overdue) }} />}
-        {unbilled > 0 && <div className="h-full bg-pos opacity-30" style={{ width: width(unbilled) }} />}
+        {overdue > 0 && <div className="grain-fill h-full bg-neg" style={{ width: width(overdue) }} />}
+        {invoiced - overdue > 0 && <div className="grain-fill h-full bg-pos" style={{ width: width(invoiced - overdue) }} />}
+        {unbilled > 0 && <div className="grain-fill h-full bg-pos opacity-30" style={{ width: width(unbilled) }} />}
       </div>
       <span className={cx("text-xs", s && s.overdue_count > 0 ? "text-neg" : "text-muted")}>
         {!ready

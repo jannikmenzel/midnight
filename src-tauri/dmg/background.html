@@ -12,15 +12,30 @@
       body {
         margin: 0;
         width: 660px;
-        height: 400px;
+        height: 428px;
         overflow: hidden;
       }
       body {
         position: relative;
-        background: radial-gradient(120% 90% at 50% 0%, #fbfbfa 0%, #f7f7f6 55%, #f0f0ed 100%);
-        color: #111111;
+        background: linear-gradient(180deg, #161d3a 0, #2f3560 110px, #5f5f86 205px, #79718c 262px, #7d7088 303px, #141827 303px, #0e111c 428px);
+        color: #ffffff;
         font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
         -webkit-font-smoothing: antialiased;
+      }
+      .clouds,
+      .grain {
+        position: absolute;
+        inset: 0;
+      }
+      .clouds {
+        height: 230px;
+        background: url(../../public/sky-dark.webp) top / 100% 100% no-repeat;
+      }
+      .grain {
+        background: url(../../public/grain.png) 0 0 / 256px;
+        opacity: 0.1;
+        -webkit-mask-image: linear-gradient(#000 303px, rgb(0 0 0 / 0.45) 303px);
+        mask-image: linear-gradient(#000 303px, rgb(0 0 0 / 0.45) 303px);
       }
       .brand {
         position: absolute;
@@ -51,40 +66,42 @@
       }
       .caption {
         position: absolute;
-        bottom: 34px;
+        top: 317px;
         left: 0;
         right: 0;
         text-align: center;
         font-family: "SF Mono", ui-monospace, Menlo, monospace;
-        font-size: 10px;
+        font-size: 11px;
         letter-spacing: 0.14em;
         text-transform: uppercase;
-        color: #8a8a86;
+        color: rgb(255 255 255 / 0.66);
         line-height: 1.7;
       }
       .caption b {
         font-weight: 500;
-        color: #5f5f5b;
+        color: rgb(255 255 255 / 0.92);
       }
     </style>
   </head>
   <body>
-    <svg class="scene" viewBox="0 0 660 400" width="660" height="400">
+    <div class="clouds"></div>
+    <svg class="scene" viewBox="0 0 660 428" width="660" height="428">
       <defs>
         <linearGradient id="sun" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="#e9e8e4" />
-          <stop offset="1" stop-color="#f2f1ee" />
+          <stop offset="0" stop-color="#f3b98c" />
+          <stop offset="1" stop-color="#d98a6a" />
         </linearGradient>
         <linearGradient id="fade" gradientUnits="userSpaceOnUse" x1="262" y1="0" x2="396" y2="0">
-          <stop offset="0" stop-color="#111111" stop-opacity="0" />
-          <stop offset="0.35" stop-color="#111111" stop-opacity="0.55" />
-          <stop offset="1" stop-color="#111111" stop-opacity="0.8" />
+          <stop offset="0" stop-color="#ffffff" stop-opacity="0" />
+          <stop offset="0.35" stop-color="#ffffff" stop-opacity="0.7" />
+          <stop offset="1" stop-color="#ffffff" stop-opacity="0.95" />
         </linearGradient>
       </defs>
-      <path d="M268 196a60 60 0 0 1 120 0z" fill="url(#sun)" />
-      <line x1="62" y1="303" x2="598" y2="303" stroke="#e5e5e2" stroke-width="1" />
+      <path d="M268 196a60 60 0 0 1 120 0z" fill="url(#sun)" opacity="0.62" />
+      <line x1="0" y1="303" x2="660" y2="303" stroke="#ffffff" stroke-opacity="0.22" stroke-width="1" />
       <path d="M262 201.5H395M388.5 195.5C390.8 198 393 200 395 201.5C393 203 390.8 205 388.5 207.5" fill="none" stroke="url(#fade)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
     </svg>
+    <div class="grain"></div>
     <div class="brand">
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M5 15a7 7 0 0 1 14 0z" fill="currentColor" />

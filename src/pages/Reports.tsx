@@ -141,8 +141,8 @@ function CustomerTable({ data, currency, onOpen }: { data: Analysis; currency: s
                     <td className="max-w-56 truncate px-4 py-2.5">{r.name}</td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-3">
-                        <div className="h-1.5 flex-1 rounded-full bg-line">
-                          {r.revenue_cents > 0 && <div className="h-1.5 rounded-full bg-pos" style={{ width: `${(r.revenue_cents / top) * 100}%`, minWidth: 4 }} />}
+                        <div className="track h-1.5 flex-1 rounded-full bg-line">
+                          {r.revenue_cents > 0 && <div className="grain-fill h-1.5 rounded-full bg-pos" style={{ width: `${(r.revenue_cents / top) * 100}%`, minWidth: 4 }} />}
                         </div>
                         <span className="tabular w-24 text-right">{money(r.revenue_cents, currency)}</span>
                         <span className="tabular w-10 text-right text-xs text-muted">{total > 0 ? percent(r.revenue_cents / total) : "–"}</span>
@@ -206,8 +206,8 @@ function CategoryList({ data, currency, onOpen }: { data: Analysis; currency: st
                     </span>
                   )}
                 </div>
-                <div className="relative h-1.5 w-full rounded-full bg-line">
-                  {r.total_cents > 0 && <div className="h-1.5 rounded-full" style={{ width: `${(r.total_cents / top) * 100}%`, minWidth: 4, background: r.color }} />}
+                <div className="track relative h-1.5 w-full rounded-full bg-line">
+                  {r.total_cents > 0 && <div className="grain-fill h-1.5 rounded-full" style={{ width: `${(r.total_cents / top) * 100}%`, minWidth: 4, backgroundColor: r.color }} />}
                   {r.prev_cents > 0 && (
                     <div className="absolute -top-0.5 h-2.5 w-0.5 rounded-full bg-fg" style={{ left: `calc(${(r.prev_cents / top) * 100}% - 1px)` }} />
                   )}
@@ -252,8 +252,8 @@ function ProjectList({ data, onOpen }: { data: Analysis; onOpen: (id: string) =>
                     <span className="tabular">{duration(r.tracked_secs)}</span>
                     <span className="tabular w-10 text-right text-xs text-muted">{percent(r.tracked_secs / totalSecs)}</span>
                   </div>
-                  <div className="h-1.5 w-full rounded-full bg-line">
-                    <div className="h-1.5 rounded-full" style={{ width: `${(r.tracked_secs / top) * 100}%`, minWidth: 4, background: r.billable ? "var(--fg)" : "var(--muted)" }} />
+                  <div className="track h-1.5 w-full rounded-full bg-line">
+                    <div className="grain-fill h-1.5 rounded-full" style={{ width: `${(r.tracked_secs / top) * 100}%`, minWidth: 4, backgroundColor: r.billable ? "var(--info)" : "var(--dusk)" }} />
                   </div>
                 </button>
               </li>

@@ -169,7 +169,7 @@ pub fn shares(conn: &Connection, from: &str, to: &str, kind: Option<&str>) -> Ap
             .to_string()
     } else {
         format!(
-            "SELECT COALESCE(c.slug, 'uncategorized'), c.name, COALESCE(c.color, '#9CA3AF'),
+            "SELECT COALESCE(c.slug, 'uncategorized'), c.name, COALESCE(c.color, '#A0A3AC'),
                 SUM({DEDUCTIBLE_SQL}), COUNT(*)
          FROM expenses e LEFT JOIN categories c ON c.slug = e.category_slug
          WHERE e.date BETWEEN ?1 AND ?2 GROUP BY 1 ORDER BY 4 DESC"
@@ -329,7 +329,7 @@ fn customer_stats(conn: &Connection, from: &str, to: &str) -> AppResult<Vec<Cust
 
 fn category_stats(conn: &Connection, from: &str, to: &str, prev_from: &str, prev_to: &str) -> AppResult<Vec<CategoryStat>> {
     let mut stmt = conn.prepare(&format!(
-        "SELECT COALESCE(c.slug, 'uncategorized'), c.name, COALESCE(c.color, '#9CA3AF'),
+        "SELECT COALESCE(c.slug, 'uncategorized'), c.name, COALESCE(c.color, '#A0A3AC'),
                 SUM(CASE WHEN e.date BETWEEN ?1 AND ?2 THEN {DEDUCTIBLE_SQL} ELSE 0 END),
                 SUM(CASE WHEN e.date BETWEEN ?3 AND ?4 THEN {DEDUCTIBLE_SQL} ELSE 0 END)
          FROM expenses e LEFT JOIN categories c ON c.slug = e.category_slug

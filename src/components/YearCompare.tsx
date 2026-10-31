@@ -1,36 +1,13 @@
 import { useState } from "react";
 import { money, MONTHS_SHORT } from "../lib/format";
 import { t } from "../lib/i18n";
-import { niceStep, PAD, useWidth, YGrid } from "./chart";
+import { niceStep, PAD, smoothPath, useWidth, YGrid } from "./chart";
 
 const CURRENT = "var(--pos)";
 const PREVIOUS = "var(--muted)";
 const RIGHT = 40;
 
 export type YearSeries = { year: number; values: (number | null)[] };
-
-function path(values: (number | null)[], x: (i: number) => number, y: (v: number) => number) {
-  const pts = values.flatMap((v, i) => (v === null ? [] : [[x(i), y(v)] as const]));
-  if (pts.length < 3) return pts.map(([px, py], i) => `${i === 0 ? "M" : "L"}${px},${py}`).join(" ");
-  const slope = (k: number) => (pts[k + 1][1] - pts[k][1]) / (pts[k + 1][0] - pts[k][0]);
-  const n = pts.length - 1;
-  const tangents = pts.map((_, k) => {
-    if (k === 0 || k === n) return 0;
-    const [a, b] = [slope(k - 1), slope(k)];
-    if (a * b <= 0) return 0;
-    return Math.sign(a) * Math.min(Math.abs(a), Math.abs(b), Math.abs((a + b) / 2));
-  });
-  tangents[0] = (3 * slope(0) - tangents[1]) / 2;
-  tangents[n] = (3 * slope(n - 1) - tangents[n - 1]) / 2;
-  if (slope(0) * tangents[0] <= 0) tangents[0] = 0;
-  if (slope(n - 1) * tangents[n] <= 0) tangents[n] = 0;
-  let d = `M${pts[0][0]},${pts[0][1]}`;
-  for (let k = 0; k < n; k++) {
-    const h = (pts[k + 1][0] - pts[k][0]) / 3;
-    d += ` C${pts[k][0] + h},${pts[k][1] + tangents[k] * h} ${pts[k + 1][0] - h},${pts[k + 1][1] - tangents[k + 1] * h} ${pts[k + 1][0]},${pts[k + 1][1]}`;
-  }
-  return d;
-}
 
 export function YearCompareChart({ current, previous, currency, height = 240 }: { current: YearSeries; previous: YearSeries; currency: string; height?: number }) {
   const [ref, width] = useWidth<HTMLDivElement>();
@@ -92,8 +69,8 @@ export function YearCompareChart({ current, previous, currency, height = 240 }: 
             ))}
             {min < 0 && <line x1={PAD.left} x2={width - RIGHT} y1={y(0)} y2={y(0)} stroke="var(--muted)" strokeOpacity={0.5} />}
             {hover !== null && <line x1={x(hover)} x2={x(hover)} y1={PAD.top} y2={PAD.top + plotH} stroke="var(--line)" strokeWidth={1} pointerEvents="none" />}
-            <path d={path(previous.values, x, y)} fill="none" stroke={PREVIOUS} strokeWidth={2} strokeDasharray="4 4" strokeLinejoin="round" strokeLinecap="round" pointerEvents="none" />
-            <path d={path(current.values, x, y)} fill="none" stroke={CURRENT} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" pointerEvents="none" />
+            <path d={smoothPath(previous.values, x, y)} fill="none" stroke={PREVIOUS} strokeWidth={2} strokeDasharray="4 4" strokeLinejoin="round" strokeLinecap="round" pointerEvents="none" />
+            <path d={smoothPath(current.values, x, y)} fill="none" stroke={CURRENT} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" pointerEvents="none" />
             {ends.map((e, k) => (
               <g key={e.series.year} pointerEvents="none">
                 <circle cx={x(e.i)} cy={y(e.series.values[e.i]!)} r={4} fill={e.color} stroke="var(--panel)" strokeWidth={2} />

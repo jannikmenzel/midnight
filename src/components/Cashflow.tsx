@@ -2,14 +2,23 @@ import { useState } from "react";
 import type { MonthRow } from "../lib/api";
 import { money, monthLabel } from "../lib/format";
 import { t } from "../lib/i18n";
-import { niceStep, PAD, useWidth, YGrid } from "./chart";
+import { niceStep, PAD, smoothPath, useWidth, YGrid } from "./chart";
 
 const INCOME = "var(--pos)";
-const EXPENSES = "var(--muted)";
+const EXPENSES = "var(--neg)";
+
+function GrainBar({ d, fill }: { d: string; fill: string }) {
+  return (
+    <>
+      <path d={d} fill={fill} />
+      <path d={d} fill="url(#bar-grain)" opacity={0.24} pointerEvents="none" />
+    </>
+  );
+}
 
 function bar(x: number, w: number, base: number, end: number) {
   const h = Math.max(2, Math.abs(end - base));
-  const r = Math.min(4, w / 2, h);
+  const r = Math.min(6, w / 2, h);
   const up = end < base;
   const tip = up ? base - h : base + h;
   const inner = up ? tip + r : tip - r;
@@ -50,13 +59,19 @@ export function CashflowChart({
   const plotW = Math.max(1, width - PAD.left - PAD.right);
   const plotH = height - PAD.top - PAD.bottom;
   const groupW = plotW / n;
-  const barW = Math.max(3, Math.min(22, groupW * 0.56));
+  const barW = Math.max(3, Math.min(20, groupW * 0.5));
   const y = (v: number) => PAD.top + ((max - v) / (max - min || 1)) * plotH;
   const zero = y(0);
   const groupX = (i: number) => PAD.left + i * groupW;
   const labelEvery = Math.ceil(n / Math.max(1, Math.floor(plotW / 48)));
   const tipLeft = hover !== null && groupX(hover) + groupW / 2 > width / 2;
   const active = hover !== null ? months[hover] : null;
+  const center = (i: number) => groupX(i) + groupW / 2;
+  const profitLine =
+    months.length === 1
+      ? `M${center(0) - barW / 2 - 4},${y(months[0].profit_cents)} L${center(0) + barW / 2 + 4},${y(months[0].profit_cents)}`
+      : smoothPath(months.map((m) => m.profit_cents), center, y);
+  const profitPath = <path d={profitLine} fill="none" stroke="var(--profit)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />;
 
   return (
     <div>
@@ -84,32 +99,51 @@ export function CashflowChart({
             aria-label={t("Cash flow chart: income above, expenses below the line")}
             onMouseLeave={() => setHover(null)}
           >
+            <defs>
+              <pattern id="bar-grain" patternUnits="userSpaceOnUse" width={256} height={256}>
+                <image href="/grain.png" width={256} height={256} />
+              </pattern>
+              <linearGradient id="bar-income" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor={INCOME} />
+                <stop offset="1" stopColor="var(--pos-soft)" />
+              </linearGradient>
+              <linearGradient id="bar-expenses" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor="var(--neg-soft)" />
+                <stop offset="1" stopColor={EXPENSES} />
+              </linearGradient>
+            </defs>
             <YGrid ticks={ticks} y={y} width={width} currency={currency} />
+            {hover !== null && <rect x={groupX(hover)} y={PAD.top} width={groupW} height={plotH} rx={8} fill="var(--subtle)" pointerEvents="none" />}
+            {months.length > 1 && profitPath}
             {months.map((m, i) => {
               const x = groupX(i) + (groupW - barW) / 2;
               const on = highlight(m.month);
+              const income = m.revenue_cents > 0 ? bar(x, barW, zero - 1, y(m.revenue_cents)) : null;
+              const expenses = m.expenses_cents > 0 ? bar(x, barW, zero + 1, y(-m.expenses_cents)) : null;
               return (
-                <g key={m.month} onMouseEnter={() => setHover(i)} opacity={on || hover === i ? 1 : 0.35}>
-                  <rect x={groupX(i)} y={PAD.top} width={groupW} height={plotH} fill={hover === i ? "var(--subtle)" : "transparent"} />
-                  {m.revenue_cents > 0 && <path d={bar(x, barW, zero - 1, y(m.revenue_cents))} fill={INCOME} />}
-                  {m.expenses_cents > 0 && <path d={bar(x, barW, zero + 1, y(-m.expenses_cents))} fill={EXPENSES} />}
-                  {m.revenue_cents > 0 && m.expenses_cents > 0 && (
-                    <line x1={x - 3} x2={x + barW + 3} y1={y(m.profit_cents)} y2={y(m.profit_cents)} stroke="var(--fg)" strokeWidth={2} strokeLinecap="round" />
-                  )}
-                  {(i % labelEvery === 0 || hover === i) && (
-                    <text x={groupX(i) + groupW / 2} y={height - 5} textAnchor="middle" fontSize={11} fill={hover === i ? "var(--fg)" : "var(--muted)"}>
-                      {monthLabel(m.month)}
-                    </text>
-                  )}
+                <g key={m.month} onMouseEnter={() => setHover(i)}>
+                  <rect x={groupX(i)} y={PAD.top} width={groupW} height={plotH} fill="transparent" />
+                  {income && <path d={income} fill="var(--panel)" />}
+                  {expenses && <path d={expenses} fill="var(--panel)" />}
+                  <g opacity={hover === i || (on && hover === null) ? 1 : on ? 0.55 : 0.3}>
+                    {income && <GrainBar d={income} fill="url(#bar-income)" />}
+                    {expenses && <GrainBar d={expenses} fill="url(#bar-expenses)" />}
+                    {(i % labelEvery === 0 || hover === i) && (
+                      <text x={groupX(i) + groupW / 2} y={height - 5} textAnchor="middle" fontSize={11} fill={hover === i ? "var(--fg)" : "var(--muted)"}>
+                        {monthLabel(m.month)}
+                      </text>
+                    )}
+                  </g>
                 </g>
               );
             })}
             <line x1={PAD.left} x2={width - PAD.right} y1={zero} y2={zero} stroke="var(--muted)" strokeOpacity={0.5} />
+            {months.length === 1 && profitPath}
           </svg>
         )}
         {active && hover !== null && (
           <div
-            className="pointer-events-none absolute top-1 z-10 min-w-44 rounded-md border border-line bg-panel px-2.5 py-2 text-xs shadow-sm"
+            className="floating pointer-events-none absolute top-1 z-10 min-w-44 rounded-md border border-line bg-panel px-2.5 py-2 text-xs"
             style={tipLeft ? { right: width - groupX(hover) + 6 } : { left: groupX(hover) + groupW + 6 }}
           >
             <div className="mb-1 font-medium">{monthLabel(active.month)}</div>
@@ -144,7 +178,7 @@ function Swatch({ color }: { color: string }) {
 function ProfitMark() {
   return (
     <svg width="12" height="6" aria-hidden className="shrink-0">
-      <line x1="1" x2="11" y1="3" y2="3" stroke="var(--fg)" strokeWidth={2} strokeLinecap="round" />
+      <line x1="1" x2="11" y1="3" y2="3" stroke="var(--profit)" strokeWidth={2} strokeLinecap="round" />
     </svg>
   );
 }

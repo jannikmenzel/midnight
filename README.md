@@ -20,10 +20,7 @@
 
 </div>
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/overview-dark.png" />
-  <img src="docs/screenshots/overview.png" alt="Midnight overview with income, expenses, cash flow chart, tax forecast and outstanding invoices" />
-</picture>
+<img src="docs/screenshots/overview.webp" alt="Midnight overview with income, expenses, cash flow chart, tax forecast and outstanding invoices" />
 
 ## Features
 
@@ -44,12 +41,12 @@
 
 | | |
 | --- | --- |
-| ![Invoices](docs/screenshots/invoices.png) | ![Invoice editor](docs/screenshots/invoice-editor.png) |
+| ![Invoices](docs/screenshots/invoices.webp) | ![Invoice editor](docs/screenshots/invoice-editor.webp) |
 | **Invoices** – status totals and all invoices at a glance | **Invoice editor** – line items from tracked time, VAT and totals |
-| ![Time tracking](docs/screenshots/time-tracking.png) | ![Income and expenses](docs/screenshots/income-expenses.png) |
+| ![Time tracking](docs/screenshots/time-tracking.webp) | ![Income and expenses](docs/screenshots/income-expenses.webp) |
 | **Time tracking** – running timer, weekly limit and project budgets | **Income & expenses** – paid invoices and expenses with categories |
-| ![Reports](docs/screenshots/reports.png) | ![Overview in dark mode](docs/screenshots/overview-dark.png) |
-| **Reports** – income per hour, payment behaviour and year comparison | **Dark mode** – follows the system or can be set in the settings |
+| ![Reports](docs/screenshots/reports.webp) | ![Tax forecast](docs/screenshots/tax-forecast.webp) |
+| **Reports** – income per hour, payment behaviour and year comparison | **Tax forecast** – expected payment, what to set aside and income until year end |
 
 All screenshots show fictional demo data.
 

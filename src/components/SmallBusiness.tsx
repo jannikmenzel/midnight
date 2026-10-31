@@ -29,11 +29,11 @@ export function SmallBusinessCard({ data, currency, className, projectedCents, b
       <div className="tabular text-xl font-semibold tracking-tight">
         {money(data.revenue_cents, currency)} <span className="text-[13px] font-normal text-muted">{t("of")} {money(data.limit_cents, currency)}</span>
       </div>
-      <div className="relative h-1.5 w-full rounded-full bg-line" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>
+      <div className="track relative h-1.5 w-full rounded-full bg-line" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>
         {projected !== null && (
-          <div className={cx("absolute inset-y-0 left-0 rounded-full opacity-30", projectedOver ? "bg-warn" : bar)} style={{ width: `${projectedPct}%` }} />
+          <div className={cx("grain-fill absolute inset-y-0 left-0 rounded-full opacity-30", projectedOver ? "bg-warn" : bar)} style={{ width: `${projectedPct}%` }} />
         )}
-        <div className={cx("relative h-1.5 rounded-full", bar)} style={{ width: `${Math.min(100, pct)}%` }} />
+        <div className={cx("grain-fill relative h-1.5 rounded-full", bar)} style={{ width: `${Math.min(100, pct)}%` }} />
       </div>
       {over || previousOver || overUpper ? (
         <span className="text-xs text-neg">{note}</span>

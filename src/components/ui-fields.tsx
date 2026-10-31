@@ -73,7 +73,7 @@ function useFloatingPanel(height: number, width: number) {
       <div
         ref={popup}
         style={{ top: pos.top, bottom: pos.bottom, left: pos.left, width: pos.width, maxHeight: (pos.top !== undefined ? window.innerHeight - pos.top : window.innerHeight - pos.bottom!) - 8 }}
-        className={cx("anim-pop fixed z-[100] flex flex-col overflow-auto rounded-lg border border-line bg-panel shadow-xl", pos.bottom !== undefined && "anim-pop-up origin-bottom", className)}
+        className={cx("floating anim-pop fixed z-[100] flex flex-col overflow-auto rounded-lg border border-line bg-panel", pos.bottom !== undefined && "anim-pop-up origin-bottom", className)}
         onMouseDown={(e) => e.preventDefault()}
       >
         {children}

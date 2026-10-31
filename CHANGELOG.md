@@ -6,6 +6,14 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+### Changed
+
+- Grainy cloud gradient at the top of the window, the top bar sits directly on it and the sidebar is a glass panel
+- Buttons, fields, menus, dialogs and the active navigation item share the depth of the cards
+- Bars and progress meters are grainy and use a new palette taken from the sky, the default category colours moved to it too
+- The cash flow chart on the overview now has grainy columns and a profit curve
+- The install window of the DMG uses the new sky
+
 ## [0.1.5] - 2026-10-30
 
 ### Added

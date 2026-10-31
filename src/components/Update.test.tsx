@@ -63,6 +63,20 @@ describe("update moment", () => {
     expect(document.querySelector(".moment")).toBeNull();
   });
 
+  it("stays away when the version went back, like after a fake update in development", async () => {
+    setup({ last: "0.2.0" });
+    await settled();
+    await act(async () => {});
+    expect(document.querySelector(".moment")).toBeNull();
+  });
+
+  it("compares versions by number, not by text", async () => {
+    setup({ last: "0.1.10" });
+    await settled();
+    await act(async () => {});
+    expect(document.querySelector(".moment")).toBeNull();
+  });
+
   it("appears for the first version that remembers it, if the app was in use before", async () => {
     setup({ last: null });
     expect(await screen.findByText("Midnight 0.1.5")).toBeTruthy();

@@ -8,10 +8,10 @@ export function cx(...classes: (string | false | null | undefined)[]): string {
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
-  primary: "bg-accent text-accent-fg hover:opacity-90",
-  secondary: "border border-line bg-panel text-fg hover:bg-subtle",
+  primary: "primary bg-accent text-accent-fg hover:opacity-90",
+  secondary: "raised border border-line bg-panel text-fg hover:bg-subtle hover:bg-none",
   ghost: "text-fg hover:bg-subtle",
-  danger: "border border-line bg-panel text-neg hover:bg-subtle",
+  danger: "raised border border-line bg-panel text-neg hover:bg-subtle hover:bg-none",
 };
 
 export const Button = forwardRef<
@@ -53,7 +53,7 @@ export function fieldWidth(className?: string) {
   return /(^|\s)w-/.test(className ?? "") ? "" : "w-full";
 }
 
-export const FIELD = "rounded-md border border-line bg-panel px-2.5 text-[13px] text-fg outline-none placeholder:text-muted focus:border-muted disabled:opacity-60";
+export const FIELD = "field rounded-md border border-line px-2.5 text-[13px] text-fg outline-none placeholder:text-muted focus:border-muted disabled:opacity-60";
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input({ className, ...rest }, ref) {
   return <input ref={ref} className={cx(FIELD, fieldWidth(className), "h-8", className)} {...rest} />;

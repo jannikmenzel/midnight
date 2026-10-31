@@ -24,7 +24,8 @@
     "tauri": "tauri",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "dmg:background": "src-tauri/dmg/render.sh"
+    "dmg:background": "src-tauri/dmg/render.sh",
+    "sky:render": "node scripts/render-sky.mjs"
   },
   "dependencies": {
     "@fontsource-variable/jetbrains-mono": "^5.3.0",

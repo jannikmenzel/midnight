@@ -85,6 +85,7 @@ function MomentIcon({ kind, working }: { kind: MomentKind; working: boolean }) {
 function MomentOverlay({ moment, leaving, onDismiss }: { moment: ActiveMoment; leaving: boolean; onDismiss: () => void }) {
   return createPortal(
     <div className="moment fixed inset-0 z-[70] flex flex-col items-center justify-center gap-7 bg-bg" data-leaving={leaving || undefined} role="status" onClick={onDismiss}>
+      <div className="sky" aria-hidden />
       <MomentIcon key={moment.id} kind={moment.kind} working={moment.working} />
       <div key={moment.working ? "working" : "done"} className="moment-text flex min-h-[112px] flex-col items-center gap-2 px-6 text-center">
         <h2 className="font-serif text-[30px] leading-tight font-normal tracking-tight">{moment.title}</h2>

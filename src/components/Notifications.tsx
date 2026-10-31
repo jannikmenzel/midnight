@@ -43,7 +43,7 @@ export function NotificationsButton({ state, update }: { state: NotificationsSta
       aria-expanded={open}
       aria-label={unread ? t("Notifications ({n} new)", { n: unread }) : update.available ? t("Notifications (update available)") : t("Notifications")}
       title={t("Notifications")}
-      className={cx("relative inline-flex size-8 items-center justify-center rounded-md hover:bg-subtle hover:text-fg", open ? "bg-subtle text-fg" : "text-muted")}
+      className={cx("relative inline-flex size-8 items-center justify-center rounded-md hover:bg-hover hover:text-fg", open ? "bg-hover text-fg" : "text-fg/70")}
     >
       <Bell className="size-4" />
       {(unread > 0 || update.available) && <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-neg" />}

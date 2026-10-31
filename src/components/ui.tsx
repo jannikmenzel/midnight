@@ -60,9 +60,9 @@ export function Toggle({ checked, onChange, label, hint }: { checked: boolean; o
         role="switch"
         aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className={cx("relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition-colors", checked ? "bg-accent" : "bg-line")}
+        className={cx("relative mt-0.5 h-5 w-9 shrink-0 rounded-full shadow-[inset_0_1px_2px_rgb(0_0_0/0.18)] transition-colors", checked ? "bg-accent" : "bg-line")}
       >
-        <span className={cx("absolute top-0.5 size-4 rounded-full bg-panel shadow transition-all", checked ? "left-[18px]" : "left-0.5")} />
+        <span className={cx("absolute top-0.5 size-4 rounded-full shadow-[var(--raised-shadow)] transition-all", checked ? "raised left-[18px] bg-panel" : "left-0.5 bg-thumb-off")} />
       </button>
     </label>
   );
@@ -116,7 +116,7 @@ export function ActionMenu({
         {label}
       </Button>
       {open && (
-        <div role="menu" className="anim-pop absolute top-8 right-0 z-30 min-w-52 overflow-hidden rounded-lg border border-line bg-panel py-1 shadow-xl">
+        <div role="menu" className="floating anim-pop absolute top-8 right-0 z-30 min-w-52 overflow-hidden rounded-lg border border-line bg-panel py-1">
           {visible.map((item) => (
             <button
               key={item.label}
@@ -188,7 +188,7 @@ export function MultiSelect({
         <ChevronDown className="size-3.5 shrink-0 text-muted" />
       </button>
       {open && (
-        <div className="anim-pop absolute top-9 left-0 z-30 w-80 max-w-[90vw] overflow-hidden rounded-lg border border-line bg-panel shadow-xl">
+        <div className="floating anim-pop absolute top-9 left-0 z-30 w-80 max-w-[90vw] overflow-hidden rounded-lg border border-line bg-panel">
           <ul role="listbox" aria-multiselectable className="max-h-72 overflow-y-auto py-1">
             {options.map((o) => (
               <li key={o.value}>
@@ -231,7 +231,7 @@ export function Badge({ tone = "neutral", children, className, style }: { tone?:
 
 export function CategoryBadge({ color, children, className }: { color: string | null | undefined; children: ReactNode; className?: string }) {
   return (
-    <Badge className={cx("max-w-full", className)} style={color ? { background: `color-mix(in srgb, ${color} 12%, transparent)`, color } : undefined}>
+    <Badge className={cx("max-w-full", className)} style={color ? { background: `color-mix(in srgb, ${color} 12%, transparent)`, color: `color-mix(in srgb, ${color} 55%, var(--fg))` } : undefined}>
       <span className="truncate">{children}</span>
     </Badge>
   );
@@ -344,8 +344,8 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
   return (
     <div className="flex flex-wrap items-end justify-between gap-3 pb-4">
       <div>
-        <h1 className="font-serif text-2xl leading-tight font-normal tracking-tight">{title}</h1>
-        <p className="mt-0.5 text-[13px] text-muted">{subtitle}</p>
+        <h1 className="font-serif text-[28px] leading-tight font-normal tracking-tight">{title}</h1>
+        <p className="mt-0.5 text-[13px] text-fg/70">{subtitle}</p>
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
@@ -403,7 +403,7 @@ export function Tabs<T extends string>({
           onClick={() => onChange(it.value)}
           className={cx(
             "-mb-px flex items-center gap-1.5 border-b-2 px-2.5 py-2 text-[13px]",
-            value === it.value ? "border-fg font-medium text-fg" : "border-transparent text-muted hover:text-fg",
+            value === it.value ? "border-fg font-medium text-fg" : "border-transparent text-fg/70 hover:text-fg",
           )}
         >
           {it.label}
@@ -417,13 +417,13 @@ export function Tabs<T extends string>({
 
 export function Segmented<T extends string>({ items, value, onChange }: { items: { value: T; label: string }[]; value: T; onChange: (v: T) => void }) {
   return (
-    <div className="flex rounded-md border border-line p-0.5 text-xs">
+    <div className="flex rounded-md border border-line bg-subtle p-0.5 text-xs shadow-[var(--field-shadow)]">
       {items.map((it) => (
         <button
           key={it.value}
           type="button"
           onClick={() => onChange(it.value)}
-          className={cx("rounded px-2 py-0.5", value === it.value ? "bg-subtle font-medium text-fg" : "text-muted hover:text-fg")}
+          className={cx("rounded px-2 py-0.5", value === it.value ? "raised bg-panel font-medium text-fg" : "text-muted hover:text-fg")}
         >
           {it.label}
         </button>
@@ -441,7 +441,7 @@ export function TagInput({ value, onChange, suggestions = [], placeholder = t("A
   };
   const listId = useId();
   return (
-    <div className="flex min-h-8 flex-wrap items-center gap-1 rounded-md border border-line bg-panel px-1.5 py-1">
+    <div className="field flex min-h-8 flex-wrap items-center gap-1 rounded-md border border-line px-1.5 py-1">
       {value.map((tag) => (
         <span key={tag} className="inline-flex items-center gap-1 rounded bg-subtle px-1.5 py-0.5 text-xs">
           {tag}
@@ -543,7 +543,7 @@ export function Sheet({
       <aside
         role="dialog"
         aria-modal="true"
-        className={cx("anim-sheet relative flex h-full w-full flex-col border-l border-line bg-panel shadow-2xl", extraWide ? "max-w-[980px]" : wide ? "max-w-[820px]" : "max-w-[480px]")}
+        className={cx("floating anim-sheet relative flex h-full w-full flex-col border-l border-line bg-panel", extraWide ? "max-w-[980px]" : wide ? "max-w-[820px]" : "max-w-[480px]")}
       >
         <header className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
           <h2 className="truncate text-[15px] font-semibold">{content.title}</h2>
@@ -581,7 +581,7 @@ export function Dialog({
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" data-state={state}>
       <div className="anim-overlay absolute inset-0 bg-overlay backdrop-blur-sm" onClick={onClose} />
-      <div role="dialog" aria-modal="true" className={cx("anim-dialog relative w-full rounded-xl border border-line bg-panel shadow-2xl", wide ? "max-w-2xl" : "max-w-md")}>
+      <div role="dialog" aria-modal="true" className={cx("floating anim-dialog relative w-full rounded-xl border border-line bg-panel", wide ? "max-w-2xl" : "max-w-md")}>
         <header className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
           <h2 className="text-[15px] font-semibold">{content.title}</h2>
           <IconButton label={t("Close")} onClick={onClose}>
@@ -626,7 +626,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div className="pointer-events-none fixed right-4 bottom-4 z-[60] flex w-[340px] flex-col gap-2" aria-live="polite">
         {items.map((t) => (
-          <div key={t.id} className="anim-toast pointer-events-auto flex items-center gap-2 rounded-lg border border-line bg-panel px-4 py-3 text-[13px] shadow-lg">
+          <div key={t.id} className="floating anim-toast pointer-events-auto flex items-center gap-2 rounded-lg border border-line bg-panel px-4 py-3 text-[13px]">
             {t.kind === "success" ? <CheckCircle2 className="size-4 shrink-0 text-pos" /> : <AlertCircle className={cx("size-4 shrink-0", t.kind === "warn" ? "text-warn" : "text-neg")} />}
             <span data-selectable>{t.text}</span>
           </div>

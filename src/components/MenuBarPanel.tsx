@@ -122,7 +122,8 @@ export default function MenuBarPanel() {
   const todaySeconds = today.reduce((sum, e) => sum + (e.stop ? e.duration : elapsed(e, now)), 0);
 
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-xl border border-line bg-panel text-fg">
+    <div className="relative isolate flex h-full flex-col overflow-hidden rounded-xl border border-line bg-panel text-fg">
+      <div className="sky" aria-hidden />
       {running ? (
         <div className="flex items-center gap-3 border-b border-line px-4 py-3.5">
           <span className="size-2 shrink-0 animate-pulse rounded-full bg-neg" />
@@ -135,7 +136,7 @@ export default function MenuBarPanel() {
             type="button"
             onClick={stop}
             disabled={busy}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-neg px-3 text-[13px] font-medium text-white hover:opacity-90 disabled:opacity-50"
+            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-neg px-3 text-[13px] font-medium text-accent-fg hover:opacity-90 disabled:opacity-50"
           >
             <Square className="size-3 fill-current" />
             {t("Stop")}
@@ -153,9 +154,9 @@ export default function MenuBarPanel() {
           value={note}
           onChange={(e) => setNote(e.target.value)}
           placeholder={t("What are you working on?")}
-          className="h-8 rounded-md border border-line bg-bg px-2.5 text-[13px] outline-none placeholder:text-muted focus:border-muted"
+          className="field h-8 rounded-md border border-line px-2.5 text-[13px] outline-none placeholder:text-muted focus:border-muted"
         />
-        <label className="flex h-8 items-center gap-2 rounded-md border border-line bg-bg px-2.5 focus-within:border-muted">
+        <label className="field flex h-8 items-center gap-2 rounded-md border border-line px-2.5 focus-within:border-muted">
           <Search className="size-3.5 text-muted" />
           <input
             ref={searchRef}
@@ -183,7 +184,7 @@ export default function MenuBarPanel() {
                 type="button"
                 disabled={busy || active}
                 onClick={() => start(p)}
-                className={cx("group flex w-full items-center gap-3 px-4 py-2 text-left", active ? "bg-subtle" : "hover:bg-subtle")}
+                className={cx("group flex w-full items-center gap-3 px-4 py-2 text-left", active ? "bg-hover" : "hover:bg-hover")}
               >
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[13px]">{p.name}</div>
@@ -192,7 +193,7 @@ export default function MenuBarPanel() {
                 {active ? (
                   <span className="text-xs text-neg">{t("Running")}</span>
                 ) : (
-                  <span className="inline-flex size-7 items-center justify-center rounded-full bg-subtle text-muted group-hover:bg-line group-hover:text-fg">
+                  <span className="inline-flex size-7 items-center justify-center rounded-full bg-hover text-muted group-hover:bg-hover group-hover:text-fg">
                     <Play className="size-3 fill-current" />
                   </span>
                 )}

@@ -6,18 +6,38 @@
   --bg: #f7f7f6;
   --panel: #ffffff;
   --fg: #111111;
-  --muted: #6f6f6c;
+  --muted: #636360;
   --subtle: #f0f0ee;
   --line: #e5e5e2;
   --accent: #111111;
   --accent-fg: #ffffff;
-  --pos: #12804a;
-  --neg: #c4352b;
-  --warn: #a8640a;
-  --info: #2457c5;
+  --pos: #2b7c64;
+  --neg: #b5472f;
+  --warn: #a3621a;
+  --info: #3d5a99;
+  --dusk: #7d879c;
+  --pos-soft: #62a58d;
+  --neg-soft: #d68a76;
+  --profit: #3d3d3b;
   --overlay: rgb(0 0 0 / 0.28);
   --surface: linear-gradient(180deg, #ffffff, #fcfcfb);
   --surface-shadow: inset 0 1px 0 rgb(255 255 255 / 0.9), 0 1px 2px rgb(17 17 17 / 0.05), 0 8px 20px -12px rgb(17 17 17 / 0.12);
+  --raised: linear-gradient(180deg, #ffffff, #f8f8f6);
+  --raised-shadow: inset 0 1px 0 rgb(255 255 255 / 0.9), 0 1px 1.5px rgb(17 17 17 / 0.08);
+  --primary: linear-gradient(180deg, #2e2e2e, #111111);
+  --primary-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18), 0 1px 2px rgb(17 17 17 / 0.24), 0 5px 12px -5px rgb(17 17 17 / 0.4);
+  --floating-shadow: inset 0 1px 0 rgb(255 255 255 / 0.9), 0 2px 6px rgb(17 17 17 / 0.06), 0 24px 56px -16px rgb(17 17 17 / 0.3);
+  --field: #ffffff;
+  --field-shadow: inset 0 1px 1.5px rgb(17 17 17 / 0.05);
+  --glass: rgb(255 255 255 / 0.5);
+  --glass-line: rgb(17 17 17 / 0.1);
+  --nav-active: linear-gradient(180deg, #ffffff, #fbfbfa);
+  --nav-active-line: rgb(17 17 17 / 0.14);
+  --hover: rgb(17 17 17 / 0.05);
+  --thumb-off: #ffffff;
+  --sky: url("/sky-light.webp");
+  --sky-height: min(62vh, 560px);
+  --grain-opacity: 0.11;
   color-scheme: light;
 }
 
@@ -25,18 +45,37 @@
   --bg: #0b0b0b;
   --panel: #131313;
   --fg: #f2f2f0;
-  --muted: #8d8d89;
+  --muted: #9b9b97;
   --subtle: #1b1b1b;
   --line: #262626;
   --accent: #f2f2f0;
   --accent-fg: #0b0b0b;
-  --pos: #3cc580;
-  --neg: #ff7468;
-  --warn: #e6a644;
-  --info: #7aa2ff;
+  --pos: #6fc2a3;
+  --neg: #e8836a;
+  --warn: #e5a96b;
+  --info: #8fa6e0;
+  --dusk: #7f8aa6;
+  --pos-soft: #468f76;
+  --neg-soft: #b05f4c;
+  --profit: #c2c2be;
   --overlay: rgb(0 0 0 / 0.55);
   --surface: linear-gradient(180deg, #181818, #131313);
   --surface-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05), 0 1px 2px rgb(0 0 0 / 0.5), 0 12px 28px -14px rgb(0 0 0 / 0.8);
+  --raised: linear-gradient(180deg, #232323, #1a1a1a);
+  --raised-shadow: inset 0 1px 0 rgb(255 255 255 / 0.07), 0 1px 2px rgb(0 0 0 / 0.5);
+  --primary: linear-gradient(180deg, #ffffff, #d9d9d5);
+  --primary-shadow: inset 0 1px 0 rgb(255 255 255 / 0.9), 0 1px 2px rgb(0 0 0 / 0.5), 0 6px 14px -6px rgb(0 0 0 / 0.7);
+  --floating-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 2px 8px rgb(0 0 0 / 0.5), 0 28px 64px -16px rgb(0 0 0 / 0.9);
+  --field: #0f0f0f;
+  --field-shadow: inset 0 1px 2px rgb(0 0 0 / 0.5);
+  --glass: rgb(255 255 255 / 0.07);
+  --glass-line: rgb(255 255 255 / 0.11);
+  --nav-active: linear-gradient(180deg, rgb(255 255 255 / 0.22), rgb(255 255 255 / 0.14));
+  --nav-active-line: rgb(255 255 255 / 0.24);
+  --hover: rgb(242 242 240 / 0.05);
+  --thumb-off: #8f8f8b;
+  --sky: url("/sky-dark.webp");
+  --grain-opacity: 0.11;
   color-scheme: dark;
 }
 
@@ -54,6 +93,8 @@
   --color-warn: var(--warn);
   --color-info: var(--info);
   --color-overlay: var(--overlay);
+  --color-hover: var(--hover);
+  --color-thumb-off: var(--thumb-off);
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", system-ui, sans-serif;
   --font-serif: "Hedvig Letters Serif", "New York", Georgia, serif;
   --font-mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
@@ -123,8 +164,13 @@ input[type="number"]::-webkit-inner-spin-button {
 }
 ::-webkit-scrollbar-thumb {
   background: var(--line);
+  background-clip: padding-box;
   border-radius: 8px;
-  border: 2px solid var(--bg);
+  border: 2px solid transparent;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--info) 28%, transparent);
 }
 
 @keyframes fade-in {
@@ -216,6 +262,88 @@ input[type="number"]::-webkit-inner-spin-button {
     background-image: var(--surface);
     box-shadow: var(--surface-shadow);
   }
+  .raised {
+    background-image: var(--raised);
+    box-shadow: var(--raised-shadow);
+  }
+  .floating {
+    background-image: var(--surface);
+    box-shadow: var(--floating-shadow);
+  }
+  .primary {
+    background-image: var(--primary);
+    box-shadow: var(--primary-shadow);
+  }
+  .field {
+    background-color: var(--field);
+    box-shadow: var(--field-shadow);
+  }
+  .glass {
+    background-color: var(--glass);
+    border-color: var(--glass-line);
+    -webkit-backdrop-filter: blur(20px) saturate(1.3);
+    backdrop-filter: blur(20px) saturate(1.3);
+  }
+  .rail {
+    background-color: var(--glass);
+    border-color: var(--glass-line);
+    box-shadow: var(--surface-shadow);
+    -webkit-backdrop-filter: blur(20px) saturate(1.3);
+    backdrop-filter: blur(20px) saturate(1.3);
+  }
+  .nav-active {
+    background-image: var(--nav-active);
+    border-color: var(--nav-active-line);
+    box-shadow: var(--raised-shadow);
+  }
+  .track {
+    box-shadow: var(--field-shadow);
+  }
+  .grain-fill {
+    position: relative;
+    overflow: hidden;
+    background-image: linear-gradient(90deg, rgb(0 0 0 / 0.16), rgb(255 255 255 / 0.16));
+  }
+  .grain-fill::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: url("/grain.png") 0 0 / 256px;
+    opacity: 0.5;
+    pointer-events: none;
+  }
+}
+
+.sky {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+.sky::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: var(--sky-height);
+  background: var(--sky) top / 100% 100% no-repeat;
+}
+.sky::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: url("/grain.png") 0 0 / 256px;
+  opacity: var(--grain-opacity);
+  -webkit-mask-image: linear-gradient(#000, rgb(0 0 0 / 0.18) var(--sky-height));
+  mask-image: linear-gradient(#000, rgb(0 0 0 / 0.18) var(--sky-height));
+}
+
+.content {
+  border-top: 1px solid transparent;
+  transition: border-color 150ms ease-out;
+}
+.content[data-scrolled] {
+  border-top-color: var(--line);
 }
 
 .theme-switching,

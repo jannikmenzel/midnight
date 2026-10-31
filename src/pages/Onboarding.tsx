@@ -34,7 +34,8 @@ export default function Onboarding({ settings, onDone }: { settings: Settings; o
   };
 
   return (
-    <div className="flex h-full items-center justify-center bg-bg p-6">
+    <div className="relative isolate flex h-full items-center justify-center bg-bg p-6">
+      <div className="sky" aria-hidden />
       <div className="fixed inset-x-0 top-0 h-12" data-tauri-drag-region />
       <div className="surface relative w-full max-w-lg rounded-[10px] border border-line bg-panel p-8">
         <div className="mb-6 flex items-center gap-2">

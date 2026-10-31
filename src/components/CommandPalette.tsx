@@ -100,7 +100,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-[12vh]" data-state={state}>
       <div className="anim-overlay absolute inset-0 bg-overlay" onClick={onClose} />
-      <div role="dialog" aria-modal="true" aria-label={t("Search")} className="anim-dialog relative w-full max-w-xl overflow-hidden rounded-xl border border-line bg-panel shadow-2xl">
+      <div role="dialog" aria-modal="true" aria-label={t("Search")} className="floating anim-dialog relative w-full max-w-xl overflow-hidden rounded-xl border border-line bg-panel">
         <div className="flex items-center gap-2 border-b border-line px-4">
           <Search className="size-4 text-muted" />
           <input

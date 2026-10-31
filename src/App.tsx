@@ -70,7 +70,7 @@ function RunningTimerChip({ onOpen }: { onOpen: () => void }) {
   if (!entry) return null;
   const secs = Math.max(0, (now - new Date(entry.start).getTime()) / 1000);
   return (
-    <button type="button" onClick={onOpen} className="mx-2 mb-2 flex items-center gap-2 rounded-md border border-line bg-subtle px-2.5 py-2 text-left">
+    <button type="button" onClick={onOpen} className="raised mx-2 mb-2 flex items-center gap-2 rounded-md border border-line bg-panel px-2.5 py-2 text-left">
       <span className="size-2 animate-pulse rounded-full bg-neg" />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-xs">{entry.project_name}</span>
@@ -206,23 +206,24 @@ export default function App() {
 
   return (
     <AppContext.Provider value={{ route, params, go, settings, reloadSettings, theme, setTheme }}>
-      <div className="flex h-full flex-col">
-        <header className="grid h-12 shrink-0 grid-cols-[1fr_minmax(0,28rem)_1fr] items-center gap-4 border-b border-line bg-panel" data-tauri-drag-region="deep">
+      <div className="relative isolate flex h-full flex-col">
+        <div className="sky" aria-hidden />
+        <header className="grid h-12 shrink-0 grid-cols-[1fr_minmax(0,28rem)_1fr] items-center gap-4" data-tauri-drag-region="deep">
           <button
             type="button"
             onClick={() => setPaletteOpen(true)}
-            className="col-start-2 flex h-8 w-full items-center gap-2 rounded-md border border-line bg-bg px-2.5 text-[13px] text-muted hover:bg-subtle"
+            className="glass col-start-2 flex h-8 w-full items-center gap-2 rounded-md border px-2.5 text-[13px] text-fg/70 transition-colors duration-150 hover:text-fg"
           >
             <Search className="size-3.5" />
             {t("Search or run an action…")}
-            <kbd className="ml-auto rounded border border-line px-1 text-[11px]">⌘K</kbd>
+            <kbd className="ml-auto rounded border border-fg/15 px-1 text-[11px]">⌘K</kbd>
           </button>
           <div className="flex items-center justify-end gap-1 pr-4">
             <NotificationsButton state={notifications} update={update} />
           </div>
         </header>
         <div className="flex min-h-0 flex-1">
-          <aside className="flex w-[216px] shrink-0 flex-col border-r border-line bg-panel">
+          <aside className="rail mb-2 ml-2 flex w-[224px] shrink-0 flex-col overflow-hidden rounded-[10px] border">
             <nav className="flex flex-1 flex-col gap-0.5 px-2 pt-2" aria-label={t("Main navigation")}>
               {NAV.map((n) => {
                 const active = route === n.route || (n.route === "ledger" && route === "categories");
@@ -233,8 +234,8 @@ export default function App() {
                     onClick={() => go(n.route)}
                     aria-current={active ? "page" : undefined}
                     className={cx(
-                      "flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px] transition-colors duration-150",
-                      active ? "bg-subtle font-medium text-fg" : "text-muted hover:bg-subtle hover:text-fg",
+                      "flex h-8 items-center gap-2.5 rounded-md border px-2.5 text-[13px] whitespace-nowrap transition-colors duration-150",
+                      active ? "nav-active font-medium text-fg" : "border-transparent text-fg/70 hover:bg-hover hover:text-fg",
                     )}
                   >
                     {n.icon}
@@ -249,9 +250,10 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => go("settings")}
+                aria-current={route === "settings" ? "page" : undefined}
                 className={cx(
-                  "flex h-8 w-full items-center gap-2.5 rounded-md px-2.5 text-[13px] transition-colors duration-150",
-                  route === "settings" ? "bg-subtle font-medium" : "text-muted hover:bg-subtle hover:text-fg",
+                  "flex h-8 w-full items-center gap-2.5 rounded-md border px-2.5 text-[13px] transition-colors duration-150",
+                  route === "settings" ? "nav-active font-medium" : "border-transparent text-fg/70 hover:bg-hover hover:text-fg",
                 )}
               >
                 <SettingsIcon className="size-4" />
@@ -260,7 +262,7 @@ export default function App() {
             </div>
           </aside>
 
-          <main ref={mainRef} className="min-h-0 min-w-0 flex-1 overflow-y-scroll">
+          <main ref={mainRef} onScroll={(e) => e.currentTarget.toggleAttribute("data-scrolled", e.currentTarget.scrollTop > 0)} className="content min-h-0 min-w-0 flex-1 overflow-y-scroll">
             <div key={visit} className="anim-page mx-auto w-full max-w-[1240px] px-6 py-6">
               {page}
             </div>

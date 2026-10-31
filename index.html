@@ -33,16 +33,30 @@
         align-items: center;
         justify-content: center;
         gap: 18px;
-        background: var(--splash-bg);
+        background: url(/sky-light.webp) top / 100% min(62vh, 560px) no-repeat, var(--splash-bg);
         color: var(--splash-fg);
         cursor: default;
         user-select: none;
         -webkit-user-select: none;
       }
+      #splash::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        background: url(/grain.png) 0 0 / 256px;
+        opacity: 0.11;
+        -webkit-mask-image: linear-gradient(#000, rgb(0 0 0 / 0.18) min(62vh, 560px));
+        mask-image: linear-gradient(#000, rgb(0 0 0 / 0.18) min(62vh, 560px));
+      }
       .dark #splash {
         --splash-bg: #0b0b0b;
         --splash-fg: #f2f2f0;
         --splash-line: #262626;
+        background-image: url(/sky-dark.webp);
+      }
+      .dark #splash::before {
+        opacity: 0.11;
       }
       .menubar-panel #splash {
         display: none;

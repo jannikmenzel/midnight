@@ -48,7 +48,7 @@ export function useUpdate() {
       .then(async (s) => {
         setAvailable(s.available);
         const last = swapLastVersion(s.current);
-        if (last === s.current) return;
+        if (last === s.current || (last && s.current.localeCompare(last, undefined, { numeric: true }) < 0)) return;
         if (last || (await api.getSettings()).onboarded) void moment.show({ kind: "update", title: `Midnight ${s.current}`, detail: t("Update installed") });
       })
       .catch(() => {});
@@ -94,7 +94,7 @@ export type UpdateState = ReturnType<typeof useUpdate>;
 export function UpdateHint({ update, onOpen }: { update: UpdateState; onOpen: () => void }) {
   if (!update.hinted || !update.available) return null;
   return (
-    <div className="mx-2 mb-2 flex items-center gap-1 rounded-md border border-line bg-subtle py-1.5 pr-1 pl-2.5">
+    <div className="raised mx-2 mb-2 flex items-center gap-1 rounded-md border border-line bg-panel py-1.5 pr-1 pl-2.5">
       <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-2 text-left">
         <Download className="size-3.5 shrink-0 text-info" />
         <span className="min-w-0">

@@ -14,6 +14,7 @@ pub const ALL: &[Migration] = &[
     Migration { sql: include_str!("../migrations/0.1.0.sql"), data: None },
     Migration { sql: include_str!("../migrations/0.1.1.sql"), data: Some(v0_1_1) },
     Migration { sql: include_str!("../migrations/0.1.4.sql"), data: Some(v0_1_4) },
+    Migration { sql: include_str!("../migrations/0.1.6.sql"), data: None },
 ];
 
 fn v0_1_4(conn: &Connection) -> AppResult<()> {
@@ -223,6 +224,25 @@ mod tests {
         let conn = crate::db::open(&path).unwrap();
         let share: i64 = conn.query_row("SELECT deductible_percent FROM expenses", [], |r| r.get(0)).unwrap();
         assert_eq!(share, 100);
+    }
+
+    #[test]
+    fn moves_standard_category_colours_and_keeps_custom_ones() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("midnight.db");
+        {
+            let conn = Connection::open(&path).unwrap();
+            for migration in &ALL[..3] {
+                conn.execute_batch(migration.sql).unwrap();
+            }
+            conn.execute_batch("PRAGMA user_version = 3; UPDATE categories SET color = '#123456' WHERE slug = 'travel'; UPDATE categories SET color = '#ef4444' WHERE slug = 'office';").unwrap();
+        }
+        let conn = crate::db::open(&path).unwrap();
+        let color = |slug: &str| conn.query_row("SELECT color FROM categories WHERE slug = ?1", [slug], |r| r.get::<_, String>(0)).unwrap();
+        assert_eq!(color("software"), "#C8553D");
+        assert_eq!(color("office"), "#C8553D", "matches regardless of case");
+        assert_eq!(color("travel"), "#123456", "custom colours stay");
+        assert_eq!(color("other"), "#A0A3AC");
     }
 
     #[test]

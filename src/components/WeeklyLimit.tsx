@@ -26,14 +26,14 @@ export function WeeklyLimitBar({ week, running, now, className }: { week: Weekly
         </span>
       </div>
       <div
-        className="h-1.5 overflow-hidden rounded-full bg-line"
+        className="track h-1.5 overflow-hidden rounded-full bg-line"
         role="progressbar"
         aria-label={t("This week")}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round(Math.min(100, pct))}
       >
-        <div className={cx("h-full rounded-full transition-[width] duration-500", over ? "bg-neg" : pct >= 80 ? "bg-warn" : "bg-pos")} style={{ width: `${Math.min(100, pct)}%` }} />
+        <div className={cx("grain-fill h-full rounded-full transition-[width] duration-500", over ? "bg-neg" : pct >= 80 ? "bg-warn" : "bg-pos")} style={{ width: `${Math.min(100, pct)}%` }} />
       </div>
       <span className={cx("text-[11px]", over ? "font-medium text-neg" : "text-muted")}>
         {over ? t("{time} over the weekly limit", { time: duration(used - limit) }) : t("{time} left", { time: duration(limit - used) })}

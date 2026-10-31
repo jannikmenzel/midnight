@@ -7,7 +7,7 @@ import { useApp } from "../lib/nav";
 import { Button, Card, CategoryDot, Dialog, Empty, Field, Input, PageHeader, Skeleton, useToast } from "../components/ui";
 import { t } from "../lib/i18n";
 
-const PALETTE = ["#EF4444", "#F97316", "#92400E", "#EAB308", "#0EA5E9", "#1D4ED8", "#6366F1", "#A855F7", "#EC4899", "#BE123C", "#64748B", "#78716C"];
+const PALETTE = ["#C8553D", "#D2803F", "#8A5A3C", "#D3A24A", "#6C9CC4", "#3F5F9E", "#7078BE", "#9470AE", "#C4708E", "#9C4258", "#66728A", "#85786D"];
 
 interface Draft {
   slug?: string;

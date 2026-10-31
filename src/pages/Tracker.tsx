@@ -522,8 +522,8 @@ export default function Tracker() {
                     <div className="truncate text-xs text-muted">{p.customer_name ?? t("No customer")}</div>
                     {pct !== null && (
                       <div className="mt-1.5 flex items-center gap-2">
-                        <div className="h-1.5 w-40 rounded-full bg-line">
-                          <div className={`h-1.5 rounded-full ${pct >= 100 ? "bg-neg" : pct >= 80 ? "bg-warn" : "bg-pos"}`} style={{ width: `${pct}%` }} />
+                        <div className="track h-1.5 w-40 rounded-full bg-line">
+                          <div className={`grain-fill h-1.5 rounded-full ${pct >= 100 ? "bg-neg" : pct >= 80 ? "bg-warn" : "bg-pos"}`} style={{ width: `${pct}%` }} />
                         </div>
                         <span className="text-[11px] text-muted">
                           {t("{done} / {total} hrs", { done: hours(p.total_seconds), total: p.estimate_hours ?? 0 })}

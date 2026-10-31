@@ -150,6 +150,19 @@ async fn download_and_install(app: &AppHandle) -> AppResult<()> {
     update.download_and_install(|_, _| {}, || {}).await.ctx("Update")
 }
 
+#[cfg(debug_assertions)]
+fn relaunch(app: &AppHandle) {
+    app.state::<UpdateState>().set_available(None);
+    for window in app.webview_windows().values() {
+        let _ = window.eval("location.reload()");
+    }
+}
+
+#[cfg(not(debug_assertions))]
+fn relaunch(app: &AppHandle) {
+    app.restart()
+}
+
 async fn check(app: &AppHandle) -> AppResult<Option<Release>> {
     let state = app.state::<UpdateState>();
     let _running = state.running.lock().await;
@@ -203,7 +216,8 @@ pub async fn install_update(app: AppHandle) -> AppResult<()> {
     let state = app.state::<UpdateState>();
     let _running = state.running.lock().await;
     download_and_install(&app).await?;
-    app.restart()
+    relaunch(&app);
+    Ok(())
 }
 
 #[cfg(test)]
