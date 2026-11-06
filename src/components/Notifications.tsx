@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Bell } from "lucide-react";
 import { api, type Activity } from "../lib/api";
 import { relativeTime } from "../lib/format";
+import { maskText } from "../lib/privacy";
 import { Button, cx, Sheet } from "./ui";
 import { t } from "../lib/i18n";
 import { UpdateItem, type UpdateState } from "./Update";
@@ -74,7 +75,7 @@ export function NotificationsPanel({ state, update }: { state: NotificationsStat
             <span className={cx("mt-1.5 size-1.5 shrink-0 rounded-full", a.read ? "bg-line" : "bg-info")} />
             <span className="min-w-0 flex-1">
               <span className="block text-[13px]" data-selectable>
-                {a.message}
+                {maskText(a.message)}
               </span>
               <span className="text-[11px] text-muted">{relativeTime(a.created_at)}</span>
             </span>

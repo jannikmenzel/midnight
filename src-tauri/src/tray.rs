@@ -191,6 +191,7 @@ mod menu_bar {
 
     pub fn hide_to_menu_bar(app: &AppHandle) {
         if let Some(w) = app.get_webview_window("main") {
+            let _ = w.emit("app-lock", ());
             let _ = w.hide();
         }
         let _ = app.set_activation_policy(ActivationPolicy::Accessory);

@@ -145,6 +145,12 @@ commands! {
     write settings::save_settings(settings: Settings) -> Settings, "Saves the complete settings. Read get_settings first and change only the fields you need.";
     read settings::data_location() -> String, "Returns the app's data directory.";
     app settings::reset_all_data() -> (), "Deletes all data.";
+    app security::get_mcp_access() -> crate::security::McpAccess, "Reads the MCP access settings.";
+    app security::save_mcp_access(access: crate::security::McpAccess) -> crate::security::McpAccess, "Saves the MCP access settings.";
+    app security::pin_enabled() -> bool, "Whether the app is protected by a PIN.";
+    app security::set_pin(current: Option<String>, pin: Option<String>) -> bool, "Sets, changes or removes the app PIN.";
+    app security::unlock(pin: String) -> bool, "Checks the app PIN.";
+    #[stateless] app security::pin_cooldown() -> Option<u64>, "Seconds until the PIN can be entered again after too many attempts.";
     #[stateless] app mcp_setup::mcp_setup() -> McpSetup, "Shows how to connect the MCP server to Claude.";
     #[stateless] app mcp_setup::mcp_install_claude_desktop() -> (), "Registers the MCP server in Claude Desktop.";
 

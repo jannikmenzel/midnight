@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { Download, X } from "lucide-react";
 import { api, errorMessage, type Release } from "../lib/api";
@@ -35,21 +35,32 @@ function swapLastVersion(current: string) {
   }
 }
 
-export function useUpdate() {
+export function useUpdate(ready: boolean) {
   const toast = useToast();
   const moment = useMoment();
   const [available, setAvailable] = useState<Release | null>(null);
+  const [current, setCurrent] = useState<string | null>(null);
   const [installing, setInstalling] = useState(false);
   const [dismissed, setDismissed] = useState(readDismissed);
+
+  useLayoutEffect(() => {
+    if (!ready || !current) return;
+    const last = swapLastVersion(current);
+    if (last === current || (last && current.localeCompare(last, undefined, { numeric: true }) < 0)) return;
+    const announce = () => void moment.show({ kind: "update", title: `Midnight ${current}`, detail: t("Update installed"), instant: true });
+    if (last) return announce();
+    api
+      .getSettings()
+      .then((s) => s.onboarded && announce())
+      .catch(() => {});
+  }, [ready, current, moment]);
 
   useEffect(() => {
     api
       .updateStatus()
-      .then(async (s) => {
+      .then((s) => {
         setAvailable(s.available);
-        const last = swapLastVersion(s.current);
-        if (last === s.current || (last && s.current.localeCompare(last, undefined, { numeric: true }) < 0)) return;
-        if (last || (await api.getSettings()).onboarded) void moment.show({ kind: "update", title: `Midnight ${s.current}`, detail: t("Update installed") });
+        setCurrent(s.current);
       })
       .catch(() => {});
     const onChecked = (e: Event) => setAvailable((e as CustomEvent<Release | null>).detail);
@@ -59,7 +70,7 @@ export function useUpdate() {
       window.removeEventListener(UPDATE_EVENT, onChecked);
       unlisten.then((off) => off()).catch(() => {});
     };
-  }, [moment]);
+  }, []);
 
   const install = async () => {
     if (!available) return;
@@ -68,7 +79,7 @@ export function useUpdate() {
     try {
       await moment.run(
         { kind: "update", title: t("Installing update"), detail: t("Version {current}, Midnight restarts afterwards", { current: available.version }) },
-        () => api.installUpdate(),
+        () => api.installUpdate().then(() => new Promise<void>(() => {})),
         () => ({ kind: "update", title, detail: t("Update installed") }),
       );
     } catch (e) {

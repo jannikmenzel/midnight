@@ -93,7 +93,8 @@ file and are registered in `MIGRATIONS` in `src-tauri/src/db.rs`.
 
 `midnight-mcp` exposes the app's features as MCP tools over stdio, for both reading and writing. It works directly on
 the same database and also runs while the app is closed. Updates with missing fields are rejected, and only draft
-invoices can be changed or deleted through it. Resetting all data is only possible inside the app.
+invoices can be changed or deleted through it. Resetting all data is only possible inside the app. Under Settings →
+General → MCP server, access can be limited to reading, and customer data can be kept out of every tool result.
 
 The installed app ships with the server:
 

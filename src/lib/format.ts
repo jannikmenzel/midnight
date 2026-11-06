@@ -1,4 +1,5 @@
 import { lang, locale, t } from "./i18n";
+import { isMasked, maskMoney } from "./privacy";
 
 const moneyFormatters = new Map<string, Intl.NumberFormat>();
 
@@ -15,6 +16,7 @@ export function money(cents: number | null | undefined, currency = "EUR", opts: 
     });
     moneyFormatters.set(key, fmt);
   }
+  if (isMasked()) return maskMoney(fmt.formatToParts(cents / 100));
   const text = fmt.format(cents / 100);
   return opts.sign && cents > 0 ? `+${text}` : text;
 }

@@ -4,6 +4,7 @@ import { money, todayIso } from "../lib/format";
 import { useMoment } from "./ActionMoment";
 import { Button, DateInput, Dialog, Field, useToast } from "./ui";
 import { t } from "../lib/i18n";
+import { customer } from "../lib/privacy";
 
 export function PaidDialog({ invoice, open, onClose, onPaid }: { invoice: Invoice; open: boolean; onClose: () => void; onPaid: (inv: Invoice) => void }) {
   const toast = useToast();
@@ -27,7 +28,7 @@ export function PaidDialog({ invoice, open, onClose, onPaid }: { invoice: Invoic
           kind: "paid",
           title: t("Payment received"),
           amount: { cents: invoice.amount_cents, currency: invoice.currency },
-          detail: invoice.customer_name ? `${invoice.invoice_number} · ${invoice.customer_name}` : invoice.invoice_number,
+          detail: invoice.customer_name ? `${invoice.invoice_number} · ${customer(invoice.customer_name)}` : invoice.invoice_number,
         });
       }
       onClose();
@@ -54,7 +55,7 @@ export function PaidDialog({ invoice, open, onClose, onPaid }: { invoice: Invoic
     >
       <p className="text-[13px]">
         {invoice.customer_name
-          ? t("{number} for {amount} from {customer}.", { number: invoice.invoice_number, amount: money(invoice.amount_cents, invoice.currency), customer: invoice.customer_name })
+          ? t("{number} for {amount} from {customer}.", { number: invoice.invoice_number, amount: money(invoice.amount_cents, invoice.currency), customer: customer(invoice.customer_name) })
           : t("{number} for {amount}.", { number: invoice.invoice_number, amount: money(invoice.amount_cents, invoice.currency) })}
       </p>
       <Field label={t("Payment received on")} hint={t("The income counts in the period in which the money was received.")}>

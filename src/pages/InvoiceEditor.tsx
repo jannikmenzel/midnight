@@ -10,6 +10,7 @@ import { ActionMenu, Button, CurrencySelect, DateInput, Field, IconButton, Input
 import { PaidDialog } from "../components/PaidDialog";
 import { UnitSelect } from "../components/fields";
 import { t } from "../lib/i18n";
+import { customer } from "../lib/privacy";
 
 interface LineDraft {
   name: string;
@@ -225,7 +226,7 @@ export function InvoiceEditor({
         kind: "sent",
         title: t("Invoice {number} issued", { number: saved.invoice_number }),
         amount: { cents: saved.amount_cents, currency: saved.currency },
-        detail: saved.customer_name ?? undefined,
+        detail: customer(saved.customer_name) ?? undefined,
       });
     });
 

@@ -5,6 +5,7 @@ import { centsToInput, money, parseMoney } from "../lib/format";
 import { useApp } from "../lib/nav";
 import { Button, Card, Field, IconButton, Input, Kpi, Select, Skeleton, cx, useToast } from "./ui";
 import { t } from "../lib/i18n";
+import { maskText } from "../lib/privacy";
 
 const emptyJob = (): TaxJob => ({ employer: "", gross_cents: 0, wage_tax_cents: 0, soli_cents: 0, church_tax_cents: 0, pension_cents: 0, commute_days: 0, commute_km: 0, equipment_cents: 0 });
 const emptyVolunteer = (): TaxVolunteer => ({ organisation: "", kind: "trainer", income_cents: 0, costs_cents: 0 });
@@ -127,7 +128,7 @@ export function TaxReturn({ year }: { year: number }) {
           {warnings.map((w, i) => (
             <p key={i} className="flex items-center gap-2 rounded-md bg-warn/10 px-3 py-2 text-xs leading-relaxed">
               <AlertTriangle className="size-3.5 shrink-0 text-warn" />
-              {w.text}
+              {maskText(w.text)}
             </p>
           ))}
         </div>

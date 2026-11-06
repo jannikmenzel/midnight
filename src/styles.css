@@ -242,6 +242,9 @@ input[type="number"]::-webkit-inner-spin-button {
 .moment {
   animation: fade-in 240ms ease-out;
 }
+.moment[data-instant] {
+  animation: none;
+}
 .moment[data-leaving] {
   pointer-events: none;
   animation: fade-out 280ms ease-in forwards;

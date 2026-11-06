@@ -10,6 +10,7 @@ import { useMoment } from "../components/ActionMoment";
 import { Badge, Button, Card, cx, DateInput, DateTimeInput, Dialog, Empty, Field, IconButton, Input, PageHeader, Select, Sheet, Skeleton, Textarea, Toggle, useToast } from "../components/ui";
 import { lang, locale, t } from "../lib/i18n";
 import { PastWeeksBanner, WeeklyLimitBar } from "../components/WeeklyLimit";
+import { customer } from "../lib/privacy";
 
 interface ProjectDraft {
   id?: string;
@@ -133,7 +134,7 @@ function ProjectDetail({
     >
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-2 text-[13px] text-muted">
-          <span className="min-w-0 truncate">{project.customer_name ?? t("No customer")}</span>
+          <span className="min-w-0 truncate">{customer(project.customer_name) ?? t("No customer")}</span>
           {priceLabel(project) && <Badge className="tabular shrink-0">{priceLabel(project)}</Badge>}
           <span className="ml-auto shrink-0 whitespace-nowrap tabular-nums">
             <PeriodLabel p={project} />
@@ -520,7 +521,7 @@ export default function Tracker() {
                       <span className="truncate text-[13px] font-medium">{p.name}</span>
                       {p.unbilled_seconds > 0 && <span className="shrink-0 whitespace-nowrap text-xs text-warn">{t("{duration} unbilled · {amount}", { duration: duration(p.unbilled_seconds), amount: money(p.unbilled_cents, p.currency) })}</span>}
                     </div>
-                    <div className="truncate text-xs text-muted">{p.customer_name ?? t("No customer")}</div>
+                    <div className="truncate text-xs text-muted">{customer(p.customer_name) ?? t("No customer")}</div>
                     {pct !== null && (
                       <div className="mt-1.5 flex items-center gap-2">
                         <div className="track h-1.5 w-40 rounded-full bg-line">

@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Eye, EyeOff } from "lucide-react";
 import { api, type ForecastOutlook, type Summary, type TaxReport } from "../lib/api";
 import { date, duration, money, PERIODS, pctChange, periodRange, todayIso, type PeriodKey } from "../lib/format";
 import { useAsync } from "../lib/hooks";
@@ -8,6 +8,7 @@ import { CashflowChart } from "../components/Cashflow";
 import { SmallBusinessCard } from "../components/SmallBusiness";
 import { Amount, AnimatedMoney, Badge, Button, Card, CategoryDot, Empty, Kpi, PageHeader, Select, Skeleton, cx } from "../components/ui";
 import { locale, t } from "../lib/i18n";
+import { customer, maskText, usePrivacy } from "../lib/privacy";
 
 function Trend({ current, previous, invert = false }: { current: number; previous: number; invert?: boolean }) {
   const p = pctChange(current, previous);
@@ -132,6 +133,7 @@ function OutstandingSummary({ s, unbilledCents, currency }: { s?: Summary; unbil
 
 export default function Overview() {
   const { go, settings } = useApp();
+  const [masked, setMasked] = usePrivacy();
   const [period, setPeriodState] = useState<PeriodKey>(readPeriod);
   const setPeriod = (p: PeriodKey) => {
     setPeriodState(p);
@@ -186,13 +188,25 @@ export default function Overview() {
         title={settings.company_name ? t("Hello {name}", { name: settings.company_owner ? settings.company_owner.split(" ")[0] : settings.company_name }) : t("Overview")}
         subtitle={t("Income, expenses and open items in the selected period.")}
         actions={
-          <Select value={period} onChange={(e) => setPeriod(e.target.value as PeriodKey)} className="w-44" aria-label={t("Period")}>
-            {PERIODS.map((p) => (
-              <option key={p.key} value={p.key}>
-                {p.label}
-              </option>
-            ))}
-          </Select>
+          <>
+            <button
+              type="button"
+              onClick={() => setMasked(!masked)}
+              aria-pressed={masked}
+              aria-label={masked ? t("Show amounts and customer names") : t("Hide amounts and customer names")}
+              title={masked ? t("Show amounts and customer names") : t("Hide amounts and customer names")}
+              className="inline-flex size-8 items-center justify-center rounded-md text-fg/70 hover:bg-hover hover:text-fg"
+            >
+              {masked ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+            </button>
+            <Select value={period} onChange={(e) => setPeriod(e.target.value as PeriodKey)} className="w-44" aria-label={t("Period")}>
+              {PERIODS.map((p) => (
+                <option key={p.key} value={p.key}>
+                  {p.label}
+                </option>
+              ))}
+            </Select>
+          </>
         }
       />
 
@@ -279,9 +293,9 @@ export default function Overview() {
                   >
                     <CategoryDot color={e.kind === "income" ? "var(--pos)" : e.category_color} />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13px]">{e.name}</span>
+                      <span className="block truncate text-[13px]">{e.kind === "income" ? customer(e.name) : e.name}</span>
                       <span className="block truncate text-xs text-muted">
-                        {date(e.date)} · {e.kind === "income" ? e.description : (e.category_name ?? t("Uncategorised"))}
+                        {date(e.date)} · {e.kind === "income" ? maskText(e.description ?? "") : (e.category_name ?? t("Uncategorised"))}
                       </span>
                     </span>
                     <Amount cents={e.amount_cents} currency={e.currency} />
@@ -317,7 +331,7 @@ export default function Overview() {
                       <span className="block truncate text-[13px]">{e.project_name}</span>
                       <span className="block truncate text-xs text-muted">
                         {date(e.date)} · {clockTime(e.start)}–{clockTime(e.stop!)}
-                        {e.description ? ` · ${e.description}` : ""}
+                        {e.description ? ` · ${maskText(e.description)}` : ""}
                       </span>
                     </span>
                     {e.billed && <Badge tone="pos">{t("billed")}</Badge>}

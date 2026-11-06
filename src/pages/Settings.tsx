@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useMoment } from "../components/ActionMoment";
 import { Check, Copy, FolderOpen, RotateCcw, Trash2 } from "lucide-react";
-import { api, errorMessage, type Limits, type Settings, type TaxOverrides, type TaxParamKey } from "../lib/api";
+import { api, errorMessage, type Limits, type McpAccess, type Settings, type TaxOverrides, type TaxParamKey } from "../lib/api";
 import { centsToInput, money, parseMoney } from "../lib/format";
 import { useAsync } from "../lib/hooks";
 import { notifyUpdateChecked, useApp, type Theme } from "../lib/nav";
@@ -8,6 +10,7 @@ import { Badge, Button, Card, CardBody, CurrencySelect, Dialog, ErrorNote, Field
 import { isLang, lang, LANGUAGES, setLang, t } from "../lib/i18n";
 import LatexTemplates from "../components/LatexTemplates";
 import { CountrySelect, PlaceInput } from "../components/fields";
+import { PIN_CHANGED, PIN_LENGTH, PinInput, PinScreen, usePinCooldown } from "../components/LockScreen";
 
 type Tab = "general" | "company" | "invoices" | "latex" | "limits" | "data";
 
@@ -134,6 +137,7 @@ function GeneralTab() {
           )}
         </div>
       </Card>
+      <AppLockCard />
       <AutostartCard menuBar={IS_MAC && form.menu_bar_icon} />
       <UpdatesCard checkUpdates={form.check_updates} onCheckUpdates={(v) => update({ check_updates: v })} />
       <McpCard />
@@ -220,6 +224,169 @@ function CopyBlock({ text }: { text: string }) {
   );
 }
 
+type PinMode = "set" | "change" | "off";
+
+function PinFlow({ mode, onClose, onDone }: { mode: PinMode; onClose: () => void; onDone: (enabled: boolean) => void }) {
+  const toast = useToast();
+  const moment = useMoment();
+  const steps = mode === "off" ? (["current"] as const) : mode === "change" ? (["current", "new", "repeat"] as const) : (["new", "repeat"] as const);
+  const [step, setStep] = useState(0);
+  const [values, setValues] = useState({ current: "", new: "", repeat: "" });
+  const [wrong, setWrong] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [cooling, checkCooldown] = usePinCooldown();
+  const key = steps[step];
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const save = async (current: string | null, pin: string | null) => {
+    try {
+      const on = await api.setPin(current, pin);
+      window.dispatchEvent(new CustomEvent(PIN_CHANGED, { detail: on }));
+      if (!on) {
+        toast.success(t("App lock turned off"));
+        return onDone(on);
+      }
+      moment.show({ kind: "locked", title: mode === "set" ? t("Midnight is now protected") : t("Your new PIN is active") });
+      setTimeout(() => onDone(on), 300);
+    } catch (e) {
+      toast.error(errorMessage(e));
+      setValues({ current: "", new: "", repeat: "" });
+      setStep(0);
+      setBusy(false);
+    }
+  };
+
+  const fail = (field: keyof typeof values) => {
+    setValues((v) => ({ ...v, [field]: "" }));
+    setWrong(true);
+    setBusy(false);
+  };
+
+  const submit = async (next: typeof values) => {
+    setBusy(true);
+    if (key === "current") {
+      const ok = await api.unlock(next.current).catch(() => false);
+      if (!ok) {
+        fail("current");
+        return checkCooldown();
+      }
+      if (mode === "off") return save(next.current, null);
+    }
+    if (key === "repeat") {
+      if (next.repeat !== next.new) return fail("repeat");
+      return save(mode === "change" ? next.current : null, next.new);
+    }
+    setStep(step + 1);
+    setBusy(false);
+  };
+
+  const label = key === "current" ? t("Current PIN") : key === "new" ? t("New PIN") : t("Repeat PIN");
+  const title = mode === "off" ? t("Turn off app lock") : mode === "change" ? t("Change PIN") : t("Set PIN");
+
+  return createPortal(
+    <PinScreen title={title} className="anim-pop fixed inset-0 z-50 bg-bg">
+      <PinInput
+        key={key}
+        label={label}
+        value={values[key]}
+        autoFocus
+        invalid={wrong || (key === "current" && cooling)}
+        disabled={key === "current" && cooling}
+        onChange={(value) => {
+          if (busy) return;
+          const next = { ...values, [key]: value };
+          setValues(next);
+          setWrong(false);
+          if (value.length === PIN_LENGTH) submit(next);
+        }}
+      />
+      <Button className="w-full" onClick={onClose}>
+        {t("Cancel")}
+      </Button>
+    </PinScreen>,
+    document.body,
+  );
+}
+
+function AppLockCard() {
+  const status = useAsync(() => api.pinEnabled(), []);
+  const [mode, setMode] = useState<PinMode | null>(null);
+  const enabled = status.data ?? false;
+  return (
+    <Card title={t("App lock")} actions={enabled && <Badge tone="pos">{t("On")}</Badge>}>
+      <CardBody>
+        <div className="flex items-start justify-between gap-4">
+          <span className="flex flex-col">
+            <span className="text-[13px]">{t("Lock with PIN")}</span>
+            <span className="text-xs text-muted">{t("A forgotten PIN cannot be reset. Keep it somewhere safe.")}</span>
+          </span>
+          <div className="flex shrink-0 gap-2">
+            {enabled ? (
+              <>
+                <Button onClick={() => setMode("change")}>{t("Change PIN")}</Button>
+                <Button onClick={() => setMode("off")}>{t("Turn off")}</Button>
+              </>
+            ) : (
+              <Button variant="primary" onClick={() => setMode("set")} disabled={status.loading}>
+                {t("Set PIN")}
+              </Button>
+            )}
+          </div>
+        </div>
+      </CardBody>
+      {mode && (
+        <PinFlow
+          mode={mode}
+          onClose={() => setMode(null)}
+          onDone={(on) => {
+            setMode(null);
+            status.setData(on);
+          }}
+        />
+      )}
+    </Card>
+  );
+}
+
+function McpAccessSection() {
+  const toast = useToast();
+  const loaded = useAsync(() => api.getMcpAccess(), []);
+  const [access, setAccess] = useState<McpAccess | null>(null);
+  const value = access ?? loaded.data;
+  if (!value) return null;
+  const update = async (patch: Partial<McpAccess>) => {
+    const next = { ...value, ...patch };
+    setAccess(next);
+    try {
+      setAccess(await api.saveMcpAccess(next));
+    } catch (e) {
+      setAccess(value);
+      toast.error(errorMessage(e));
+    }
+  };
+  return (
+    <Section title={t("Access")}>
+      <Toggle
+        checked={value.read_only}
+        onChange={(v) => update({ read_only: v })}
+        label={t("Read only")}
+        hint={t("AI assistants can read your data but cannot create, change or delete anything.")}
+      />
+      <Toggle
+        checked={value.private}
+        onChange={(v) => update({ private: v })}
+        label={t("Protect customer data")}
+        hint={t("Customer names, addresses and contact details stay hidden.")}
+      />
+    </Section>
+  );
+}
+
 function McpCard() {
   const toast = useToast();
   const setup = useAsync(() => api.mcpSetup(), []);
@@ -240,13 +407,11 @@ function McpCard() {
   return (
     <Card title={t("MCP server")} actions={s && (s.server_exists ? <Badge tone="pos">{t("Available")}</Badge> : <Badge tone="warn">{t("Not found")}</Badge>)}>
       <CardBody>
-        <p className="text-xs text-muted">
-          {t("Lets AI assistants such as Claude read and edit your bookkeeping. The server runs locally on the same data, even while the app is closed.")}
-        </p>
         {setup.error && <ErrorNote message={setup.error} />}
         {s && !s.server_exists && (
           <p className="text-xs text-warn">{t("midnight-mcp was not found next to the app. In development, build it with: cargo build --bin midnight-mcp")}</p>
         )}
+        <McpAccessSection />
         {s && (
           <>
             <Section title="Claude Desktop">

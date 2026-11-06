@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { listen } from "@tauri-apps/api/event";
 import {
   ArrowLeftRight,
   BarChart3,
@@ -30,6 +31,8 @@ import SettingsPage from "./pages/Settings";
 import Onboarding from "./pages/Onboarding";
 import { isLang, lang, setLang, t } from "./lib/i18n";
 import { dismissSplash } from "./lib/splash";
+import { isMasked, setCustomerNames, usePrivacy } from "./lib/privacy";
+import { LockScreen, PIN_CHANGED } from "./components/LockScreen";
 
 const NAV: { route: Route; label: string; icon: ReactNode }[] = [
   { route: "overview", label: t("Overview"), icon: <LayoutDashboard className="size-4" /> },
@@ -89,9 +92,13 @@ export default function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [theme, setTheme] = useState<Theme>(readTheme);
   const [systemDark, setSystemDark] = useState(() => window.matchMedia(DARK_QUERY).matches);
+  const [locked, setLocked] = useState<boolean | null>(null);
+  const pinOn = useRef(false);
+  const [splashGone, setSplashGone] = useState(false);
+  const [masked, setMasked] = usePrivacy();
   const mainRef = useRef<HTMLElement>(null);
   const notifications = useNotifications();
-  const update = useUpdate();
+  const update = useUpdate(locked === false);
   const { setOpen: setNotificationsOpen } = notifications;
   const dark = theme === "dark" || (theme === "system" && systemDark);
 
@@ -110,8 +117,37 @@ export default function App() {
   }, [reloadSettings]);
 
   useEffect(() => {
-    if (settings || loadError) dismissSplash();
-  }, [settings, loadError]);
+    api
+      .pinEnabled()
+      .then((on) => {
+        pinOn.current = on;
+        setLocked(on);
+      })
+      .catch(() => setLocked(false));
+    const changed = (e: Event) => {
+      pinOn.current = (e as CustomEvent<boolean>).detail;
+    };
+    window.addEventListener(PIN_CHANGED, changed);
+    const lock = listen("app-lock", () => {
+      if (pinOn.current) setLocked(true);
+    });
+    return () => {
+      window.removeEventListener(PIN_CHANGED, changed);
+      lock.then((stop) => stop());
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!masked || locked !== false) return;
+    api
+      .listCustomers(undefined, true)
+      .then((list) => setCustomerNames(list.flatMap((c) => [c.name, c.contact ?? "", ...(c.contacts ?? []).map((k) => k.name ?? "")])))
+      .catch(() => {});
+  }, [masked, locked, visit]);
+
+  useEffect(() => {
+    if ((settings && locked !== null) || loadError) dismissSplash().then(() => setSplashGone(true));
+  }, [settings, locked, loadError]);
 
   useEffect(() => {
     try {
@@ -153,10 +189,14 @@ export default function App() {
         e.preventDefault();
         setPaletteOpen((o) => !o);
       }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "h") {
+        e.preventDefault();
+        setMasked(!isMasked());
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [setMasked]);
 
   useEffect(() => {
     const open = (e: Event) => (e as CustomEvent<unknown>).detail && setNotificationsOpen(true);
@@ -178,7 +218,8 @@ export default function App() {
       </div>
     );
   }
-  if (!settings) return null;
+  if (!settings || locked === null) return null;
+  if (locked) return <LockScreen ready={splashGone} onUnlock={() => setLocked(false)} />;
   if (!settings.onboarded) return <Onboarding settings={settings} onDone={reloadSettings} />;
 
   const page = (() => {

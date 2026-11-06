@@ -7,6 +7,7 @@ import { useTick } from "../lib/hooks";
 import { t } from "../lib/i18n";
 import { cx } from "./ui";
 import { PastWeeksBanner, WeeklyLimitBar } from "./WeeklyLimit";
+import { customer, usePrivacy } from "../lib/privacy";
 
 const CHANGED = "tracker-changed";
 
@@ -40,6 +41,7 @@ const elapsed = (entry: Entry, now: number) => Math.max(0, (now - new Date(entry
 
 export default function MenuBarPanel() {
   useTheme();
+  usePrivacy();
   const [projects, setProjects] = useState<Project[]>([]);
   const [running, setRunning] = useState<Entry | null>(null);
   const [today, setToday] = useState<Entry[]>([]);
@@ -188,7 +190,7 @@ export default function MenuBarPanel() {
               >
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[13px]">{p.name}</div>
-                  {p.customer_name && <div className="truncate text-xs text-muted">{p.customer_name}</div>}
+                  {p.customer_name && <div className="truncate text-xs text-muted">{customer(p.customer_name)}</div>}
                 </div>
                 {active ? (
                   <span className="text-xs text-neg">{t("Running")}</span>

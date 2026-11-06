@@ -7,6 +7,7 @@ import { useAsync, useDebounced, useFileDrop } from "../lib/hooks";
 import { useApp } from "../lib/nav";
 import { Badge, Button, Card, DateInput, Empty, Field, Input, MultiSelect, PageHeader, Select, Sheet, Skeleton, Tabs, TagInput, cx, useToast } from "../components/ui";
 import { locale, t } from "../lib/i18n";
+import { customer } from "../lib/privacy";
 
 const DEFAULT_TYPES = [t("Contract"), t("Quote"), t("Invoice"), t("Receipt"), t("Tax"), t("Insurance"), t("Correspondence"), t("Other")];
 
@@ -211,7 +212,7 @@ export default function Vault() {
   }, [params.open, docs.data]);
 
   const all = docs.data ?? [];
-  const customerName = (id: string) => (customers.data ?? []).find((c) => c.id === id)?.name ?? t("Unknown customer");
+  const customerName = (id: string) => customer((customers.data ?? []).find((c) => c.id === id)?.name) ?? t("Unknown customer");
 
   const matches = (d: DocumentItem, skip?: "customer" | "type") =>
     (skip === "customer" || selCustomers.length === 0 || selCustomers.includes(d.customer_id ?? NONE)) &&
@@ -239,7 +240,7 @@ export default function Vault() {
 
   const customerOptions = [
     ...(customers.data ?? [])
-      .map((c) => ({ value: c.id!, label: c.name, count: customerCounts.get(c.id!) ?? 0 }))
+      .map((c) => ({ value: c.id!, label: customer(c.name), count: customerCounts.get(c.id!) ?? 0 }))
       .sort((a, b) => a.label.localeCompare(b.label, locale())),
     ...(customerCounts.has(NONE) ? [{ value: NONE, label: t("No customer"), count: customerCounts.get(NONE)! }] : []),
   ];

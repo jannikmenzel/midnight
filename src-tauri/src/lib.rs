@@ -22,6 +22,7 @@ mod products;
 mod reports;
 mod schedule;
 mod search;
+mod security;
 mod settings;
 mod tax;
 mod tax_export;
@@ -185,6 +186,12 @@ pub fn run() {
             commands::save_settings,
             commands::data_location,
             commands::reset_all_data,
+            commands::get_mcp_access,
+            commands::save_mcp_access,
+            commands::pin_enabled,
+            commands::set_pin,
+            commands::unlock,
+            commands::pin_cooldown,
             commands::mcp_setup,
             commands::mcp_install_claude_desktop,
             desktop::refresh_menu_bar,

@@ -11,6 +11,7 @@ import { TaxForecast } from "../components/TaxForecast";
 import { useMoment } from "../components/ActionMoment";
 import { Button, Card, CategoryDot, DateInput, Empty, Kpi, PageHeader, Segmented, Select, Skeleton, Tabs, cx, useToast } from "../components/ui";
 import { t } from "../lib/i18n";
+import { customer } from "../lib/privacy";
 
 const CUSTOMER_LIMIT = 8;
 
@@ -138,7 +139,7 @@ function CustomerTable({ data, currency, onOpen }: { data: Analysis; currency: s
                     onClick={clickable ? () => onOpen(r.customer_id!) : undefined}
                     className={cx("group border-b border-line last:border-0", clickable && "cursor-pointer hover:bg-subtle")}
                   >
-                    <td className="max-w-56 truncate px-4 py-2.5">{r.name}</td>
+                    <td className="max-w-56 truncate px-4 py-2.5">{customer(r.name)}</td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-3">
                         <div className="track h-1.5 flex-1 rounded-full bg-line">
@@ -246,7 +247,7 @@ function ProjectList({ data, onOpen }: { data: Analysis; onOpen: (id: string) =>
                   <div className="flex w-full items-baseline gap-2 text-[13px]">
                     <span className="min-w-0 flex-1 truncate">
                       {r.name}
-                      {r.customer_name && <span className="ml-1.5 text-xs text-muted">{r.customer_name}</span>}
+                      {r.customer_name && <span className="ml-1.5 text-xs text-muted">{customer(r.customer_name)}</span>}
                       {!r.billable && <span className="ml-1.5 text-xs text-muted">· {t("not billable")}</span>}
                     </span>
                     <span className="tabular">{duration(r.tracked_secs)}</span>
@@ -317,7 +318,7 @@ function Highlights({ data, currency, onFixedCosts }: { data: Analysis; currency
       <Kpi
         label={t("Largest customer")}
         value={share !== null ? percent(share) : "–"}
-        sub={<span className="block truncate">{share !== null ? (share >= 0.5 ? t("{name} – high dependency", { name: largest.name }) : largest.name) : t("No income in this period")}</span>}
+        sub={<span className="block truncate">{share !== null ? (share >= 0.5 ? t("{name} – high dependency", { name: customer(largest.name) }) : customer(largest.name)) : t("No income in this period")}</span>}
         tone={share !== null && share >= 0.5 ? "warn" : undefined}
       />
       <Kpi

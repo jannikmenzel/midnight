@@ -1,5 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 
+export interface McpAccess {
+  read_only: boolean;
+  private: boolean;
+}
+
 export interface Settings {
   onboarded: boolean;
   company_name: string;
@@ -679,6 +684,12 @@ export const api = {
   saveSettings: (settings: Settings) => invoke<Settings>("save_settings", { settings }),
   dataLocation: () => invoke<string>("data_location"),
   resetAllData: () => invoke<void>("reset_all_data"),
+  getMcpAccess: () => invoke<McpAccess>("get_mcp_access"),
+  saveMcpAccess: (access: McpAccess) => invoke<McpAccess>("save_mcp_access", { access }),
+  pinEnabled: () => invoke<boolean>("pin_enabled"),
+  setPin: (current: string | null, pin: string | null) => invoke<boolean>("set_pin", { current, pin }),
+  unlock: (pin: string) => invoke<boolean>("unlock", { pin }),
+  pinCooldown: () => invoke<number | null>("pin_cooldown"),
   refreshMenuBar: () => invoke<void>("refresh_menu_bar"),
   openMainWindow: () => invoke<void>("open_main_window"),
   hideMenuBarPanel: () => invoke<void>("hide_menu_bar_panel"),

@@ -5,6 +5,7 @@ import { date, money } from "../lib/format";
 import { useApp } from "../lib/nav";
 import { Badge, Button, Card, Empty, InfoDialog, Skeleton, cx, useToast } from "./ui";
 import { locale, t } from "../lib/i18n";
+import { customer, maskText } from "../lib/privacy";
 
 const hrs = (h: number) => `${h.toLocaleString(locale(), { maximumFractionDigits: 1 })} ${t("hrs")}`;
 
@@ -103,7 +104,7 @@ export function TaxForecast({ year }: { year: number }) {
                 {f.warnings.map((w, i) => (
                   <p key={i} className="flex items-start gap-2 px-3 py-2">
                     {w.level === "warn" ? <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-warn" /> : <Info className="mt-0.5 size-3.5 shrink-0 text-muted" />}
-                    {w.text}
+                    {maskText(w.text)}
                   </p>
                 ))}
               </div>
@@ -170,9 +171,9 @@ export function TaxForecast({ year }: { year: number }) {
                   <td className="px-4 py-2">
                     <div className="flex min-w-0 items-center gap-2">
                       <span className="truncate">{it.label}</span>
-                      {it.detail && <Badge className="tabular font-normal">{it.detail}</Badge>}
+                      {it.detail && <Badge className="tabular font-normal">{maskText(it.detail)}</Badge>}
                     </div>
-                    <div className="truncate text-xs text-muted">{it.customer}</div>
+                    <div className="truncate text-xs text-muted">{customer(it.customer)}</div>
                   </td>
                   <td className="px-4 py-2 text-xs whitespace-nowrap text-muted">{KIND_LABELS[it.kind]}</td>
                   <td className={cx("tabular px-4 py-2 text-right whitespace-nowrap", it.out ? "text-neg" : "text-pos")}>
@@ -225,7 +226,7 @@ export function TaxForecast({ year }: { year: number }) {
                   <td className="w-full max-w-0 px-4 py-2">
                     <div className="truncate">{p.name}</div>
                     <div className="truncate text-xs text-muted">
-                      {p.customer} · {p.fixed_price ? t("Fixed price") : t("Hourly")}
+                      {customer(p.customer)} · {p.fixed_price ? t("Fixed price") : t("Hourly")}
                       {!p.billable && ` · ${t("not billable")}`}
                     </div>
                   </td>

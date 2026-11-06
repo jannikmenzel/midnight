@@ -29,6 +29,7 @@ uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
 csv = "1"
 regex = "1"
+sha2 = "0.10"
 pdf-extract = "0.7"
 lopdf = { version = "0.34", default-features = false, features = ["nom_parser"] }
 quick-xml = "0.42"

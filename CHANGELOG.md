@@ -6,6 +6,12 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+### Added
+
+- Amounts and customer names can be hidden with the eye on the overview, ⇧⌘H or the command palette, for example while sharing the screen
+- App lock with a 5-digit PIN, asked at start and when the window opens again from the menu bar
+- MCP access can be limited to reading, and customer data can be kept away from AI assistants
+
 ### Changed
 
 - The address columns on invoices adjust their widths, so long entries like order numbers only wrap when there is no room. Existing installs get this by resetting invoice.tex under Settings → LaTeX

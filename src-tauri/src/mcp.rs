@@ -4,10 +4,11 @@ use std::path::PathBuf;
 use rusqlite::{params, OptionalExtension};
 use serde_json::{json, Map, Value};
 
-use crate::commands::{dispatch, unstring_json_args, Access, TOOLS};
+use crate::commands::{dispatch, unstring_json_args, Access, ToolSpec, TOOLS};
 use crate::db::{self, AppState};
 use crate::error::{msg, AppResult};
 use crate::i18n::{self, tr};
+use crate::security::{load_mcp_access, McpAccess};
 
 const PROTOCOL_VERSIONS: &[&str] = &["2025-06-18", "2025-03-26", "2024-11-05"];
 
@@ -16,6 +17,31 @@ Money amounts are always whole cents (€12.50 = 1250), dates are YYYY-MM-DD. \
 save_* tools create a record without id and update it with id; before changing a record, always read it and write it back in full. \
 Updates with missing fields are rejected. Only draft invoices can be changed or deleted. \
 File paths must be absolute. Resetting all data is only possible inside the app.";
+
+const READ_ONLY_NOTE: &str = " Access is read-only: the user turned off changes in Midnight's settings.";
+const PRIVATE_NOTE: &str = " Customer data is hidden by the user's privacy settings: customer names, addresses and contact details are null, and tools that only return or export customer data are unavailable.";
+
+const PRIVATE_TOOLS: &[&str] = &[
+    "list_customers",
+    "save_customer",
+    "delete_customer",
+    "list_activities",
+    "export_ledger_csv",
+    "export_timesheet",
+    "export_tax_year",
+    "render_invoice_pdf",
+    "render_invoice_timesheet",
+    "export_invoice_pdf",
+    "export_invoice_xrechnung",
+    "latex_write",
+    "latex_import",
+    "latex_reset",
+    "latex_delete",
+    "vault_upload",
+    "add_receipts",
+];
+
+const CUSTOMER_FIELDS: &[&str] = &["customer", "customer_name", "customer_details", "customer_number", "largest_customer"];
 
 struct FullWrite {
     tool: &'static str,
@@ -68,10 +94,153 @@ fn open_state() -> AppResult<AppState> {
     AppState::new(conn, dir.join("files"))
 }
 
-fn tool_list() -> Value {
+fn access_of(state: &AppState) -> McpAccess {
+    state.conn().ok().and_then(|conn| load_mcp_access(&conn).ok()).unwrap_or(McpAccess { read_only: true, private: true })
+}
+
+fn refusal(access: McpAccess, tool: &ToolSpec) -> Option<String> {
+    if tool.access == Access::AppOnly {
+        return None;
+    }
+    if access.read_only && tool.access != Access::Read {
+        return Some(tr!(
+            "Midnight only allows read-only access over MCP. The user can allow changes under Settings → General → MCP server.",
+            "Midnight erlaubt über MCP nur Lesezugriff. Änderungen lassen sich unter Einstellungen → Allgemein → MCP-Server erlauben."
+        ));
+    }
+    if access.private && PRIVATE_TOOLS.contains(&tool.name) {
+        return Some(tr!(
+            "Customer data is protected. The user can turn this off under Settings → General → MCP server.",
+            "Kundendaten sind geschützt. Das lässt sich unter Einstellungen → Allgemein → MCP-Server ausschalten."
+        ));
+    }
+    None
+}
+
+fn hide_customer_fields(value: &mut Value) {
+    match value {
+        Value::Object(map) => {
+            for (key, field) in map.iter_mut() {
+                if CUSTOMER_FIELDS.contains(&key.as_str()) {
+                    *field = Value::Null;
+                } else {
+                    hide_customer_fields(field);
+                }
+            }
+        }
+        Value::Array(items) => items.iter_mut().for_each(hide_customer_fields),
+        _ => {}
+    }
+}
+
+fn private_args(name: &str, args: &mut Value) {
+    match name {
+        "list_invoices" | "list_ledger" => {
+            if let Some(filter) = args.get_mut("filter").and_then(Value::as_object_mut) {
+                filter.remove("search");
+            }
+        }
+        "list_documents" => {
+            if let Some(args) = args.as_object_mut() {
+                args.insert("search".into(), Value::Null);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn redact(name: &str, args: &Value, result: &mut Value) {
+    match name {
+        "list_ledger" => {
+            for item in result["items"].as_array_mut().into_iter().flatten().filter(|i| i["kind"] == "income") {
+                item["name"] = Value::Null;
+            }
+        }
+        "report_analysis" => {
+            for stat in result["customers"].as_array_mut().into_iter().flatten() {
+                stat["key"] = stat["customer_id"].clone();
+                stat["name"] = Value::Null;
+            }
+        }
+        "global_search" => {
+            let query = args["query"].as_str().unwrap_or_default().trim().to_lowercase();
+            if let Some(hits) = result.as_array_mut() {
+                hits.retain(|h| match h["kind"].as_str() {
+                    Some("expense" | "project") => true,
+                    Some("invoice") => h["title"].as_str().is_some_and(|number| number.to_lowercase().contains(&query)),
+                    _ => false,
+                });
+                for hit in hits.iter_mut().filter(|h| h["kind"] != "expense") {
+                    hit["subtitle"] = Value::Null;
+                }
+            }
+        }
+        "list_documents" => {
+            if let Some(docs) = result.as_array_mut() {
+                docs.retain(|d| d["customer_id"].is_null() && d["invoice_id"].is_null());
+                for doc in docs.iter_mut() {
+                    doc["snippet"] = Value::Null;
+                }
+            }
+        }
+        _ => {}
+    }
+    hide_customer_fields(result);
+}
+
+fn customer_terms(state: &AppState) -> AppResult<Vec<String>> {
+    let conn = state.conn()?;
+    let mut stmt = conn.prepare(
+        "SELECT name FROM customers UNION SELECT contact FROM customers UNION SELECT email FROM customers
+         UNION SELECT billing_email FROM customers UNION SELECT phone FROM customers UNION SELECT address_line1 FROM customers
+         UNION SELECT address_line2 FROM customers UNION SELECT vat_number FROM customers
+         UNION SELECT website FROM customers UNION SELECT leitweg_id FROM customers
+         UNION SELECT name FROM customer_contacts UNION SELECT email FROM customer_contacts UNION SELECT phone FROM customer_contacts
+         UNION SELECT customer_name FROM invoices",
+    )?;
+    let mut terms: Vec<String> = stmt
+        .query_map([], |r| r.get::<_, Option<String>>(0))?
+        .filter_map(|t| t.ok().flatten())
+        .map(|t| t.trim().to_string())
+        .filter(|t| t.chars().count() >= 3)
+        .collect();
+    terms.sort_by(|a, b| b.len().cmp(&a.len()).then_with(|| a.cmp(b)));
+    terms.dedup();
+    Ok(terms)
+}
+
+fn mask_terms(value: &mut Value, pattern: &regex::Regex, placeholder: &str) {
+    match value {
+        Value::String(text) if pattern.is_match(text) => *text = pattern.replace_all(text, placeholder).into_owned(),
+        Value::Array(items) => items.iter_mut().for_each(|v| mask_terms(v, pattern, placeholder)),
+        Value::Object(map) => map
+            .iter_mut()
+            .filter(|(key, _)| *key != "id" && !key.ends_with("_id"))
+            .for_each(|(_, v)| mask_terms(v, pattern, placeholder)),
+        _ => {}
+    }
+}
+
+fn mask_customer_terms(state: &AppState, value: &mut Value) -> Result<(), String> {
+    let terms = customer_terms(state).map_err(|e| e.to_string())?;
+    if terms.is_empty() {
+        return Ok(());
+    }
+    let alternation = terms.iter().map(|t| regex::escape(t)).collect::<Vec<_>>().join("|");
+    let pattern = regex::Regex::new(&format!("(?i){alternation}")).map_err(|e| e.to_string())?;
+    mask_terms(value, &pattern, &tr!("[customer]", "[Kunde]"));
+    Ok(())
+}
+
+fn hide_customer_data(state: &AppState, name: &str, args: &Value, result: &mut Value) -> Result<(), String> {
+    redact(name, args, result);
+    mask_customer_terms(state, result)
+}
+
+fn tool_list(access: McpAccess) -> Value {
     let tools: Vec<Value> = TOOLS
         .iter()
-        .filter(|t| t.access != Access::AppOnly)
+        .filter(|t| t.access != Access::AppOnly && refusal(access, t).is_none())
         .map(|t| {
             let mut schema = (t.input_schema)();
             if let Some(obj) = schema.as_object_mut() {
@@ -156,11 +325,33 @@ async fn call_tool(state: &AppState, params: &Value) -> Value {
         Value::Null => json!({}),
         other => other.clone(),
     };
-    let parsed = unstring_json_args(args.clone());
-    let refused = locked_invoice(state, name, &parsed).or_else(|| incomplete_update(name, &parsed));
+    let mut parsed = unstring_json_args(args.clone());
+    let access = access_of(state);
+    let args = if access.private {
+        private_args(name, &mut parsed);
+        parsed.clone()
+    } else {
+        args
+    };
+    let refused = TOOLS
+        .iter()
+        .find(|t| t.name == name)
+        .and_then(|t| refusal(access, t))
+        .or_else(|| locked_invoice(state, name, &parsed))
+        .or_else(|| incomplete_update(name, &parsed));
     let outcome = match refused {
         Some(reason) => Err(reason),
-        None => dispatch(state, name, args).await,
+        None => match dispatch(state, name, args).await {
+            Ok(mut result) if access.private => hide_customer_data(state, name, &parsed, &mut result).map(|_| result),
+            Err(reason) if access.private => {
+                let mut text = Value::String(reason);
+                Err(match mask_customer_terms(state, &mut text) {
+                    Ok(()) => text.as_str().unwrap_or_default().to_string(),
+                    Err(e) => e,
+                })
+            }
+            other => other,
+        },
     };
     match outcome {
         Ok(result) => json!({
@@ -174,6 +365,17 @@ async fn call_tool(state: &AppState, params: &Value) -> Value {
     }
 }
 
+fn instructions(access: McpAccess) -> String {
+    let mut text = INSTRUCTIONS.to_string();
+    if access.read_only {
+        text.push_str(READ_ONLY_NOTE);
+    }
+    if access.private {
+        text.push_str(PRIVATE_NOTE);
+    }
+    text
+}
+
 pub async fn handle(state: &AppState, request: &Value) -> Option<Value> {
     let id = request.get("id")?.clone();
     let params = &request["params"];
@@ -185,11 +387,11 @@ pub async fn handle(state: &AppState, request: &Value) -> Option<Value> {
                 "protocolVersion": version,
                 "capabilities": { "tools": {} },
                 "serverInfo": { "name": "midnight", "version": env!("CARGO_PKG_VERSION") },
-                "instructions": INSTRUCTIONS,
+                "instructions": instructions(access_of(state)),
             }))
         }
         "ping" => Ok(json!({})),
-        "tools/list" => Ok(tool_list()),
+        "tools/list" => Ok(tool_list(access_of(state))),
         "tools/call" => Ok(call_tool(state, params).await),
         other => Err(json!({ "code": -32601, "message": tr!("Method not supported: {other}", "Methode nicht unterstützt: {other}") })),
     };
@@ -449,7 +651,7 @@ mod tests {
                 assert!(fields.contains_key(*field), "{}: {field}", rule.tool);
             }
         }
-        for tool in TOOLS.iter().filter(|t| t.name.starts_with("save_") && t.name != "save_expense_recurring") {
+        for tool in TOOLS.iter().filter(|t| t.name.starts_with("save_") && t.name != "save_expense_recurring" && t.access != Access::AppOnly) {
             assert!(FULL_WRITES.iter().any(|r| r.tool == tool.name), "{} needs a rule", tool.name);
         }
     }
@@ -508,6 +710,96 @@ mod tests {
         assert_eq!(r["isError"], true);
         assert!(r["content"][0]["text"].as_str().unwrap().contains("Invalid arguments"));
         assert_eq!(call(&s, "does_not_exist", json!({}))["isError"], true);
+    }
+
+    fn set_access(s: &AppState, read_only: bool, private: bool) {
+        let access = crate::security::McpAccess { read_only, private };
+        tokio::runtime::Builder::new_current_thread().build().unwrap().block_on(crate::security::save_mcp_access(s, access)).unwrap();
+    }
+
+    fn tool_names(s: &AppState) -> Vec<String> {
+        let list = run(s, request("tools/list", json!({}))).unwrap();
+        list["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap().to_string()).collect()
+    }
+
+    #[test]
+    fn read_only_access_offers_and_runs_only_reads() {
+        let (_dir, s) = state();
+        set_access(&s, true, false);
+        let names = tool_names(&s);
+        assert!(names.contains(&"list_invoices".to_string()));
+        for write in ["save_invoice", "delete_category", "add_receipts", "save_settings"] {
+            assert!(!names.contains(&write.to_string()), "{write} is not offered");
+        }
+        assert_rejected(&s, "delete_category", json!({ "slug": "software" }), "read-only");
+        assert_eq!(call_json(&s, "list_categories", json!({})).as_array().unwrap().len(), 13, "nothing was deleted");
+        let init = run(&s, request("initialize", json!({}))).unwrap();
+        assert!(init["result"]["instructions"].as_str().unwrap().contains("read-only"));
+    }
+
+    #[test]
+    fn private_access_hides_customer_data() {
+        let (_dir, s) = state();
+        let customer = call_json(&s, "save_customer", json!({ "customer": {
+            "name": "Acme GmbH", "email": "kontakt@acme.test", "address_line1": "Hauptstraße 1", "zip": "10115", "city": "Berlin",
+        } }));
+        let invoice = call_json(&s, "save_invoice", json!({ "input": {
+            "customer_id": customer["id"], "issue_date": "2026-10-01", "due_date": "2026-10-15", "currency": "EUR",
+            "line_items": [line_item()], "vat_rate": 19.0,
+        } }));
+        call_json(&s, "set_invoice_status", json!({ "id": invoice["id"], "status": "paid", "paid_at": "2026-10-05" }));
+        call_json(&s, "save_project", json!({ "project": { "name": "Website", "customer_id": customer["id"], "billable": true } }));
+
+        set_access(&s, false, true);
+        let names = tool_names(&s);
+        for hidden in ["list_customers", "save_customer", "list_activities", "export_invoice_pdf", "export_tax_year"] {
+            assert!(!names.contains(&hidden.to_string()), "{hidden} is not offered");
+        }
+        assert_rejected(&s, "list_customers", json!({}), "Customer data");
+        for (name, arguments) in [
+            ("latex_write", json!({ "path": "Report.cls", "content": "x" })),
+            ("vault_upload", json!({ "paths": ["/tmp/x.pdf"] })),
+            ("add_receipts", json!({ "expense_id": "e", "paths": ["/tmp/x.pdf"] })),
+        ] {
+            assert_rejected(&s, name, arguments, "Customer data");
+        }
+        let probe = call_json(&s, "list_invoices", json!({ "filter": { "search": "Zzz" } }));
+        assert_eq!(probe["items"].as_array().map(Vec::len), Some(1), "search is ignored, it cannot probe names: {probe}");
+        let hits = call_json(&s, "global_search", json!({ "query": "Acme" }));
+        assert_eq!(hits, json!([]), "a customer name finds nothing");
+
+        set_access(&s, false, false);
+        let id = invoice["id"].as_str().unwrap().to_string();
+        call_json(&s, "save_customer", json!({ "customer": { "name": &id[..8] } }));
+        set_access(&s, false, true);
+        assert_eq!(call_json(&s, "get_invoice", json!({ "id": id }))["id"], json!(id), "ids are never masked");
+
+        let reads = [
+            ("get_invoice", json!({ "id": invoice["id"] })),
+            ("list_invoices", json!({ "filter": {} })),
+            ("list_ledger", json!({ "filter": {} })),
+            ("list_projects", json!({ "include_completed": true })),
+            ("global_search", json!({ "query": "Acme" })),
+            ("report_analysis", json!({ "from": "2026-01-01", "to": "2026-12-31" })),
+            ("get_tax_report", json!({ "year": 2026 })),
+            ("tax_forecast", json!({ "year": 2026 })),
+            ("list_documents", json!({ "search": null, "tag": null })),
+            ("list_documents", json!({ "search": "Acme", "tag": null })),
+        ];
+        for (name, arguments) in reads {
+            let r = call(&s, name, arguments);
+            let text = r["content"][0]["text"].as_str().unwrap();
+            assert_eq!(r["isError"], false, "{name}: {text}");
+            for secret in ["Acme", "acme.test", "Hauptstraße", "Berlin"] {
+                assert!(!text.contains(secret), "{name} leaks {secret}: {text}");
+            }
+        }
+        let read = call_json(&s, "get_invoice", json!({ "id": invoice["id"] }));
+        assert_eq!((read["customer_id"].clone(), read["amount_cents"].clone()), (customer["id"].clone(), json!(11900)), "ids and amounts stay");
+        assert!(run(&s, request("initialize", json!({}))).unwrap()["result"]["instructions"].as_str().unwrap().contains("Customer data"));
+
+        set_access(&s, false, false);
+        assert_eq!(call(&s, "list_customers", json!({}))["isError"], false);
     }
 
     #[test]

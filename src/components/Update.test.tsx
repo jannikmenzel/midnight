@@ -20,8 +20,8 @@ vi.mock("../lib/api", async (original) => ({
 
 const release: Release = { version: "0.2.0", notes: [] };
 
-function Install() {
-  const update = useUpdate();
+function Install({ ready = true }: { ready?: boolean }) {
+  const update = useUpdate(ready);
   return (
     <button type="button" onClick={update.install}>
       install
@@ -29,17 +29,19 @@ function Install() {
   );
 }
 
-function setup({ last, onboarded = true, available = null }: { last: string | null; onboarded?: boolean; available?: Release | null }) {
+function setup({ last, onboarded = true, available = null, ready = true }: { last: string | null; onboarded?: boolean; available?: Release | null; ready?: boolean }) {
   if (last) localStorage.setItem("last-version", last);
   mocks.updateStatus.mockResolvedValue({ current: "0.1.5", available });
   mocks.getSettings.mockResolvedValue({ onboarded });
-  render(
+  const tree = (ready: boolean) => (
     <ToastProvider>
       <MomentProvider>
-        <Install />
+        <Install ready={ready} />
       </MomentProvider>
-    </ToastProvider>,
+    </ToastProvider>
   );
+  const { rerender } = render(tree(ready));
+  return { unlock: () => rerender(tree(true)) };
 }
 
 const settled = () => waitFor(() => expect(localStorage.getItem("last-version")).toBe("0.1.5"));
@@ -54,6 +56,15 @@ describe("update moment", () => {
     setup({ last: "0.1.4" });
     expect(await screen.findByText("Midnight 0.1.5")).toBeTruthy();
     expect(localStorage.getItem("last-version")).toBe("0.1.5");
+  });
+
+  it("waits until the app is unlocked", async () => {
+    const { unlock } = setup({ last: "0.1.4", ready: false });
+    await waitFor(() => expect(mocks.updateStatus).toHaveBeenCalled());
+    expect(screen.queryByText("Midnight 0.1.5")).toBeNull();
+    expect(localStorage.getItem("last-version")).toBe("0.1.4");
+    unlock();
+    expect(await screen.findByText("Midnight 0.1.5")).toBeTruthy();
   });
 
   it("stays away when the version is the same", async () => {

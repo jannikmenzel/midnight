@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowLeftRight, FileText, FolderLock, Plus, Search, Timer, Upload, User } from "lucide-react";
+import { ArrowLeftRight, Eye, EyeOff, FileText, FolderLock, Plus, Search, Timer, Upload, User } from "lucide-react";
 import { api, type SearchHit } from "../lib/api";
 import { date, money } from "../lib/format";
 import { useDebounced } from "../lib/hooks";
 import { useApp, type Route, type RouteParams } from "../lib/nav";
 import { cx, usePresence } from "./ui";
 import { t } from "../lib/i18n";
+import { customer, maskText, usePrivacy } from "../lib/privacy";
 
 interface Item {
   id: string;
@@ -27,6 +28,7 @@ const KIND: Record<SearchHit["kind"], { group: string; route: Route; icon: React
 
 export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { go } = useApp();
+  const [masked, setMasked] = usePrivacy();
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [active, setActive] = useState(0);
@@ -62,20 +64,31 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       { id: "a-receipt", group: t("Actions"), title: t("Upload receipt"), icon: <Upload className="size-4" />, run: () => navigate("ledger", { upload: "1" }) },
       { id: "a-timer", group: t("Actions"), title: t("Open time tracking"), icon: <Timer className="size-4" />, run: () => navigate("tracker") },
       { id: "a-customer", group: t("Actions"), title: t("New customer"), icon: <User className="size-4" />, run: () => navigate("customers", { new: "1" }) },
+      {
+        id: "a-mask",
+        group: t("Actions"),
+        title: masked ? t("Show amounts and customer names") : t("Hide amounts and customer names"),
+        meta: "⇧⌘H",
+        icon: masked ? <Eye className="size-4" /> : <EyeOff className="size-4" />,
+        run: () => {
+          setMasked(!masked);
+          onClose();
+        },
+      },
     ];
     const q = query.trim().toLowerCase();
     const filteredActions = q ? actions.filter((a) => a.title.toLowerCase().includes(q)) : actions;
     const found: Item[] = hits.map((h) => ({
       id: `${h.kind}-${h.id}`,
       group: KIND[h.kind].group,
-      title: h.title,
-      subtitle: h.subtitle,
+      title: h.kind === "customer" ? customer(h.title) : maskText(h.title),
+      subtitle: h.kind === "invoice" || h.kind === "customer" ? customer(h.subtitle) : maskText(h.subtitle ?? ""),
       meta: [h.date ? date(h.date) : null, h.amount_cents !== null ? money(h.amount_cents, h.currency ?? "EUR") : null].filter(Boolean).join(" · "),
       icon: KIND[h.kind].icon,
       run: () => navigate(KIND[h.kind].route, { open: h.id }),
     }));
     return [...found, ...filteredActions];
-  }, [hits, query]);
+  }, [hits, query, masked]);
 
   useEffect(() => setActive(0), [items.length]);
 

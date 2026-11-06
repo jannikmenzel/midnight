@@ -8,6 +8,7 @@ import { useApp } from "../lib/nav";
 import { Badge, Button, Card, Checkbox, CurrencySelect, Empty, Field, IconButton, Input, PageHeader, Section, Sheet, Skeleton, Textarea, Toggle, useToast } from "../components/ui";
 import { CountrySelect, PlaceInput } from "../components/fields";
 import { t } from "../lib/i18n";
+import { customer } from "../lib/privacy";
 
 const EMPTY: Customer = { name: "", is_archived: false, contacts: [] };
 
@@ -262,13 +263,13 @@ export default function Customers() {
                 <tr key={c.id!} onClick={() => setOpen(c)} className="cursor-pointer border-b border-line last:border-0 hover:bg-subtle">
                   <td className="tabular py-2.5 pl-4 text-muted">{c.customer_number}</td>
                   <td className="py-2.5">
-                    {c.name} {c.is_archived && <Badge>{t("archived")}</Badge>}
-                    {c.city && <div className="text-xs text-muted">{c.city}</div>}
+                    {customer(c.name)} {c.is_archived && <Badge>{t("archived")}</Badge>}
+                    {c.city && <div className="text-xs text-muted">{customer(c.city)}</div>}
                   </td>
                   <td className="py-2.5 text-muted">
-                    {c.contact}
+                    {customer(c.contact)}
                     {(c.contacts?.length ?? 0) > 1 && <span className="ml-1.5 text-xs">+{c.contacts!.length - 1}</span>}
-                    {c.email && <div className="text-xs">{c.email}</div>}
+                    {c.email && <div className="text-xs">{customer(c.email)}</div>}
                   </td>
                   <td className="py-2.5 text-right text-muted">{c.invoice_count}</td>
                   <td className="tabular py-2.5 text-right">{c.open_cents ? money(c.open_cents, settings.base_currency) : "–"}</td>

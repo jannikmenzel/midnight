@@ -8,6 +8,7 @@ import { AnimatedMoney, Button, Card, CurrencySelect, Dialog, Empty, ErrorNote, 
 import { InvoiceEditor } from "./InvoiceEditor";
 import { UnitSelect, useUnits } from "../components/fields";
 import { t } from "../lib/i18n";
+import { customer } from "../lib/privacy";
 
 type Tab = "invoices" | "products";
 
@@ -230,7 +231,7 @@ export default function Invoices() {
                       <td className="tabular py-2.5 pl-4">
                         {inv.invoice_number}
                       </td>
-                      <td className="py-2.5">{inv.customer_name ?? <span className="text-muted">{t("No customer")}</span>}</td>
+                      <td className="py-2.5">{customer(inv.customer_name) ?? <span className="text-muted">{t("No customer")}</span>}</td>
                       <td className="tabular-nums py-2.5 text-muted">{date(inv.issue_date)}</td>
                       <td className="tabular-nums py-2.5 text-muted">{date(inv.due_date)}</td>
                       <td className="py-2.5">

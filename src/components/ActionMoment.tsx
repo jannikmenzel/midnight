@@ -2,13 +2,14 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { createPortal } from "react-dom";
 import { AnimatedMoney, cx, prefersReducedMotion } from "./ui";
 
-export type MomentKind = "export" | "timesheet" | "sent" | "paid" | "update";
+export type MomentKind = "export" | "timesheet" | "sent" | "paid" | "update" | "locked";
 
 export interface Moment {
   kind: MomentKind;
   title: string;
   detail?: string;
   amount?: { cents: number; currency: string };
+  instant?: boolean;
 }
 
 interface ActiveMoment extends Moment {
@@ -67,6 +68,13 @@ function MomentIcon({ kind, working }: { kind: MomentKind; working: boolean }) {
           <Stroke d="M21 33l8 8 14-16" at={850} ms={400} />
         </>
       )}
+      {kind === "locked" && (
+        <>
+          <Stroke d="M18 28h28a4 4 0 0 1 4 4v20a4 4 0 0 1-4 4H18a4 4 0 0 1-4-4V32a4 4 0 0 1 4-4z" at={100} ms={800} />
+          <Stroke d="M22 28v-8a10 10 0 0 1 20 0v8" at={750} ms={700} />
+          <Stroke d="M32 39v6" at={1350} ms={250} />
+        </>
+      )}
       {kind === "update" && (
         <>
           <Stroke d="M32 8a16 16 0 0 0 24 24a24 24 0 1 1-24-24z" at={100} ms={1300} />
@@ -84,7 +92,7 @@ function MomentIcon({ kind, working }: { kind: MomentKind; working: boolean }) {
 
 function MomentOverlay({ moment, leaving, onDismiss }: { moment: ActiveMoment; leaving: boolean; onDismiss: () => void }) {
   return createPortal(
-    <div className="moment fixed inset-0 z-[70] flex flex-col items-center justify-center gap-7 bg-bg" data-leaving={leaving || undefined} role="status" onClick={onDismiss}>
+    <div className="moment fixed inset-0 z-[70] flex flex-col items-center justify-center gap-7 bg-bg" data-leaving={leaving || undefined} data-instant={moment.instant || undefined} role="status" onClick={onDismiss}>
       <div className="sky" aria-hidden />
       <MomentIcon key={moment.id} kind={moment.kind} working={moment.working} />
       <div key={moment.working ? "working" : "done"} className="moment-text flex min-h-[112px] flex-col items-center gap-2 px-6 text-center">

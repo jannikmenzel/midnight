@@ -7,6 +7,7 @@ import { useAsync, useDebounced, useFileDrop } from "../lib/hooks";
 import { useApp } from "../lib/nav";
 import { Amount, AnimatedMoney, Badge, Button, Card, CategoryBadge, Checkbox, DateInput, Empty, ErrorNote, Field, IconButton, Input, Kpi, PageHeader, PercentInput, PickSelect, Select, Sheet, Skeleton, Tabs, Textarea, cx, useToast, type PickOption } from "../components/ui";
 import { t } from "../lib/i18n";
+import { customer, maskText } from "../lib/privacy";
 
 const PAGE = 300;
 const RECEIPT_TYPES = [{ name: t("Receipts"), extensions: ["pdf", "png", "jpg", "jpeg", "heic"] }];
@@ -390,7 +391,7 @@ function RecurringExpenses() {
               <tr key={r.id} className="border-b border-line last:border-0">
                 <td className="max-w-0 py-2.5 pr-3 pl-4">
                   <div className="truncate">{r.name}</div>
-                  {r.description && <div className="truncate text-xs text-muted">{r.description}</div>}
+                  {r.description && <div className="truncate text-xs text-muted">{maskText(r.description)}</div>}
                 </td>
                 <td className="py-2.5 pr-3">
                   <CategoryBadge color={r.category_color}>{r.category_name ?? t("Uncategorised")}</CategoryBadge>
@@ -621,7 +622,7 @@ export default function Ledger() {
                     <td className="tabular-nums py-2.5 pl-4 text-muted">{date(e.date)}</td>
                     <td className="max-w-0 py-2.5 pr-3">
                       <div className="flex items-center gap-1.5">
-                        <span className="truncate">{e.name}</span>
+                        <span className="truncate">{e.kind === "income" ? customer(e.name) : e.name}</span>
                         {e.recurring && <Repeat className="size-3 shrink-0 text-muted" aria-label={t("Recurring")} />}
                         {e.kind === "expense" &&
                           (e.receipt_count > 0 ? (
@@ -632,7 +633,7 @@ export default function Ledger() {
                             </span>
                           ))}
                       </div>
-                      {e.description && <div className="truncate text-xs text-muted">{e.description}</div>}
+                      {e.description && <div className="truncate text-xs text-muted">{maskText(e.description)}</div>}
                     </td>
                     <td className="py-2.5 pr-6">
                       {e.kind === "income" ? (
