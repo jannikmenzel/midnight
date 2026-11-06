@@ -168,7 +168,7 @@ commands! {
     delete customers::delete_customer(id: String) -> (), "Deletes a customer.";
 
     read tracker::list_projects(include_completed: Option<bool>) -> Vec<Project>, "Lists time tracking projects.";
-    write tracker::save_project(project: ProjectInput) -> String, "Creates or updates a project. start_date/end_date (YYYY-MM-DD) are the approximate duration used by the tax forecast; once the project is completed they are replaced by the first and last tracked day. Returns the id.";
+    write tracker::save_project(project: ProjectInput) -> String, "Creates or updates a project. start_date/end_date (YYYY-MM-DD) are the approximate duration used by the tax forecast and stay unchanged by billing or completing; a completed project reports its end as finished_date, the last billed day or else the last tracked day. Returns the id.";
     delete tracker::delete_project(id: String) -> (), "Deletes a project including its time entries.";
     read tracker::list_entries(project_id: Option<String>, from: Option<String>, to: Option<String>) -> Vec<Entry>, "Lists time entries, optionally by project and period (YYYY-MM-DD).";
     read tracker::running_timer() -> Option<Entry>, "Returns the running timer, if any.";

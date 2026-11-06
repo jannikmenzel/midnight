@@ -45,14 +45,12 @@ function shortDate(iso: string): string {
 }
 
 function projectPeriod(p: Project): { text: string; planned: boolean } | null {
-  const planned = p.status !== "completed" && (p.start_date || p.end_date);
-  if (planned) {
-    const start = p.first_date && (!p.start_date || p.first_date < p.start_date) ? p.first_date : p.start_date;
-    const end = p.last_date && p.end_date && p.last_date > p.end_date ? p.last_date : p.end_date;
-    const text = start && end ? workPeriod(start, end) : start ? t("from {date}", { date: shortDate(start) }) : t("until {date}", { date: shortDate(end!) });
-    return { text, planned: true };
-  }
-  return p.first_date ? { text: workPeriod(p.first_date, p.last_date), planned: false } : null;
+  if (p.status === "completed") return p.first_date ? { text: workPeriod(p.first_date, p.finished_date), planned: false } : null;
+  const start = p.first_date && (!p.start_date || p.first_date < p.start_date) ? p.first_date : p.start_date;
+  const end = p.last_date && p.end_date && p.last_date > p.end_date ? p.last_date : p.end_date;
+  if (!start && !end) return null;
+  const text = start && end ? workPeriod(start, end) : start ? t("from {date}", { date: shortDate(start) }) : t("until {date}", { date: shortDate(end!) });
+  return { text, planned: Boolean(p.start_date || p.end_date) };
 }
 
 function PeriodLabel({ p }: { p: Project }) {
@@ -298,7 +296,7 @@ export default function Tracker() {
             estimate: p.estimate_hours?.toString() ?? "",
             startDate: p.start_date ?? "",
             endDate: p.end_date ?? "",
-            actual: p.first_date ? workPeriod(p.first_date, p.last_date) : null,
+            actual: p.first_date ? workPeriod(p.first_date, p.finished_date ?? p.last_date) : null,
             billable: p.billable,
             completed: p.status === "completed",
           }

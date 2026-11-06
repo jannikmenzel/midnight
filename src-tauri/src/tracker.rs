@@ -32,6 +32,7 @@ pub struct Project {
     pub unbilled_cents: i64,
     pub first_date: Option<String>,
     pub last_date: Option<String>,
+    pub finished_date: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -69,7 +70,12 @@ pub fn query_projects(conn: &Connection, include_completed: bool) -> AppResult<V
                           FROM tracker_entries e WHERE e.project_id = p.id AND e.billed = 0 AND e.stop IS NOT NULL), 0) END,
                 (SELECT MIN(e.date) FROM tracker_entries e WHERE e.project_id = p.id),
                 (SELECT MAX(e.date) FROM tracker_entries e WHERE e.project_id = p.id),
-                p.fixed_price_cents, p.start_date, p.end_date
+                p.fixed_price_cents, p.start_date, p.end_date,
+                CASE WHEN p.status = 'completed' THEN COALESCE(
+                  (SELECT MAX(e.date) FROM tracker_entries e LEFT JOIN invoices i ON i.id = e.invoice_id
+                   WHERE e.project_id = p.id AND e.billed = 1 AND (i.id IS NULL OR i.status <> 'canceled')),
+                  (SELECT MAX(e.date) FROM tracker_entries e WHERE e.project_id = p.id)
+                ) END
          FROM tracker_projects p LEFT JOIN customers c ON c.id = p.customer_id
          WHERE ?1 OR p.status = 'in_progress'
          ORDER BY p.status = 'completed',
@@ -95,6 +101,7 @@ pub fn query_projects(conn: &Connection, include_completed: bool) -> AppResult<V
             fixed_price_cents: r.get(15)?,
             start_date: r.get(16)?,
             end_date: r.get(17)?,
+            finished_date: r.get(18)?,
         })
     })?;
     let mut projects: Vec<Project> = rows.collect::<Result<_, _>>()?;
@@ -167,13 +174,6 @@ pub async fn save_project(state: &AppState, project: ProjectInput) -> AppResult<
             fixed_price_cents = excluded.fixed_price_cents, start_date = excluded.start_date, end_date = excluded.end_date",
         params![id, p.name.trim(), p.description, customer, rate, p.currency, p.billable, p.estimate_hours, p.status, p.fixed_price_cents,
             p.start_date.filter(|d| !d.is_empty()), p.end_date.filter(|d| !d.is_empty())],
-    )?;
-    conn.execute(
-        "UPDATE tracker_projects
-         SET start_date = (SELECT MIN(date) FROM tracker_entries WHERE project_id = ?1),
-             end_date = (SELECT MAX(date) FROM tracker_entries WHERE project_id = ?1)
-         WHERE id = ?1 AND status = 'completed' AND EXISTS (SELECT 1 FROM tracker_entries WHERE project_id = ?1)",
-        params![id],
     )?;
     if p.fixed_price_cents.is_some() {
         conn.execute("UPDATE tracker_entries SET rate_cents = NULL WHERE project_id = ?1 AND billed = 0", params![id])?;
@@ -842,14 +842,14 @@ mod tests {
     }
 
     #[test]
-    fn completing_replaces_the_planned_duration() {
+    fn only_completing_sets_the_end_and_reopening_restores_the_plan() {
         let dir = std::env::temp_dir().join(format!("midnight-project-{}", new_id()));
         let state = AppState::new(crate::db::open_in_memory().unwrap(), dir.clone()).unwrap();
         let input = |status: &str| ProjectInput {
             id: Some("p".into()),
             name: "Website".into(),
             description: None,
-            customer_id: None,
+            customer_id: Some("c".into()),
             rate_cents: Some(9000),
             fixed_price_cents: None,
             currency: None,
@@ -859,6 +859,7 @@ mod tests {
             end_date: Some("2026-12-31".into()),
             status: Some(status.into()),
         };
+        state.conn().unwrap().execute("INSERT INTO customers (id, name) VALUES ('c', 'Acme GmbH')", []).unwrap();
         tauri::async_runtime::block_on(save_project(&state, input("in_progress"))).unwrap();
         state
             .conn()
@@ -871,11 +872,30 @@ mod tests {
             .unwrap();
         let dates = || {
             let p = query_projects(&state.conn().unwrap(), true).unwrap().remove(0);
-            (p.start_date, p.end_date)
+            (p.start_date, p.end_date, p.finished_date)
         };
-        assert_eq!(dates(), (Some("2026-11-01".into()), Some("2026-12-31".into())), "planned while running");
+        let plan = |finished: Option<&str>| (Some("2026-11-01".to_string()), Some("2026-12-31".to_string()), finished.map(String::from));
+
+        invoice_unbilled(&state.conn().unwrap(), "c").unwrap();
+        assert_eq!(dates(), plan(None), "billing leaves the plan alone");
+
+        state
+            .conn()
+            .unwrap()
+            .execute(
+                "INSERT INTO tracker_entries (id, project_id, date, start, stop, duration) VALUES
+                   ('3', 'p', '2026-10-25', '2026-10-25T09:00:00+02:00', '2026-10-25T10:00:00+02:00', 3600)",
+                [],
+            )
+            .unwrap();
         tauri::async_runtime::block_on(save_project(&state, input("completed"))).unwrap();
-        assert_eq!(dates(), (Some("2026-10-02".into()), Some("2026-10-20".into())), "actual once completed");
+        assert_eq!(dates(), plan(Some("2026-10-20")), "ends with the last billed position");
+
+        state.conn().unwrap().execute("UPDATE invoices SET status = 'canceled'", []).unwrap();
+        assert_eq!(dates(), plan(Some("2026-10-25")), "a canceled invoice does not count, tracked time is the fallback");
+
+        tauri::async_runtime::block_on(save_project(&state, input("in_progress"))).unwrap();
+        assert_eq!(dates(), plan(None), "reopening brings the plan back");
         let _ = std::fs::remove_dir_all(dir);
     }
 

@@ -243,6 +243,7 @@ export interface Project {
   unbilled_cents: number;
   first_date: string | null;
   last_date: string | null;
+  finished_date: string | null;
 }
 
 export interface ProjectInput {
