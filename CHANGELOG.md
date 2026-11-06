@@ -6,6 +6,10 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+### Changed
+
+- The address columns on invoices adjust their widths, so long entries like order numbers only wrap when there is no room. Existing installs get this by resetting invoice.tex under Settings → LaTeX
+
 ### Fixed
 
 - A running project no longer shows its last tracked day as the end, and reopening a completed project brings back the planned dates
