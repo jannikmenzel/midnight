@@ -1,10 +1,8 @@
 import { AlertTriangle } from "lucide-react";
 import type { Entry, ExceededWeek, WeeklyHours } from "../lib/api";
-import { date, duration } from "../lib/format";
-import { lang, locale, t } from "../lib/i18n";
+import { date, duration, hours } from "../lib/format";
+import { lang, t } from "../lib/i18n";
 import { cx } from "./ui";
-
-const hoursMinutes = (seconds: number) => `${Math.floor(seconds / 3600)}:${String(Math.floor((seconds % 3600) / 60)).padStart(2, "0")}`;
 
 function weekSeconds(week: WeeklyHours, running: Entry | null, now: number): number {
   const live = running && running.date >= week.week_start ? Math.max(0, (now - new Date(running.start).getTime()) / 1000) : 0;
@@ -22,7 +20,7 @@ export function WeeklyLimitBar({ week, running, now, className }: { week: Weekly
       <div className="flex items-baseline justify-between gap-2 text-xs">
         <span className="font-medium">{t("This week")}</span>
         <span className="tabular-nums text-muted">
-          {t("{used} of {limit} h", { used: hoursMinutes(used), limit: week.limit_hours.toLocaleString(locale(), { maximumFractionDigits: 2 }) })}
+          {t("{used} of {limit} h", { used: hours(used), limit: hours(limit) })}
         </span>
       </div>
       <div
@@ -51,7 +49,6 @@ export function PastWeeksBanner({ week, onOpenWeek, className }: { week: WeeklyH
   const open = week.limit_hours > 0 ? week.past_exceeded : [];
   if (open.length === 0) return null;
   const limit = week.limit_hours * 3600;
-  const limitLabel = week.limit_hours.toLocaleString(locale(), { maximumFractionDigits: 2 });
   const [latest] = open;
   const title =
     open.length === 1
@@ -59,7 +56,7 @@ export function PastWeeksBanner({ week, onOpenWeek, className }: { week: WeeklyH
       : t("Weekly limit exceeded in {n} past weeks", { n: open.length });
   const detail =
     open.length === 1
-      ? t("{used} of {limit} h tracked, {time} too much", { used: hoursMinutes(latest.tracked_seconds), limit: limitLabel, time: duration(latest.tracked_seconds - limit) })
+      ? t("{used} of {limit} h tracked, {time} too much", { used: hours(latest.tracked_seconds), limit: hours(limit), time: duration(latest.tracked_seconds - limit) })
       : t("Most recently {range} with {time} too much", { range: weekRange(latest), time: duration(latest.tracked_seconds - limit) });
   const body = (
     <>
@@ -88,7 +85,7 @@ export function PastWeeksBanner({ week, onOpenWeek, className }: { week: WeeklyH
         <div className="tabular-nums flex flex-wrap gap-1.5 pl-6.5 text-[11px]">
           {open.slice(0, 6).map((w) => (
             <button key={w.week_start} type="button" onClick={() => onOpenWeek(w.week_start)} className="rounded-full border border-neg/25 px-2 py-0.5 hover:bg-neg/10">
-              {weekRange(w)} · +{hoursMinutes(w.tracked_seconds - limit)}
+              {weekRange(w)} · +{hours(w.tracked_seconds - limit)}
             </button>
           ))}
           {open.length > 6 && <span className="self-center px-1">{t("+{n} more", { n: open.length - 6 })}</span>}

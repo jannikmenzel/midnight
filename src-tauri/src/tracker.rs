@@ -415,11 +415,6 @@ pub async fn weekly_hours(state: &AppState) -> AppResult<WeeklyHours> {
     week_usage(&conn)
 }
 
-fn hours_label(hours: f64) -> String {
-    let text = if hours.fract() == 0.0 { format!("{hours:.0}") } else { format!("{hours}") };
-    if crate::i18n::is_de() { text.replace('.', ",") } else { text }
-}
-
 const WARNED_KEY: &str = "weekly_limit_warned";
 
 fn hours_minutes(seconds: i64) -> String {
@@ -464,7 +459,7 @@ pub fn check_weekly_limits(conn: &Connection) -> AppResult<()> {
             params![WARNED_KEY, serde_json::to_string(&warned)?],
         )?;
     }
-    let limit = hours_label(limit_hours);
+    let limit = hours_minutes((limit_hours * 3600.0).round() as i64);
     let message = match fresh.as_slice() {
         [] => return Ok(()),
         [(start, seconds)] => {

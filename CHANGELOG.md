@@ -14,6 +14,7 @@ All notable changes to this project are documented in this file. The format is b
 
 - A running project no longer shows its last tracked day as the end, and reopening a completed project brings back the planned dates
 - A completed project ends with its last billed position, or its last tracked day if nothing was billed
+- The weekly limit shows hours and minutes like all other times, e.g. 12:30 of 12:30 h
 
 ## [0.1.7] - 2026-10-31
 
