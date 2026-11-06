@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-11-06
+
 ### Added
 
 - Amounts and customer names can be hidden with the eye on the overview, ⇧⌘H or the command palette, for example while sharing the screen
@@ -114,7 +116,8 @@ All notable changes to this project are documented in this file. The format is b
 - English and German interface
 - `midnight-mcp` server exposing the app's features as MCP tools
 
-[Unreleased]: https://github.com/jannikmenzel/midnight/compare/v0.1.7...HEAD
+[Unreleased]: https://github.com/jannikmenzel/midnight/compare/v0.1.8...HEAD
+[0.1.8]: https://github.com/jannikmenzel/midnight/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/jannikmenzel/midnight/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/jannikmenzel/midnight/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/jannikmenzel/midnight/compare/v0.1.4...v0.1.5
