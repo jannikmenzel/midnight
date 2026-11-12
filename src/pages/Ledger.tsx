@@ -255,7 +255,7 @@ function ExpenseSheet({
       }
     >
       <div className="flex flex-col gap-4">
-        <Field label={t("What for?")} hint={t("Vendor or service, e.g. \"Figma Professional\"")}>
+        <Field label={t("What for?")}>
           <Input value={draft.name} onChange={(e) => set("name", e.target.value)} autoFocus={!id} />
         </Field>
         <div className="grid grid-cols-2 gap-4">

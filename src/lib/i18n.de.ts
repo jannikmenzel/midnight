@@ -597,7 +597,6 @@ export const de = {
   "VAT and expenses": "Umsatzsteuer und Ausgaben",
   "VAT ID": "USt-IdNr.",
   "VAT rate in percent": "USt.-Satz in Prozent",
-  "Vendor or service, e.g. \"Figma Professional\"": "Händler oder Leistung, z. B. „Figma Professional“",
   "voluntary": "freiwillig",
   "Voluntary": "Freiwillig",
   "Volunteer allowance": "Ehrenamtspauschale",
