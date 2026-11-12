@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-12
+
 ### Added
 
 - The app lock can be opened with Touch ID on Macs that have it. The PIN still works as a fallback
@@ -122,7 +124,8 @@ All notable changes to this project are documented in this file. The format is b
 - English and German interface
 - `midnight-mcp` server exposing the app's features as MCP tools
 
-[Unreleased]: https://github.com/jannikmenzel/midnight/compare/v0.1.8...HEAD
+[Unreleased]: https://github.com/jannikmenzel/midnight/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/jannikmenzel/midnight/compare/v0.1.8...v0.2.0
 [0.1.8]: https://github.com/jannikmenzel/midnight/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/jannikmenzel/midnight/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/jannikmenzel/midnight/compare/v0.1.5...v0.1.6
