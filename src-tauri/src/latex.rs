@@ -14,13 +14,19 @@ use crate::templates::{self, INVOICE, TIMESHEET};
 use crate::util::{amount, currency_symbol, new_id, parse_date};
 
 pub fn find_xelatex() -> Option<PathBuf> {
-    let from_path = std::env::var_os("PATH")
-        .map(|p| std::env::split_paths(&p).map(|d| d.join("xelatex")).collect::<Vec<_>>())
-        .unwrap_or_default();
-    from_path
-        .into_iter()
-        .chain(["/Library/TeX/texbin/xelatex", "/opt/homebrew/bin/xelatex", "/usr/local/bin/xelatex", "/usr/bin/xelatex"].map(PathBuf::from))
-        .find(|p| p.is_file())
+    let mut dirs: Vec<PathBuf> = std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default();
+    if cfg!(windows) {
+        let roots = [std::env::var_os("LOCALAPPDATA").map(|d| PathBuf::from(d).join("Programs")), std::env::var_os("ProgramFiles").map(PathBuf::from)];
+        dirs.extend(roots.into_iter().flatten().map(|r| r.join("MiKTeX").join("miktex").join("bin").join("x64")));
+    } else {
+        dirs.extend(["/Library/TeX/texbin", "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"].map(PathBuf::from));
+    }
+    xelatex_in(dirs)
+}
+
+fn xelatex_in(dirs: impl IntoIterator<Item = PathBuf>) -> Option<PathBuf> {
+    let name = format!("xelatex{}", std::env::consts::EXE_SUFFIX);
+    dirs.into_iter().map(|d| d.join(&name)).find(|p| p.is_file())
 }
 
 pub struct Toolchain {
@@ -29,7 +35,7 @@ pub struct Toolchain {
 }
 
 pub fn toolchain(files_dir: &Path) -> Result<Toolchain, String> {
-    let xelatex = find_xelatex().ok_or_else(|| tr!("No LaTeX installation found (xelatex). Please install MacTeX or TeX Live.", "Keine LaTeX-Installation gefunden (xelatex). Bitte MacTeX oder TeX Live installieren."))?;
+    let xelatex = find_xelatex().ok_or_else(|| tr!("No LaTeX installation found (xelatex). Please install MacTeX, MiKTeX or TeX Live.", "Keine LaTeX-Installation gefunden (xelatex). Bitte MacTeX, MiKTeX oder TeX Live installieren."))?;
     let dir = templates::ensure(files_dir).map_err(|e| e.to_string())?;
     Ok(Toolchain { xelatex, dir })
 }
@@ -58,7 +64,7 @@ fn compile(tc: &Toolchain, tex: &str, runs: u8, out: &Path) -> AppResult<()> {
             let entry = entry?;
             let name = entry.file_name();
             if !name.to_string_lossy().starts_with("doc.") {
-                symlink(&entry.path(), &job.join(&name))?;
+                link(&entry.path(), &job.join(&name))?;
             }
         }
         std::fs::write(job.join("doc.tex"), tex)?;
@@ -67,11 +73,13 @@ fn compile(tc: &Toolchain, tex: &str, runs: u8, out: &Path) -> AppResult<()> {
         dirs.extend(std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect::<Vec<_>>()).unwrap_or_default());
         let path = std::env::join_paths(dirs).map_err(|_| msg(tr!("Could not set PATH", "PATH konnte nicht gesetzt werden")))?;
         for _ in 0..runs.max(1) {
-            let output = Command::new(&tc.xelatex)
-                .args(["-no-shell-escape", "-interaction=nonstopmode", "-halt-on-error", "-file-line-error", "doc.tex"])
+            let mut cmd = Command::new(&tc.xelatex);
+            cmd.args(["-no-shell-escape", "-interaction=nonstopmode", "-halt-on-error", "-file-line-error", "doc.tex"])
                 .current_dir(&job)
-                .env("PATH", &path)
-                .output()?;
+                .env("PATH", &path);
+            #[cfg(windows)]
+            std::os::windows::process::CommandExt::creation_flags(&mut cmd, CREATE_NO_WINDOW);
+            let output = cmd.output()?;
             if !output.status.success() {
                 return Err(msg(tr!("LaTeX error: {}", "LaTeX-Fehler: {}", first_error(&job.join("doc.log")))));
             }
@@ -86,18 +94,26 @@ fn compile(tc: &Toolchain, tex: &str, runs: u8, out: &Path) -> AppResult<()> {
     result
 }
 
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
 #[cfg(unix)]
-fn symlink(src: &Path, dst: &Path) -> AppResult<()> {
+fn link(src: &Path, dst: &Path) -> AppResult<()> {
     Ok(std::os::unix::fs::symlink(src, dst)?)
 }
 
 #[cfg(windows)]
-fn symlink(src: &Path, dst: &Path) -> AppResult<()> {
-    if src.is_dir() {
-        Ok(std::os::windows::fs::symlink_dir(src, dst)?)
-    } else {
-        Ok(std::os::windows::fs::symlink_file(src, dst)?)
+fn link(src: &Path, dst: &Path) -> AppResult<()> {
+    if !src.is_dir() {
+        std::fs::copy(src, dst)?;
+        return Ok(());
     }
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        link(&entry.path(), &dst.join(entry.file_name()))?;
+    }
+    Ok(())
 }
 
 fn is_file_line_error(line: &str) -> bool {
@@ -531,6 +547,33 @@ pub fn timesheet_tex(template: &str, entries: &[TimesheetEntry], label: &str, fr
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn finds_xelatex_with_the_platform_file_name() {
+        let root = tempfile::tempdir().unwrap();
+        let (empty, tex) = (root.path().join("empty"), root.path().join("tex"));
+        std::fs::create_dir_all(&empty).unwrap();
+        std::fs::create_dir_all(&tex).unwrap();
+        assert_eq!(xelatex_in([empty.clone(), tex.clone()]), None);
+        let exe = tex.join(format!("xelatex{}", std::env::consts::EXE_SUFFIX));
+        std::fs::write(&exe, "").unwrap();
+        assert_eq!(xelatex_in([empty, tex]), Some(exe));
+    }
+
+    #[test]
+    fn links_templates_with_their_folders_into_the_job() {
+        let root = tempfile::tempdir().unwrap();
+        let src = root.path().join("latex");
+        std::fs::create_dir_all(src.join("Fonts")).unwrap();
+        std::fs::write(src.join("Report.cls"), "cls").unwrap();
+        std::fs::write(src.join("Fonts").join("a.otf"), "font").unwrap();
+        let job = root.path().join("job");
+        std::fs::create_dir_all(&job).unwrap();
+        link(&src.join("Report.cls"), &job.join("Report.cls")).unwrap();
+        link(&src.join("Fonts"), &job.join("Fonts")).unwrap();
+        assert_eq!(std::fs::read_to_string(job.join("Report.cls")).unwrap(), "cls");
+        assert_eq!(std::fs::read_to_string(job.join("Fonts").join("a.otf")).unwrap(), "font");
+    }
 
     #[test]
     fn escapes_latex_specials() {

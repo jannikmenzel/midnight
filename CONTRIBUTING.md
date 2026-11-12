@@ -9,9 +9,9 @@ Thanks for your interest in improving Midnight! Bug reports, ideas and pull requ
 
 ## Setup
 
-Requirements: Node 20+, and on macOS the Xcode Command Line Tools. The Rust version is pinned in
-`rust-toolchain.toml` and installed automatically by `rustup`. LaTeX (`xelatex` from MacTeX or TeX Live) is required
-to create invoice and timesheet PDFs.
+Requirements: Node 20+ and the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your system. The Rust
+version is pinned in `rust-toolchain.toml` and installed automatically by `rustup`. LaTeX (`xelatex` from MacTeX, MiKTeX
+or TeX Live) is required to create invoice and timesheet PDFs.
 
 ```bash
 npm install

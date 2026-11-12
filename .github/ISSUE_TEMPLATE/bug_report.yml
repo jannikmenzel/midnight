@@ -27,7 +27,7 @@ body:
     id: version
     attributes:
       label: Midnight version
-      description: Shown under Midnight → About Midnight.
+      description: Shown in Settings → General → Updates.
       placeholder: "0.1.0"
     validations:
       required: true
@@ -35,7 +35,7 @@ body:
     id: os
     attributes:
       label: Operating system
-      placeholder: macOS 15.5 (Apple Silicon)
+      placeholder: macOS 15.5 (Apple Silicon), Windows 11, Ubuntu 24.04
     validations:
       required: true
   - type: dropdown

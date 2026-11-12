@@ -6,6 +6,7 @@ import { useDebounced } from "../lib/hooks";
 import { useApp, type Route, type RouteParams } from "../lib/nav";
 import { cx, usePresence } from "./ui";
 import { t } from "../lib/i18n";
+import { keys } from "../lib/platform";
 import { customer, maskText, usePrivacy } from "../lib/privacy";
 
 interface Item {
@@ -68,7 +69,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         id: "a-mask",
         group: t("Actions"),
         title: masked ? t("Show amounts and customer names") : t("Hide amounts and customer names"),
-        meta: "⇧⌘H",
+        meta: keys("⇧⌘H", "Ctrl+Shift+H"),
         icon: masked ? <Eye className="size-4" /> : <EyeOff className="size-4" />,
         run: () => {
           setMasked(!masked);

@@ -31,6 +31,7 @@ import SettingsPage from "./pages/Settings";
 import Onboarding from "./pages/Onboarding";
 import { isLang, lang, setLang, t } from "./lib/i18n";
 import { dismissSplash } from "./lib/splash";
+import { keys } from "./lib/platform";
 import { isMasked, setCustomerNames, usePrivacy } from "./lib/privacy";
 import { LockScreen, PIN_CHANGED } from "./components/LockScreen";
 
@@ -257,7 +258,7 @@ export default function App() {
           >
             <Search className="size-3.5" />
             {t("Search or run an action…")}
-            <kbd className="ml-auto rounded border border-fg/15 px-1 text-[11px]">⌘K</kbd>
+            <kbd className="ml-auto rounded border border-fg/15 px-1 text-[11px]">{keys("⌘K", "Ctrl+K")}</kbd>
           </button>
           <div className="flex items-center justify-end gap-1 pr-4">
             <NotificationsButton state={notifications} update={update} />

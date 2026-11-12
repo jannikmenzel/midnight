@@ -9,6 +9,8 @@ All notable changes to this project are documented in this file. The format is b
 ### Added
 
 - The app lock can be opened with Touch ID on Macs that have it. The PIN still works as a fallback
+- Releases for Windows (installer) and Linux (AppImage and .deb). The menu bar timer and Touch ID stay macOS only
+- Starting Midnight again brings the open window to the front instead of running a second copy
 
 ## [0.1.8] - 2026-11-06
 

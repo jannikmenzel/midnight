@@ -87,7 +87,7 @@ export const de = {
   "until {date}": "bis {date}",
   "xelatex available": "xelatex verfügbar",
   "xelatex missing": "xelatex fehlt",
-  "xelatex not found. Install MacTeX or TeX Live to create invoice PDFs and timesheets.": "xelatex nicht gefunden. Bitte MacTeX oder TeX Live installieren, um Rechnungs-PDFs und Zeiterfassungen zu erstellen.",
+  "xelatex not found. Install MacTeX, MiKTeX or TeX Live to create invoice PDFs and timesheets.": "xelatex nicht gefunden. Bitte MacTeX, MiKTeX oder TeX Live installieren, um Rechnungs-PDFs und Zeiterfassungen zu erstellen.",
   "Year-end forecast {year}": "Jahresprognose {year}",
   "{amount} left until the limit for {year}.": "Noch {amount} bis zur Grenze für {year}.",
   "{done} / {total} hrs": "{done} / {total} Std.",

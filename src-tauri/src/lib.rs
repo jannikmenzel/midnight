@@ -28,6 +28,7 @@ mod tax;
 mod tax_export;
 mod templates;
 mod tracker;
+#[cfg(any(target_os = "macos", test))]
 mod tray;
 mod units;
 mod updater;
@@ -118,7 +119,10 @@ fn reveal_main(app: &tauri::AppHandle, loaded: bool, requested: bool) {
 }
 
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(not(debug_assertions))]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _, _| desktop::open_main_window(app.clone())));
+    builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())

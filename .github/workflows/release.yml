@@ -37,15 +37,28 @@ jobs:
             core.setOutput('notes', notes)
 
   build:
-    name: Build (${{ matrix.target }})
+    name: Build (${{ matrix.name }})
     needs: create-release
-    runs-on: macos-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        target: [aarch64-apple-darwin, x86_64-apple-darwin]
+        include:
+          - { name: macOS Apple Silicon, os: macos-latest, target: aarch64-apple-darwin }
+          - { name: macOS Intel, os: macos-latest, target: x86_64-apple-darwin }
+          - { name: Windows, os: windows-latest, target: x86_64-pc-windows-msvc }
+          - { name: Linux, os: ubuntu-22.04, target: x86_64-unknown-linux-gnu }
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v5
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev libxdo-dev libssl-dev patchelf
 
       - uses: actions/setup-node@v5
         with:
@@ -72,7 +85,12 @@ jobs:
       - name: Generate third-party notices
         run: |
           scripts/third_party_notices.sh "$RUNNER_TEMP/THIRD_PARTY_NOTICES.txt"
-          printf '{"bundle":{"createUpdaterArtifacts":true,"resources":{"%s":"THIRD_PARTY_NOTICES.txt"}}}' "$RUNNER_TEMP/THIRD_PARTY_NOTICES.txt" > "$RUNNER_TEMP/notices.conf.json"
+          node -e '
+            const [dir] = process.argv.slice(1)
+            const notices = require("path").join(dir, "THIRD_PARTY_NOTICES.txt")
+            const config = { bundle: { createUpdaterArtifacts: true, resources: { [notices]: "THIRD_PARTY_NOTICES.txt" } } }
+            require("fs").writeFileSync(require("path").join(dir, "notices.conf.json"), JSON.stringify(config))
+          ' "$RUNNER_TEMP"
 
       - uses: tauri-apps/tauri-action@v0
         env:

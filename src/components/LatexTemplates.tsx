@@ -338,7 +338,7 @@ export default function LatexTemplates() {
               <span className={cx("size-1.5 rounded-full", xelatex ? "bg-pos" : "bg-neg")} />
               <span
                 title={
-                  xelatex ?? t("xelatex not found. Install MacTeX or TeX Live to create invoice PDFs and timesheets.")
+                  xelatex ?? t("xelatex not found. Install MacTeX, MiKTeX or TeX Live to create invoice PDFs and timesheets.")
                 }
               >
                 {xelatex ? t("xelatex available") : t("xelatex missing")}

@@ -9,7 +9,7 @@
 [![CI](https://github.com/jannikmenzel/midnight/actions/workflows/ci.yml/badge.svg)](https://github.com/jannikmenzel/midnight/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/jannikmenzel/midnight?include_prereleases&sort=semver)](https://github.com/jannikmenzel/midnight/releases)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
-[![Platform: macOS](https://img.shields.io/badge/platform-macOS-lightgrey.svg?logo=apple)](#installation)
+[![Platform: macOS, Windows, Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey.svg)](#installation)
 <br />
 [![Tauri 2](https://img.shields.io/badge/Tauri-2-24C8DB.svg?logo=tauri&logoColor=white)](https://tauri.app)
 [![Rust](https://img.shields.io/badge/Rust-1.95-000000.svg?logo=rust)](https://www.rust-lang.org)
@@ -35,7 +35,7 @@
 | Vault | Document storage with document type, customer and tags, full-text search in PDF text |
 | Reports | Monthly trend, margin, categories, forecast for the next three months |
 | Tax | Annual income tax estimate: self-employment, employment, home office allowance, volunteering, health insurance, special expenses, hints on deadlines and limits, ZIP export with profit statement, lists, invoices and receipts |
-| Other | ⌘K search, notifications, background jobs every 15 minutes, light and dark theme, English and German UI |
+| Other | ⌘K / Ctrl+K search, notifications, background jobs every 15 minutes, light and dark theme, English and German UI |
 
 ## Screenshots
 
@@ -52,9 +52,9 @@ All screenshots show fictional demo data.
 
 ## Installation
 
-Download the latest `.dmg` for Apple Silicon (`aarch64`) or Intel (`x64`) from
-[Releases](https://github.com/jannikmenzel/midnight/releases) and drag Midnight into **Applications**.
+All downloads are on [Releases](https://github.com/jannikmenzel/midnight/releases).
 
+**macOS:** download the `.dmg` for Apple Silicon (`aarch64`) or Intel (`x64`) and drag Midnight into **Applications**.
 The app is not notarized by Apple. On first launch macOS will block it; open **System Settings / Privacy & Security**
 and click **Open Anyway**, or remove the quarantine flag:
 
@@ -62,15 +62,26 @@ and click **Open Anyway**, or remove the quarantine flag:
 xattr -dr com.apple.quarantine /Applications/Midnight.app
 ```
 
-Midnight checks GitHub Releases for new versions and offers to install them. The check can be turned off in
-**Settings / General / Updates**.
+**Windows:** run the `x64-setup.exe`. It installs for the current user without admin rights. The installer is not
+signed, so SmartScreen may warn on first launch; click **More info / Run anyway**.
 
-**Required for PDFs:** install [MacTeX](https://www.tug.org/mactex/) (or TeX Live). Invoices and timesheets are
-typeset with LaTeX (`xelatex`); without it, no PDFs can be created.
+**Linux:** use the `.AppImage` (make it executable with `chmod +x`) or install the `.deb` with
+`sudo apt install ./Midnight_*_amd64.deb`. For the MCP server, prefer the `.deb`, because the AppImage runs from a
+different path on every start.
+
+Midnight checks GitHub Releases for new versions and offers to install them. The check can be turned off in
+**Settings / General / Updates**. The menu bar timer and Touch ID are only available on macOS.
+
+**Required for PDFs:** install a LaTeX distribution with `xelatex`: [MacTeX](https://www.tug.org/mactex/) on macOS,
+[MiKTeX](https://miktex.org/) or TeX Live on Windows, and on Debian or Ubuntu
+`sudo apt install texlive-xetex texlive-latex-extra texlive-lang-german`. Invoices and timesheets are typeset with
+LaTeX; without it, no PDFs can be created.
 
 ## Development
 
-Requirements: Node 20+, and on macOS the Xcode Command Line Tools. The Rust version is pinned in `rust-toolchain.toml`.
+Requirements: Node 20+ and the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your system (Xcode
+Command Line Tools on macOS, MSVC build tools on Windows, WebKitGTK on Linux). The Rust version is pinned in
+`rust-toolchain.toml`.
 
 ```bash
 npm install
@@ -80,9 +91,10 @@ npm run build
 cd src-tauri && cargo test
 ```
 
-Releases are built by GitHub Actions when a `v*` tag is pushed (`.github/workflows/release.yml`) and published as a
-draft release. The workflow signs the update archive and needs the repository secret `TAURI_SIGNING_PRIVATE_KEY`, plus
-`TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if the key has a password. Installed apps pick up an update once the draft is published.
+Releases for macOS, Windows and Linux are built by GitHub Actions when a `v*` tag is pushed
+(`.github/workflows/release.yml`) and published as a draft release. The workflow signs the update archive and needs the
+repository secret `TAURI_SIGNING_PRIVATE_KEY`, plus `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if the key has a password.
+Installed apps pick up an update once the draft is published.
 In development, `MIDNIGHT_FAKE_UPDATE=0.2.0 npm run tauri dev` offers a fake version at startup and on **Check now** instead
 of asking GitHub.
 
@@ -96,7 +108,7 @@ the same database and also runs while the app is closed. Updates with missing fi
 invoices can be changed or deleted through it. Resetting all data is only possible inside the app. Under Settings →
 General → MCP server, access can be limited to reading, and customer data can be kept out of every tool result.
 
-The installed app ships with the server:
+The installed app ships with the server. Settings → General → MCP server shows its path on your system. On macOS:
 
 ```bash
 claude mcp add midnight -- /Applications/Midnight.app/Contents/MacOS/midnight-mcp
@@ -114,8 +126,9 @@ A different data directory can be set via `MIDNIGHT_DATA_DIR`. New commands are 
 
 ## Data
 
-On macOS, data is stored in `~/Library/Application Support/app.midnight.desktop/`: the database `midnight.db` and the
-`files/` folder with receipts, invoice PDFs and documents. Back up this folder to keep your data safe.
+Data is stored in `~/Library/Application Support/app.midnight.desktop/` on macOS, `%APPDATA%\app.midnight.desktop\` on
+Windows and `~/.local/share/app.midnight.desktop/` on Linux: the database `midnight.db` and the `files/` folder with
+receipts, invoice PDFs and documents. Back up this folder to keep your data safe.
 
 ## Contributing
 

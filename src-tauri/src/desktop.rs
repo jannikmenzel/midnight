@@ -14,6 +14,7 @@ pub fn keeps_running_on_close(settings: &Settings) -> bool {
     cfg!(target_os = "macos") && settings.menu_bar_icon && settings.menu_bar_keep_running
 }
 
+#[cfg(any(target_os = "macos", test))]
 pub fn panel_position(icon: (f64, f64, f64, f64), panel_width: f64, screen: (f64, f64), gap: f64) -> (f64, f64) {
     let (icon_x, icon_y, icon_w, icon_h) = icon;
     let (screen_x, screen_w) = screen;
@@ -22,8 +23,10 @@ pub fn panel_position(icon: (f64, f64, f64, f64), panel_width: f64, screen: (f64
     (x.min(max_x).max(screen_x + gap).round(), (icon_y + icon_h + gap).round())
 }
 
+#[cfg(any(target_os = "macos", test))]
 pub const PANEL_REOPEN_GUARD: std::time::Duration = std::time::Duration::from_millis(300);
 
+#[cfg(any(target_os = "macos", test))]
 pub fn panel_may_open(since_blur_hide: Option<std::time::Duration>) -> bool {
     since_blur_hide.is_none_or(|d| d >= PANEL_REOPEN_GUARD)
 }

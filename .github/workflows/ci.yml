@@ -14,13 +14,29 @@ permissions:
 
 jobs:
   check:
-    name: Check
-    runs-on: macos-latest
+    name: Check (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macOS, os: macos-latest }
+          - { name: Windows, os: windows-latest }
+          - { name: Linux, os: ubuntu-22.04 }
+    defaults:
+      run:
+        shell: bash
     env:
       SAMPLES: ${{ github.workspace }}/e-invoice-samples
       VALIDATORS: ${{ github.workspace }}/e-invoice-validators
     steps:
       - uses: actions/checkout@v5
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev libxdo-dev libssl-dev
 
       - uses: actions/setup-node@v5
         with:
@@ -34,6 +50,7 @@ jobs:
         run: npm run build
 
       - name: Test frontend
+        if: runner.os == 'macOS'
         run: npm test
 
       - name: Install Rust toolchain
@@ -52,17 +69,20 @@ jobs:
         run: cargo test --locked
 
       - uses: actions/setup-java@v5
+        if: runner.os == 'macOS'
         with:
           distribution: temurin
           java-version: 21
 
       - name: Write sample e-invoices
+        if: runner.os == 'macOS'
         working-directory: src-tauri
         env:
           EINVOICE_SAMPLES: ${{ env.SAMPLES }}
         run: cargo test --locked writes_validation_samples -- --ignored
 
       - name: Download validators
+        if: runner.os == 'macOS'
         run: |
           mkdir -p "$VALIDATORS/xrechnung"
           curl -fsSL -o "$VALIDATORS/kosit.jar" https://github.com/itplr-kosit/validator/releases/download/v1.6.3/validator-1.6.3-standalone.jar
@@ -71,9 +91,11 @@ jobs:
           curl -fsSL -o "$VALIDATORS/mustang.jar" https://github.com/ZUGFeRD/mustangproject/releases/download/core-2.26.0/Mustang-CLI-2.26.0.jar
 
       - name: Validate XRechnung (KoSIT, XRechnung 3.0.2)
+        if: runner.os == 'macOS'
         run: java -jar "$VALIDATORS/kosit.jar" -s "$VALIDATORS/xrechnung/scenarios.xml" -r "$VALIDATORS/xrechnung" -o "$VALIDATORS/reports" "$SAMPLES"/*-xrechnung.xml
 
       - name: Validate ZUGFeRD (Mustang, veraPDF)
+        if: runner.os == 'macOS'
         run: |
           for pdf in "$SAMPLES"/*-zugferd.pdf; do
             report="${pdf%.pdf}-report.xml"

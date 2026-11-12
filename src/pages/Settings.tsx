@@ -8,13 +8,13 @@ import { useAsync } from "../lib/hooks";
 import { notifyUpdateChecked, useApp, type Theme } from "../lib/nav";
 import { Badge, Button, Card, CardBody, CurrencySelect, Dialog, ErrorNote, Field, Input, PageHeader, PercentInput, Section, Select, Tabs, Textarea, Toggle, useToast } from "../components/ui";
 import { isLang, lang, LANGUAGES, setLang, t } from "../lib/i18n";
+import { IS_MAC } from "../lib/platform";
 import LatexTemplates from "../components/LatexTemplates";
 import { CountrySelect, PlaceInput } from "../components/fields";
 import { PIN_CHANGED, PIN_LENGTH, PinInput, PinScreen, usePinCooldown } from "../components/LockScreen";
 
 type Tab = "general" | "company" | "invoices" | "latex" | "limits" | "data";
 
-const IS_MAC = navigator.userAgent.includes("Mac");
 
 function useSettingsForm(afterSave?: () => Promise<void>) {
   const { settings, reloadSettings } = useApp();
