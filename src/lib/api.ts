@@ -5,6 +5,11 @@ export interface McpAccess {
   private: boolean;
 }
 
+export interface TouchId {
+  available: boolean;
+  enabled: boolean;
+}
+
 export interface Settings {
   onboarded: boolean;
   company_name: string;
@@ -690,6 +695,9 @@ export const api = {
   setPin: (current: string | null, pin: string | null) => invoke<boolean>("set_pin", { current, pin }),
   unlock: (pin: string) => invoke<boolean>("unlock", { pin }),
   pinCooldown: () => invoke<number | null>("pin_cooldown"),
+  touchIdStatus: () => invoke<TouchId>("touch_id_status"),
+  setTouchId: (enabled: boolean) => invoke<boolean>("set_touch_id", { enabled }),
+  unlockTouchId: () => invoke<boolean>("unlock_touch_id"),
   refreshMenuBar: () => invoke<void>("refresh_menu_bar"),
   openMainWindow: () => invoke<void>("open_main_window"),
   hideMenuBarPanel: () => invoke<void>("hide_menu_bar_panel"),

@@ -314,9 +314,19 @@ function PinFlow({ mode, onClose, onDone }: { mode: PinMode; onClose: () => void
 }
 
 function AppLockCard() {
+  const toast = useToast();
   const status = useAsync(() => api.pinEnabled(), []);
   const [mode, setMode] = useState<PinMode | null>(null);
   const enabled = status.data ?? false;
+  const touch = useAsync(() => api.touchIdStatus(), [enabled]);
+  const switchTouch = async (on: boolean) => {
+    try {
+      const now = await api.setTouchId(on);
+      touch.setData({ available: true, enabled: now });
+    } catch (e) {
+      toast.error(errorMessage(e));
+    }
+  };
   return (
     <Card title={t("App lock")} actions={enabled && <Badge tone="pos">{t("On")}</Badge>}>
       <CardBody>
@@ -338,6 +348,9 @@ function AppLockCard() {
             )}
           </div>
         </div>
+        {enabled && touch.data?.available && (
+          <Toggle checked={touch.data.enabled} onChange={switchTouch} label={t("Unlock with Touch ID")} />
+        )}
       </CardBody>
       {mode && (
         <PinFlow

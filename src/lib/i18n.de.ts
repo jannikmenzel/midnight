@@ -753,6 +753,7 @@ export const de = {
   "New PIN": "Neue PIN",
   "Repeat PIN": "PIN wiederholen",
   "Lock with PIN": "Mit PIN sperren",
+  "Unlock with Touch ID": "Mit Touch ID entsperren",
   "Midnight is now protected": "Midnight ist jetzt geschützt",
   "Your new PIN is active": "Deine neue PIN ist aktiv",
   "A forgotten PIN cannot be reset. Keep it somewhere safe.": "Eine vergessene PIN lässt sich nicht zurücksetzen. Bewahre sie sicher auf.",

@@ -6,6 +6,10 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+### Added
+
+- The app lock can be opened with Touch ID on Macs that have it. The PIN still works as a fallback
+
 ## [0.1.8] - 2026-11-06
 
 ### Added

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Lock } from "lucide-react";
+import { Fingerprint, Lock } from "lucide-react";
 import { api } from "../lib/api";
 import { t } from "../lib/i18n";
-import { cx } from "./ui";
+import { Button, cx } from "./ui";
 
 export const PIN_LENGTH = 5;
 
@@ -110,6 +110,39 @@ export function LockScreen({ onUnlock, ready }: { onUnlock: () => void; ready?: 
   const [wrong, setWrong] = useState(false);
   const [busy, setBusy] = useState(false);
   const [cooling, checkCooldown] = usePinCooldown();
+  const [touch, setTouch] = useState(false);
+  const [touching, setTouching] = useState(false);
+  const asked = useRef(false);
+
+  useEffect(() => {
+    api
+      .touchIdStatus()
+      .then((s) => setTouch(s.enabled))
+      .catch(() => {});
+  }, []);
+
+  const touchId = useCallback(async () => {
+    setTouching(true);
+    const ok = await api.unlockTouchId().catch(() => false);
+    if (ok) return onUnlock();
+    setTouching(false);
+  }, [onUnlock]);
+
+  useEffect(() => {
+    if (!touch || ready === false) return;
+    const auto = () => {
+      if (asked.current || document.visibilityState !== "visible" || !document.hasFocus()) return;
+      asked.current = true;
+      touchId();
+    };
+    auto();
+    window.addEventListener("focus", auto);
+    document.addEventListener("visibilitychange", auto);
+    return () => {
+      window.removeEventListener("focus", auto);
+      document.removeEventListener("visibilitychange", auto);
+    };
+  }, [touch, ready, touchId]);
 
   const submit = async (value: string) => {
     setBusy(true);
@@ -135,6 +168,11 @@ export function LockScreen({ onUnlock, ready }: { onUnlock: () => void; ready?: 
           if (value.length === PIN_LENGTH) submit(value);
         }}
       />
+      {touch && (
+        <Button variant="ghost" icon={<Fingerprint className="size-4" />} onClick={touchId} disabled={touching}>
+          Touch ID
+        </Button>
+      )}
     </PinScreen>
   );
 }

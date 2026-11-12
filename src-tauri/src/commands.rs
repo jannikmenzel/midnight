@@ -150,6 +150,9 @@ commands! {
     app security::pin_enabled() -> bool, "Whether the app is protected by a PIN.";
     app security::set_pin(current: Option<String>, pin: Option<String>) -> bool, "Sets, changes or removes the app PIN.";
     app security::unlock(pin: String) -> bool, "Checks the app PIN.";
+    app security::touch_id_status() -> crate::security::TouchId, "Whether Touch ID is available and turned on.";
+    app security::set_touch_id(enabled: bool) -> bool, "Turns unlocking with Touch ID on or off.";
+    app security::unlock_touch_id() -> bool, "Unlocks the app with Touch ID.";
     #[stateless] app security::pin_cooldown() -> Option<u64>, "Seconds until the PIN can be entered again after too many attempts.";
     #[stateless] app mcp_setup::mcp_setup() -> McpSetup, "Shows how to connect the MCP server to Claude.";
     #[stateless] app mcp_setup::mcp_install_claude_desktop() -> (), "Registers the MCP server in Claude Desktop.";

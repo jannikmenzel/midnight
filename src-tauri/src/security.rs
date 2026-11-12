@@ -11,6 +11,7 @@ use crate::i18n::tr;
 
 const PIN_KEY: &str = "app_pin";
 const MCP_KEY: &str = "mcp_access";
+const TOUCH_ID_KEY: &str = "touch_id";
 const ROUNDS: u32 = 100_000;
 const MAX_ATTEMPTS: u32 = 5;
 const COOLDOWN: Duration = Duration::from_secs(30);
@@ -21,6 +22,14 @@ pub struct McpAccess {
     pub read_only: bool,
     pub private: bool,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct TouchId {
+    pub available: bool,
+    pub enabled: bool,
+}
+
+type Verify = fn(&str) -> bool;
 
 #[derive(Serialize, Deserialize)]
 struct StoredPin {
@@ -136,7 +145,7 @@ pub async fn set_pin(state: &AppState, current: Option<String>, pin: Option<Stri
             Ok(true)
         }
         None => {
-            conn.execute("DELETE FROM settings WHERE key = ?1", params![PIN_KEY])?;
+            conn.execute("DELETE FROM settings WHERE key IN (?1, ?2)", params![PIN_KEY, TOUCH_ID_KEY])?;
             Ok(false)
         }
     }
@@ -151,6 +160,86 @@ pub async fn unlock(state: &AppState, pin: String) -> AppResult<bool> {
     match stored {
         Some(stored) => attempt(&stored, &pin),
         None => Ok(true),
+    }
+}
+
+fn touch_id_on(conn: &Connection) -> AppResult<bool> {
+    Ok(stored_pin(conn)?.is_some() && read_key::<bool>(conn, TOUCH_ID_KEY)?.unwrap_or(false))
+}
+
+async fn confirm(verify: Verify) -> bool {
+    let reason = tr!("unlock Midnight", "Midnight entsperren");
+    tauri::async_runtime::spawn_blocking(move || verify(&reason)).await.unwrap_or(false)
+}
+
+pub async fn touch_id_status(state: &AppState) -> AppResult<TouchId> {
+    let enabled = touch_id_on(&*state.conn()?)?;
+    Ok(TouchId { available: touch_id::available(), enabled })
+}
+
+pub async fn set_touch_id(state: &AppState, enabled: bool) -> AppResult<bool> {
+    switch_touch_id(state, enabled, touch_id::verify).await
+}
+
+async fn switch_touch_id(state: &AppState, enabled: bool, verify: Verify) -> AppResult<bool> {
+    if !enabled {
+        state.conn()?.execute("DELETE FROM settings WHERE key = ?1", params![TOUCH_ID_KEY])?;
+        return Ok(false);
+    }
+    if stored_pin(&*state.conn()?)?.is_none() {
+        return Err(msg(tr!("Set a PIN first.", "Lege zuerst eine PIN fest.")));
+    }
+    if !confirm(verify).await {
+        return Ok(false);
+    }
+    write_key(&*state.conn()?, TOUCH_ID_KEY, &true)?;
+    Ok(true)
+}
+
+pub async fn unlock_touch_id(state: &AppState) -> AppResult<bool> {
+    unlock_with(state, touch_id::verify).await
+}
+
+async fn unlock_with(state: &AppState, verify: Verify) -> AppResult<bool> {
+    if !touch_id_on(&*state.conn()?)? {
+        return Ok(false);
+    }
+    Ok(confirm(verify).await)
+}
+
+#[cfg(target_os = "macos")]
+mod touch_id {
+    use block2::RcBlock;
+    use objc2::runtime::Bool;
+    use objc2_foundation::{NSError, NSString};
+    use objc2_local_authentication::{LAContext, LAPolicy};
+
+    const POLICY: LAPolicy = LAPolicy::DeviceOwnerAuthenticationWithBiometrics;
+
+    pub fn available() -> bool {
+        let context = unsafe { LAContext::new() };
+        unsafe { context.canEvaluatePolicy_error(POLICY) }.is_ok()
+    }
+
+    pub fn verify(reason: &str) -> bool {
+        let context = unsafe { LAContext::new() };
+        let (tx, rx) = std::sync::mpsc::channel();
+        let reply = RcBlock::new(move |success: Bool, _: *mut NSError| {
+            let _ = tx.send(success.as_bool());
+        });
+        unsafe { context.evaluatePolicy_localizedReason_reply(POLICY, &NSString::from_str(reason), &reply) };
+        rx.recv().unwrap_or(false)
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+mod touch_id {
+    pub fn available() -> bool {
+        false
+    }
+
+    pub fn verify(_: &str) -> bool {
+        false
     }
 }
 
@@ -185,6 +274,32 @@ mod tests {
         assert!(run(unlock(&s, "99999".into())).unwrap());
         assert!(!run(set_pin(&s, Some("99999".into()), None)).unwrap());
         assert!(!run(pin_enabled(&s)).unwrap());
+    }
+
+    #[test]
+    fn touch_id_needs_a_pin_and_a_confirmed_finger() {
+        let yes: Verify = |_| true;
+        let no: Verify = |_| false;
+        let s = state();
+        assert!(run(switch_touch_id(&s, true, yes)).is_err(), "no PIN yet");
+        run(set_pin(&s, None, Some("04711".into()))).unwrap();
+        assert!(!run(unlock_with(&s, yes)).unwrap(), "off until turned on");
+        assert!(!run(switch_touch_id(&s, true, no)).unwrap(), "cancelled prompt");
+        assert!(!run(touch_id_status(&s)).unwrap().enabled);
+
+        assert!(run(switch_touch_id(&s, true, yes)).unwrap());
+        assert!(run(touch_id_status(&s)).unwrap().enabled);
+        assert!(run(unlock_with(&s, yes)).unwrap());
+        assert!(!run(unlock_with(&s, no)).unwrap(), "wrong finger");
+
+        assert!(!run(switch_touch_id(&s, false, no)).unwrap());
+        assert!(!run(unlock_with(&s, yes)).unwrap(), "turned off");
+
+        run(switch_touch_id(&s, true, yes)).unwrap();
+        run(set_pin(&s, Some("04711".into()), None)).unwrap();
+        assert!(!run(touch_id_status(&s)).unwrap().enabled, "removing the PIN turns it off");
+        run(set_pin(&s, None, Some("12345".into()))).unwrap();
+        assert!(!run(unlock_with(&s, yes)).unwrap(), "stays off with a new PIN");
     }
 
     #[test]
