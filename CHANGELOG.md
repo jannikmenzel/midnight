@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-18
+
 ### Added
 
 - Recurring expenses can be edited: name, description, amount, category, deductible share, note, frequency, end and the date of the next booking. Changes apply to later bookings, booked expenses and the counter stay
@@ -134,7 +136,8 @@ All notable changes to this project are documented in this file. The format is b
 - English and German interface
 - `midnight-mcp` server exposing the app's features as MCP tools
 
-[Unreleased]: https://github.com/jannikmenzel/midnight/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/jannikmenzel/midnight/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/jannikmenzel/midnight/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/jannikmenzel/midnight/compare/v0.1.8...v0.2.0
 [0.1.8]: https://github.com/jannikmenzel/midnight/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/jannikmenzel/midnight/compare/v0.1.6...v0.1.7
