@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowLeftRight, Eye, EyeOff, FileText, FolderLock, Plus, Search, Timer, Upload, User } from "lucide-react";
+import { ArrowLeftRight, CircleHelp, Eye, EyeOff, FileText, FolderLock, Plus, Search, Timer, Upload, User } from "lucide-react";
 import { api, type SearchHit } from "../lib/api";
 import { date, money } from "../lib/format";
 import { useDebounced } from "../lib/hooks";
@@ -27,7 +27,7 @@ const KIND: Record<SearchHit["kind"], { group: string; route: Route; icon: React
   document: { group: "Vault", route: "vault", icon: <FolderLock className="size-4" /> },
 };
 
-export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function CommandPalette({ open, onClose, onStartTour }: { open: boolean; onClose: () => void; onStartTour: () => void }) {
   const { go } = useApp();
   const [masked, setMasked] = usePrivacy();
   const [query, setQuery] = useState("");
@@ -74,6 +74,16 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         run: () => {
           setMasked(!masked);
           onClose();
+        },
+      },
+      {
+        id: "a-tour",
+        group: t("Actions"),
+        title: t("Start tutorial"),
+        icon: <CircleHelp className="size-4" />,
+        run: () => {
+          onClose();
+          onStartTour();
         },
       },
     ];

@@ -61,6 +61,7 @@ const FULL_WRITES: &[FullWrite] = &[
     FullWrite { tool: "save_invoice", arg: "input", key: Some("id"), optional: &["invoice_number", "status", "tracker_entry_ids"] },
     FullWrite { tool: "save_category", arg: "input", key: Some("slug"), optional: &[] },
     FullWrite { tool: "save_product", arg: "product", key: Some("id"), optional: &["usage_count"] },
+    FullWrite { tool: "update_expense_recurring", arg: "input", key: Some("id"), optional: &[] },
 ];
 
 fn data_dir() -> AppResult<PathBuf> {
@@ -620,6 +621,11 @@ mod tests {
 
         let expense = call_json(&s, "save_expense", json!({ "input": { "date": "2026-10-01", "name": "Figma", "amount_cents": 1500 } }));
         call_json(&s, "save_expense", json!({ "input": call_json(&s, "get_expense", json!({ "id": expense["id"] })) }));
+
+        call_json(&s, "save_expense_recurring", json!({ "input": { "expense_id": expense["id"], "frequency": "monthly_date", "end_type": "never" } }));
+        let series = call_json(&s, "list_expense_recurring", json!({}))[0].clone();
+        call_json(&s, "update_expense_recurring", json!({ "input": series }));
+        assert_eq!(call_json(&s, "list_expense_recurring", json!({}))[0], series, "writing a series back changes nothing");
 
         let invoice = draft_invoice(&s);
         call_json(&s, "save_invoice", json!({ "input": call_json(&s, "get_invoice", json!({ "id": invoice["id"] })) }));

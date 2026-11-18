@@ -125,6 +125,16 @@ export function addDays(iso: string, days: number): string {
   return isoDate(d);
 }
 
+const REPEAT_MONTHS: Record<string, number> = { monthly_date: 1, monthly_last_day: 1, quarterly: 3, semi_annual: 6, annual: 12 };
+
+export function nextRepeatDate(frequency: string, from: string, intervalDays: number): string {
+  const months = REPEAT_MONTHS[frequency];
+  if (!months) return addDays(from, frequency === "weekly" ? 7 : frequency === "biweekly" ? 14 : Math.max(1, intervalDays || 30));
+  const [y, m, d] = from.split("-").map(Number);
+  const last = new Date(y, m - 1 + months + 1, 0, 12).getDate();
+  return isoDate(new Date(y, m - 1 + months, frequency === "monthly_last_day" ? last : Math.min(d, last), 12));
+}
+
 export type PeriodKey = "this_month" | "last_month" | "last_3_months" | "this_year" | "last_year" | "last_12_months" | "all";
 
 export const PERIODS: { key: PeriodKey; label: string }[] = [

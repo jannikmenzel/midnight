@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+### Added
+
+- Recurring expenses can be edited: name, description, amount, category, deductible share, note, frequency, end and the date of the next booking. Changes apply to later bookings, booked expenses and the counter stay
+- The date of the second booking can be chosen when setting up a recurring expense
+- A short tour through the app. It starts on first launch, can be skipped and opens again with the question mark in the top bar or from the command palette
+
+### Changed
+
+- The description in the list of recurring expenses gets all the remaining width
+
 ## [0.2.0] - 2026-11-12
 
 ### Added

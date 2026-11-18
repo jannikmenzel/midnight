@@ -272,6 +272,7 @@ pub fn run() {
             commands::delete_product,
             commands::list_expense_recurring,
             commands::save_expense_recurring,
+            commands::update_expense_recurring,
             commands::set_expense_recurring_status,
             commands::delete_expense_recurring,
             commands::vault_upload,

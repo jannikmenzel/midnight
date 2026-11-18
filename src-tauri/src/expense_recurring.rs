@@ -20,6 +20,7 @@ pub struct ExpenseRecurring {
     pub category_slug: Option<String>,
     pub category_name: Option<String>,
     pub category_color: Option<String>,
+    pub note: Option<String>,
     pub frequency: String,
     pub frequency_interval: Option<i64>,
     pub end_type: String,
@@ -31,6 +32,7 @@ pub struct ExpenseRecurring {
     pub last_generated_at: Option<String>,
     pub deductible_percent: i64,
     pub deductible_cents: i64,
+    pub last_expense_date: Option<String>,
 }
 
 pub async fn list_expense_recurring(state: &AppState) -> AppResult<Vec<ExpenseRecurring>> {
@@ -42,7 +44,8 @@ fn load_series(conn: &Connection) -> AppResult<Vec<ExpenseRecurring>> {
     let mut stmt = conn.prepare(
         "SELECT r.id, r.name, r.description, r.amount_cents, r.currency, r.category_slug, c.name, c.color, r.frequency,
                 r.frequency_interval, r.end_type, r.end_date, r.end_count, r.status, r.expenses_generated,
-                r.next_scheduled_at, r.last_generated_at, r.deductible_percent
+                r.next_scheduled_at, r.last_generated_at, r.deductible_percent,
+                (SELECT MAX(e.date) FROM expenses e WHERE e.expense_recurring_id = r.id), r.note
          FROM expense_recurring r LEFT JOIN categories c ON c.slug = r.category_slug
          ORDER BY r.status, r.next_scheduled_at",
     )?;
@@ -57,6 +60,7 @@ fn load_series(conn: &Connection) -> AppResult<Vec<ExpenseRecurring>> {
             category_slug: r.get(5)?,
             category_name: r.get(6)?,
             category_color: r.get(7)?,
+            note: r.get(19)?,
             frequency: r.get(8)?,
             frequency_interval: r.get(9)?,
             end_type: r.get(10)?,
@@ -68,6 +72,7 @@ fn load_series(conn: &Connection) -> AppResult<Vec<ExpenseRecurring>> {
             last_generated_at: r.get(16)?,
             deductible_percent: percent,
             deductible_cents: crate::tax::deductible_cents(r.get(3)?, percent),
+            last_expense_date: r.get(18)?,
         })
     })?;
     Ok(rows.collect::<Result<_, _>>()?)
@@ -84,10 +89,34 @@ pub struct ExpenseRecurringInput {
     pub end_date: Option<String>,
     #[schemars(description = "Number of expenses including the first one.")]
     pub end_count: Option<i64>,
+    #[schemars(description = "Date of the second expense, after the first one. Later dates follow from it. Default: one period after the first expense.")]
+    pub next_date: Option<String>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub struct ExpenseRecurringUpdate {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    #[schemars(description = "Full amount in cents.")]
+    pub amount_cents: i64,
+    pub category_slug: Option<String>,
+    #[schemars(description = "Deductible share in percent, 0 to 100.")]
+    pub deductible_percent: i64,
+    pub note: Option<String>,
+    pub frequency: String,
+    pub frequency_interval: Option<i64>,
+    #[schemars(description = "Date of the next expense, after the last one already booked. Later dates follow from it.")]
+    pub next_scheduled_at: String,
+    #[schemars(description = "never, on_date or after_count")]
+    pub end_type: String,
+    pub end_date: Option<String>,
+    #[schemars(description = "Number of expenses including the first one.")]
+    pub end_count: Option<i64>,
 }
 
 #[derive(Debug, Serialize)]
-pub struct ExpenseRecurringCreated {
+pub struct ExpenseRecurringSaved {
     pub id: String,
     pub caught_up: usize,
 }
@@ -101,8 +130,11 @@ pub fn create_series(conn: &Connection, input: &ExpenseRecurringInput) -> AppRes
         return Err(msg(tr!("This expense already belongs to a series", "Diese Ausgabe gehört bereits zu einer Serie")));
     }
     let first = parse_date(&src.date).ok_or_else(|| msg(tr!("Invalid date", "Ungültiges Datum")))?;
-    let anchor = first.day();
-    let next = next_date(&input.frequency, first, input.frequency_interval, anchor);
+    let next = match input.next_date.as_deref() {
+        Some(raw) => next_after(raw, first)?,
+        None => next_date(&input.frequency, first, input.frequency_interval, first.day()),
+    };
+    let anchor = if input.next_date.is_some() { next.day() } else { first.day() };
     let id = crate::util::new_id();
     conn.execute(
         "INSERT INTO expense_recurring (id, name, description, amount_cents, currency, category_slug, note, frequency,
@@ -128,13 +160,91 @@ pub fn create_series(conn: &Connection, input: &ExpenseRecurringInput) -> AppRes
     Ok(id)
 }
 
-pub async fn save_expense_recurring(state: &AppState, input: ExpenseRecurringInput) -> AppResult<ExpenseRecurringCreated> {
+fn next_after(raw: &str, last: NaiveDate) -> AppResult<NaiveDate> {
+    let next = parse_date(raw).ok_or_else(|| msg(tr!("Invalid date of the next expense", "Ungültiges Datum der nächsten Buchung")))?;
+    if next <= last {
+        let shown = if crate::i18n::is_de() { crate::util::fmt_date_de(&iso(last)) } else { iso(last) };
+        return Err(msg(tr!("The next expense must be after {}", "Die nächste Buchung muss nach dem {} liegen", shown)));
+    }
+    Ok(next)
+}
+
+pub async fn save_expense_recurring(state: &AppState, input: ExpenseRecurringInput) -> AppResult<ExpenseRecurringSaved> {
     let conn = state.conn()?;
     let tx = conn.unchecked_transaction()?;
     let id = create_series(&tx, &input)?;
     let caught_up = run_due_on(&tx, today_date())?.len();
     tx.commit()?;
-    Ok(ExpenseRecurringCreated { id, caught_up })
+    Ok(ExpenseRecurringSaved { id, caught_up })
+}
+
+type CurrentSchedule = (String, Option<i64>, String, i64, Option<String>);
+
+pub fn update_series(conn: &Connection, input: &ExpenseRecurringUpdate) -> AppResult<()> {
+    validate_schedule(&input.frequency, input.frequency_interval, &input.end_type, input.end_date.as_deref(), input.end_count)?;
+    let name = input.name.trim();
+    if name.is_empty() {
+        return Err(msg(tr!("Please describe what the expense was for", "Bitte gib an, wofür die Ausgabe war")));
+    }
+    if input.amount_cents <= 0 {
+        return Err(msg(tr!("The amount must be greater than 0", "Der Betrag muss größer als 0 sein")));
+    }
+    if !(0..=100).contains(&input.deductible_percent) {
+        return Err(msg(tr!("The deductible share must be between 0 and 100", "Der abziehbare Anteil muss zwischen 0 und 100 liegen")));
+    }
+    let blank = |v: &Option<String>| v.clone().filter(|s| !s.trim().is_empty());
+    let current: Option<CurrentSchedule> = conn
+        .query_row(
+            "SELECT status, anchor_day, next_scheduled_at, expenses_generated,
+                    (SELECT MAX(date) FROM expenses WHERE expense_recurring_id = r.id)
+             FROM expense_recurring r WHERE id = ?1",
+            params![input.id],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+        )
+        .optional()?;
+    let Some((status, anchor, stored_next, generated, last)) = current else {
+        return Err(msg(tr!("Series not found", "Serie nicht gefunden")));
+    };
+    let next = match last.as_deref().and_then(parse_date) {
+        Some(last) => next_after(&input.next_scheduled_at, last)?,
+        None => parse_date(&input.next_scheduled_at).ok_or_else(|| msg(tr!("Invalid date of the next expense", "Ungültiges Datum der nächsten Buchung")))?,
+    };
+    let anchor = match anchor {
+        Some(day) if iso(next) == stored_next => day,
+        _ => next.day() as i64,
+    };
+    let end_date = input.end_date.clone().filter(|_| input.end_type == "on_date");
+    let end_count = input.end_count.filter(|_| input.end_type == "after_count");
+    let status = if status == "canceled" {
+        "canceled"
+    } else if series_finished(&input.end_type, end_count, end_date.as_deref().and_then(parse_date), generated, next) {
+        "completed"
+    } else if status == "completed" {
+        "active"
+    } else {
+        status.as_str()
+    };
+    conn.execute(
+        "UPDATE expense_recurring SET frequency = ?2, frequency_interval = ?3, anchor_day = ?4, next_scheduled_at = ?5,
+            end_type = ?6, end_date = ?7, end_count = ?8, status = ?9, name = ?10, description = ?11, amount_cents = ?12,
+            category_slug = ?13, deductible_percent = ?14, note = ?15
+         WHERE id = ?1",
+        params![
+            input.id, input.frequency, input.frequency_interval.filter(|_| input.frequency == "custom"), anchor, iso(next),
+            input.end_type, end_date, end_count, status, name, blank(&input.description), input.amount_cents,
+            input.category_slug.clone().filter(|s| !s.is_empty()), input.deductible_percent, blank(&input.note)
+        ],
+    )?;
+    Ok(())
+}
+
+pub async fn update_expense_recurring(state: &AppState, input: ExpenseRecurringUpdate) -> AppResult<ExpenseRecurringSaved> {
+    let conn = state.conn()?;
+    let tx = conn.unchecked_transaction()?;
+    update_series(&tx, &input)?;
+    let caught_up = run_due_on(&tx, today_date())?.len();
+    tx.commit()?;
+    Ok(ExpenseRecurringSaved { id: input.id, caught_up })
 }
 
 pub async fn set_expense_recurring_status(state: &AppState, id: String, status: String) -> AppResult<()> {
@@ -299,6 +409,7 @@ mod tests {
             end_type: end_type.into(),
             end_date: None,
             end_count: None,
+            next_date: None,
         }
     }
 
@@ -423,6 +534,120 @@ mod tests {
         run_due_on(&conn, d(2026, 3, 1)).unwrap();
         assert_eq!(count(&conn, "SELECT COUNT(*) FROM expenses WHERE id != 'e1' AND deductible_percent = 40"), 2);
         assert!(expected(&conn, d(2026, 3, 1), d(2026, 6, 1)).unwrap().iter().all(|e| e.deductible_percent == 40));
+    }
+
+    fn schedule(id: &str, frequency: &str, next: &str) -> ExpenseRecurringUpdate {
+        ExpenseRecurringUpdate {
+            id: id.into(),
+            name: "Adobe CC".into(),
+            description: None,
+            amount_cents: 6599,
+            category_slug: Some("software".into()),
+            deductible_percent: 100,
+            note: None,
+            frequency: frequency.into(),
+            frequency_interval: None,
+            next_scheduled_at: next.into(),
+            end_type: "never".into(),
+            end_date: None,
+            end_count: None,
+        }
+    }
+
+    fn future_dates(conn: &Connection, today: NaiveDate, horizon: NaiveDate) -> Vec<String> {
+        expected(conn, today, horizon).unwrap().iter().map(|e| iso(e.date)).collect()
+    }
+
+    #[test]
+    fn the_second_expense_can_be_set_on_creation() {
+        let conn = setup("2026-10-01");
+        let mut yearly = input("annual", "never");
+        yearly.next_date = Some("2026-10-01".into());
+        assert!(create_series(&conn, &yearly).is_err(), "the second expense comes after the first");
+        yearly.next_date = Some("2027-09-15".into());
+        create_series(&conn, &yearly).unwrap();
+        assert_eq!(future_dates(&conn, d(2026, 11, 18), d(2029, 12, 31)), ["2027-09-15", "2028-09-15", "2029-09-15"]);
+    }
+
+    #[test]
+    fn moving_the_next_date_keeps_the_series() {
+        let conn = setup("2025-10-01");
+        let id = create_series(&conn, &input("annual", "never")).unwrap();
+        run_due_on(&conn, d(2026, 11, 18)).unwrap();
+        assert!(update_series(&conn, &schedule(&id, "annual", "2026-10-01")).is_err(), "not on or before the last booked expense");
+        update_series(&conn, &schedule(&id, "annual", "2027-09-01")).unwrap();
+        assert_eq!(future_dates(&conn, d(2026, 11, 18), d(2028, 12, 31)), ["2027-09-01", "2028-09-01"]);
+        let (generated, status): (i64, String) =
+            conn.query_row("SELECT expenses_generated, status FROM expense_recurring WHERE id = ?1", params![id], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+        assert_eq!((generated, status.as_str()), (2, "active"));
+        assert_eq!(count(&conn, "SELECT COUNT(*) FROM expenses WHERE expense_recurring_id IS NOT NULL AND date IN ('2025-10-01', '2026-10-01')"), 2);
+    }
+
+    #[test]
+    fn a_past_next_date_is_booked_on_the_next_run() {
+        let conn = setup("2026-01-15");
+        let id = create_series(&conn, &input("quarterly", "never")).unwrap();
+        update_series(&conn, &schedule(&id, "monthly_date", "2026-02-01")).unwrap();
+        assert_eq!(run_due_on(&conn, d(2026, 3, 10)).unwrap().len(), 2);
+        assert_eq!(future_dates(&conn, d(2026, 3, 10), d(2026, 5, 31)), ["2026-04-01", "2026-05-01"]);
+    }
+
+    #[test]
+    fn an_unchanged_next_date_keeps_the_anchor_day() {
+        let conn = setup("2026-01-31");
+        let id = create_series(&conn, &input("monthly_date", "never")).unwrap();
+        update_series(&conn, &schedule(&id, "monthly_date", "2026-02-28")).unwrap();
+        assert_eq!(future_dates(&conn, d(2026, 2, 1), d(2026, 3, 31)), ["2026-02-28", "2026-03-31"]);
+    }
+
+    #[test]
+    fn a_new_end_completes_or_reopens_the_series() {
+        let conn = setup("2026-01-01");
+        let id = create_series(&conn, &input("monthly_date", "never")).unwrap();
+        run_due_on(&conn, d(2026, 3, 1)).unwrap();
+        let status = |conn: &Connection| -> String { conn.query_row("SELECT status FROM expense_recurring WHERE id = ?1", params![id], |r| r.get(0)).unwrap() };
+        let mut s = schedule(&id, "monthly_date", "2026-04-01");
+        s.end_type = "after_count".into();
+        s.end_count = Some(3);
+        update_series(&conn, &s).unwrap();
+        assert_eq!(status(&conn), "completed");
+        s.end_count = Some(6);
+        update_series(&conn, &s).unwrap();
+        assert_eq!(status(&conn), "active");
+        conn.execute("UPDATE expense_recurring SET status = 'paused' WHERE id = ?1", params![id]).unwrap();
+        update_series(&conn, &s).unwrap();
+        assert_eq!(status(&conn), "paused", "editing does not resume a paused series");
+        conn.execute("UPDATE expense_recurring SET status = 'canceled' WHERE id = ?1", params![id]).unwrap();
+        s.end_count = Some(3);
+        update_series(&conn, &s).unwrap();
+        assert_eq!(status(&conn), "canceled", "an ended series stays ended");
+    }
+
+    #[test]
+    fn the_template_changes_only_later_expenses() {
+        let conn = setup("2026-01-01");
+        let id = create_series(&conn, &input("monthly_date", "never")).unwrap();
+        run_due_on(&conn, d(2026, 2, 1)).unwrap();
+        let mut s = schedule(&id, "monthly_date", "2026-03-01");
+        s.name = "  ".into();
+        assert!(update_series(&conn, &s).is_err(), "a name is required");
+        s.name = "Adobe Creative Cloud".into();
+        s.description = Some("Adobe Systems".into());
+        s.amount_cents = 7199;
+        s.category_slug = None;
+        s.deductible_percent = 80;
+        s.note = Some(" ".into());
+        update_series(&conn, &s).unwrap();
+        run_due_on(&conn, d(2026, 3, 1)).unwrap();
+        let later: (String, Option<String>, i64, Option<String>, i64, Option<String>) = conn
+            .query_row("SELECT name, description, amount_cents, category_slug, deductible_percent, note FROM expenses WHERE date = '2026-03-01'", [], |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?))
+            })
+            .unwrap();
+        assert_eq!(later, ("Adobe Creative Cloud".into(), Some("Adobe Systems".into()), 7199, None, 80, None));
+        assert_eq!(count(&conn, "SELECT COUNT(*) FROM expenses WHERE date < '2026-03-01' AND name = 'Adobe CC' AND amount_cents = 6599"), 2);
+        let series = load_series(&conn).unwrap();
+        assert_eq!((series[0].name.as_str(), series[0].deductible_cents), ("Adobe Creative Cloud", 5759));
     }
 
     #[test]

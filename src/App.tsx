@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import {
   ArrowLeftRight,
   BarChart3,
+  CircleHelp,
   FileText,
   FolderLock,
   LayoutDashboard,
@@ -19,6 +20,8 @@ import { cx } from "./components/ui";
 import { CommandPalette } from "./components/CommandPalette";
 import { NotificationsButton, NotificationsPanel, useNotifications } from "./components/Notifications";
 import { UpdateHint, useUpdate } from "./components/Update";
+import { Tour } from "./components/Tour";
+import { tourDone } from "./lib/tour";
 import Overview from "./pages/Overview";
 import Ledger from "./pages/Ledger";
 import Categories from "./pages/Categories";
@@ -91,6 +94,7 @@ export default function App() {
   const [params, setParams] = useState<RouteParams>({});
   const [visit, setVisit] = useState(0);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [tourOpen, setTourOpen] = useState(() => !tourDone());
   const [theme, setTheme] = useState<Theme>(readTheme);
   const [systemDark, setSystemDark] = useState(() => window.matchMedia(DARK_QUERY).matches);
   const [locked, setLocked] = useState<boolean | null>(null);
@@ -98,6 +102,7 @@ export default function App() {
   const [splashGone, setSplashGone] = useState(false);
   const [masked, setMasked] = usePrivacy();
   const mainRef = useRef<HTMLElement>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
   const notifications = useNotifications();
   const update = useUpdate(locked === false);
   const { setOpen: setNotificationsOpen } = notifications;
@@ -188,7 +193,7 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setPaletteOpen((o) => !o);
+        if (!tourOpen) setPaletteOpen((o) => !o);
       }
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "h") {
         e.preventDefault();
@@ -197,7 +202,11 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [setMasked]);
+  }, [setMasked, tourOpen]);
+
+  useEffect(() => {
+    shellRef.current?.toggleAttribute("inert", tourOpen);
+  }, [tourOpen, locked, settings]);
 
   useEffect(() => {
     const open = (e: Event) => (e as CustomEvent<unknown>).detail && setNotificationsOpen(true);
@@ -248,11 +257,12 @@ export default function App() {
 
   return (
     <AppContext.Provider value={{ route, params, go, settings, reloadSettings, theme, setTheme }}>
-      <div className="relative isolate flex h-full flex-col">
+      <div ref={shellRef} className="relative isolate flex h-full flex-col">
         <div className="sky" aria-hidden />
         <header className="grid h-12 shrink-0 grid-cols-[1fr_minmax(0,28rem)_1fr] items-center gap-4" data-tauri-drag-region="deep">
           <button
             type="button"
+            data-tour="search"
             onClick={() => setPaletteOpen(true)}
             className="glass col-start-2 flex h-8 w-full items-center gap-2 rounded-md border px-2.5 text-[13px] text-fg/70 transition-colors duration-150 hover:text-fg"
           >
@@ -261,7 +271,18 @@ export default function App() {
             <kbd className="ml-auto rounded border border-fg/15 px-1 text-[11px]">{keys("⌘K", "Ctrl+K")}</kbd>
           </button>
           <div className="flex items-center justify-end gap-1 pr-4">
-            <NotificationsButton state={notifications} update={update} />
+            <button
+              type="button"
+              data-tour="tour"
+              onClick={() => setTourOpen(true)}
+              aria-label={t("Start tutorial")}
+              className="inline-flex size-8 items-center justify-center rounded-md text-fg/70 hover:bg-hover hover:text-fg"
+            >
+              <CircleHelp className="size-4" />
+            </button>
+            <span data-tour="notifications" className="inline-flex">
+              <NotificationsButton state={notifications} update={update} />
+            </span>
           </div>
         </header>
         <div className="flex min-h-0 flex-1">
@@ -273,6 +294,7 @@ export default function App() {
                   <button
                     key={n.route}
                     type="button"
+                    data-tour={n.route}
                     onClick={() => go(n.route)}
                     aria-current={active ? "page" : undefined}
                     className={cx(
@@ -291,6 +313,7 @@ export default function App() {
             <div className="border-t border-line p-2">
               <button
                 type="button"
+                data-tour="settings"
                 onClick={() => go("settings")}
                 aria-current={route === "settings" ? "page" : undefined}
                 className={cx(
@@ -312,7 +335,8 @@ export default function App() {
         </div>
       </div>
       <NotificationsPanel state={notifications} update={update} />
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onStartTour={() => setTourOpen(true)} />
+      <Tour open={tourOpen} onClose={() => setTourOpen(false)} />
     </AppContext.Provider>
   );
 }

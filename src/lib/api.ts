@@ -368,6 +368,7 @@ export interface ExpenseRecurring {
   category_slug: string | null;
   category_name: string | null;
   category_color: string | null;
+  note: string | null;
   frequency: string;
   frequency_interval: number | null;
   end_type: string;
@@ -379,12 +380,30 @@ export interface ExpenseRecurring {
   last_generated_at: string | null;
   deductible_percent: number;
   deductible_cents: number;
+  last_expense_date: string | null;
 }
 
 export interface ExpenseRecurringInput {
   expense_id: string;
   frequency: string;
   frequency_interval: number | null;
+  end_type: string;
+  end_date: string | null;
+  end_count: number | null;
+  next_date: string | null;
+}
+
+export interface ExpenseRecurringUpdate {
+  id: string;
+  name: string;
+  description: string | null;
+  amount_cents: number;
+  category_slug: string | null;
+  deductible_percent: number;
+  note: string | null;
+  frequency: string;
+  frequency_interval: number | null;
+  next_scheduled_at: string;
   end_type: string;
   end_date: string | null;
   end_count: number | null;
@@ -777,6 +796,7 @@ export const api = {
   deleteProduct: (id: string) => invoke<void>("delete_product", { id }),
   listExpenseRecurring: () => invoke<ExpenseRecurring[]>("list_expense_recurring"),
   saveExpenseRecurring: (input: ExpenseRecurringInput) => invoke<{ id: string; caught_up: number }>("save_expense_recurring", { input }),
+  updateExpenseRecurring: (input: ExpenseRecurringUpdate) => invoke<{ id: string; caught_up: number }>("update_expense_recurring", { input }),
   setExpenseRecurringStatus: (id: string, status: string) => invoke<void>("set_expense_recurring_status", { id, status }),
   deleteExpenseRecurring: (id: string) => invoke<void>("delete_expense_recurring", { id }),
 

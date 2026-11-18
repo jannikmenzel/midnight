@@ -12,7 +12,7 @@ use crate::units::Unit;
 use crate::jobs::JobReport;
 use crate::ledger::{LedgerFilter, LedgerPage};
 use crate::products::Product;
-use crate::expense_recurring::{ExpenseRecurring, ExpenseRecurringCreated, ExpenseRecurringInput};
+use crate::expense_recurring::{ExpenseRecurring, ExpenseRecurringInput, ExpenseRecurringSaved, ExpenseRecurringUpdate};
 use crate::reports::{Analysis, MonthRow, ShareRow, Summary};
 use crate::search::SearchHit;
 use crate::tax::{Params, TaxInput, TaxReport};
@@ -224,7 +224,8 @@ commands! {
     delete products::delete_product(id: String) -> (), "Deletes a product.";
 
     read expense_recurring::list_expense_recurring() -> Vec<ExpenseRecurring>, "Lists recurring expenses (series). amount_cents is the full amount, deductible_cents the deductible share.";
-    write expense_recurring::save_expense_recurring(input: ExpenseRecurringInput) -> ExpenseRecurringCreated, "Turns an existing expense into a recurring series; it is the first expense and the template. Following expenses are booked automatically on their dates; past dates are booked right away (returned as caught_up).";
+    write expense_recurring::save_expense_recurring(input: ExpenseRecurringInput) -> ExpenseRecurringSaved, "Turns an existing expense into a recurring series; it is the first expense and the template. Following expenses are booked automatically on their dates; past dates are booked right away (returned as caught_up). next_date sets the date of the second expense.";
+    write expense_recurring::update_expense_recurring(input: ExpenseRecurringUpdate) -> ExpenseRecurringSaved, "Changes a recurring expense: the template for later expenses (name, description, amount, category, deductible share, note) and the schedule (frequency, date of the next expense, end). Read it with list_expense_recurring first. Expenses already booked stay as they are, the series keeps its counter. Past dates are booked right away (returned as caught_up).";
     write expense_recurring::set_expense_recurring_status(id: String, status: String) -> (), "Sets the status of a recurring expense (active, paused, canceled).";
     delete expense_recurring::delete_expense_recurring(id: String) -> (), "Deletes a recurring expense series; expenses already booked are kept.";
 

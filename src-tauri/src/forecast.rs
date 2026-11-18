@@ -592,6 +592,7 @@ mod tests {
                 end_type: "never".into(),
                 end_date: None,
                 end_count: None,
+                next_date: None,
             };
             crate::expense_recurring::create_series(&conn, &input).unwrap();
         }

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { ask, open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { CircleAlert, Download, ExternalLink, FileText, Paperclip, Pause, Play, Plus, Receipt as ReceiptIcon, Repeat, Tags, Trash2, Upload, X } from "lucide-react";
-import { api, errorMessage, type Category, type ExpenseRecurring, type LedgerFilter, type Receipt } from "../lib/api";
-import { centsToInput, date, FREQUENCY_LABELS, parseMoney, todayIso } from "../lib/format";
+import { api, errorMessage, type Category, type ExpenseRecurring, type ExpenseRecurringUpdate, type LedgerFilter, type Receipt } from "../lib/api";
+import { addDays, centsToInput, date, FREQUENCY_LABELS, nextRepeatDate, parseMoney, todayIso } from "../lib/format";
 import { useAsync, useDebounced, useFileDrop } from "../lib/hooks";
 import { useApp } from "../lib/nav";
 import { Amount, AnimatedMoney, Badge, Button, Card, CategoryBadge, Checkbox, DateInput, Empty, ErrorNote, Field, IconButton, Input, Kpi, PageHeader, PercentInput, PickSelect, Select, Sheet, Skeleton, Tabs, Textarea, cx, useToast, type PickOption } from "../components/ui";
@@ -45,6 +45,20 @@ interface Draft {
   note: string;
 }
 
+function draftError(draft: Draft): string | null {
+  const cents = parseMoney(draft.amount);
+  if (cents === null || cents <= 0) return t("Please enter an amount greater than 0.");
+  const percent = Number(draft.deductible);
+  if (draft.deductible.trim() === "" || !Number.isInteger(percent) || percent < 0 || percent > 100) return t("Please enter a deductible share from 0 to 100.");
+  return null;
+}
+
+function useDraftCategory(setDraft: (f: (d: Draft) => Draft) => void) {
+  const { settings } = useApp();
+  const suggested = (category: string) => String(category === "meals" ? settings.limits.meals_deductible_percent : 100);
+  return (category: string) => setDraft((d) => ({ ...d, category, deductible: d.deductible === suggested(d.category) ? suggested(category) : d.deductible }));
+}
+
 const emptyDraft = (): Draft => ({ date: todayIso(), name: "", amount: "", category: "", deductible: "100", description: "", note: "" });
 
 type SheetTarget = { id: string } | { draft: Draft; files: string[] };
@@ -56,39 +70,55 @@ const FREQUENCIES = ["weekly", "biweekly", "monthly_date", "monthly_last_day", "
 interface Repeat {
   frequency: string;
   interval: string;
+  next: string;
   end_type: string;
   end_date: string;
   end_count: string;
 }
 
-const noRepeat = (): Repeat => ({ frequency: "", interval: "30", end_type: "never", end_date: "", end_count: "12" });
+const noRepeat = (): Repeat => ({ frequency: "", interval: "30", next: "", end_type: "never", end_date: "", end_count: "12" });
+
+const repeatNext = (r: Repeat, from: string) => r.next || (r.frequency && from ? nextRepeatDate(r.frequency, from, Number(r.interval)) : "");
 
 const frequencyLabel = (frequency: string, interval: number | null) =>
   frequency === "custom" ? t("Every {n} days", { n: interval ?? 0 }) : FREQUENCY_LABELS[frequency];
 
-function RepeatFields({ value, onChange }: { value: Repeat; onChange: (r: Repeat) => void }) {
+function RepeatFields({
+  value,
+  onChange,
+  from,
+  optional = true,
+  countLabel = t("Number including this one"),
+}: {
+  value: Repeat;
+  onChange: (r: Repeat) => void;
+  from: string;
+  optional?: boolean;
+  countLabel?: string;
+}) {
   const set = (patch: Partial<Repeat>) => onChange({ ...value, ...patch });
   return (
-    <>
-      <div className="grid grid-cols-2 gap-4">
-        <Field label={t("Repeat")}>
-          <Select value={value.frequency} onChange={(e) => set({ frequency: e.target.value })}>
-            <option value="">{t("Never")}</option>
-            {FREQUENCIES.map((f) => (
-              <option key={f} value={f}>
-                {FREQUENCY_LABELS[f]}
-              </option>
-            ))}
-          </Select>
+    <div className="grid grid-cols-2 gap-4">
+      <Field label={t("Repeat")}>
+        <Select value={value.frequency} onChange={(e) => set({ frequency: e.target.value, next: "" })}>
+          {optional && <option value="">{t("Never")}</option>}
+          {FREQUENCIES.map((f) => (
+            <option key={f} value={f}>
+              {FREQUENCY_LABELS[f]}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      {value.frequency === "custom" && (
+        <Field label={t("Every how many days?")}>
+          <Input type="number" min={1} value={value.interval} onChange={(e) => set({ interval: e.target.value })} />
         </Field>
-        {value.frequency === "custom" && (
-          <Field label={t("Every how many days?")}>
-            <Input type="number" min={1} value={value.interval} onChange={(e) => set({ interval: e.target.value })} />
-          </Field>
-        )}
-      </div>
+      )}
       {value.frequency && (
-        <div className="grid grid-cols-2 gap-4">
+        <>
+          <Field label={t("Next booking")}>
+            <DateInput value={repeatNext(value, from)} min={from ? addDays(from, 1) : undefined} onChange={(v) => set({ next: v })} />
+          </Field>
           <Field label={t("Ends")}>
             <Select value={value.end_type} onChange={(e) => set({ end_type: e.target.value })}>
               <option value="never">{t("Never")}</option>
@@ -102,13 +132,13 @@ function RepeatFields({ value, onChange }: { value: Repeat; onChange: (r: Repeat
             </Field>
           )}
           {value.end_type === "after_count" && (
-            <Field label={t("Number including this one")}>
+            <Field label={countLabel}>
               <Input type="number" min={1} value={value.end_count} onChange={(e) => set({ end_count: e.target.value })} />
             </Field>
           )}
-        </div>
+        </>
       )}
-    </>
+    </div>
   );
 }
 
@@ -125,7 +155,6 @@ function ExpenseSheet({
   onSaved: () => void;
   onShowSeries: () => void;
 }) {
-  const { settings } = useApp();
   const toast = useToast();
   const [draft, setDraft] = useState<Draft>(emptyDraft());
   const [receipts, setReceipts] = useState<Receipt[]>([]);
@@ -161,9 +190,7 @@ function ExpenseSheet({
   }, [target]);
 
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setDraft((d) => ({ ...d, [k]: v }));
-  const suggestedShare = (category: string) => String(category === "meals" ? settings.limits.meals_deductible_percent : 100);
-  const setCategory = (category: string) =>
-    setDraft((d) => ({ ...d, category, deductible: d.deductible === suggestedShare(d.category) ? suggestedShare(category) : d.deductible }));
+  const setCategory = useDraftCategory(setDraft);
 
   const attach = async () => {
     const files = await openDialog({ multiple: true, filters: RECEIPT_TYPES });
@@ -179,10 +206,8 @@ function ExpenseSheet({
   };
 
   const save = async () => {
-    const cents = parseMoney(draft.amount);
-    if (cents === null || cents <= 0) return setError(t("Please enter an amount greater than 0."));
-    const percent = Number(draft.deductible);
-    if (draft.deductible.trim() === "" || !Number.isInteger(percent) || percent < 0 || percent > 100) return setError(t("Please enter a deductible share from 0 to 100."));
+    const invalid = draftError(draft);
+    if (invalid) return setError(invalid);
     setBusy(true);
     setError(null);
     try {
@@ -190,9 +215,9 @@ function ExpenseSheet({
         id: id ?? createdId ?? undefined,
         date: draft.date,
         name: draft.name,
-        amount_cents: cents,
+        amount_cents: parseMoney(draft.amount) ?? 0,
         category_slug: draft.category || null,
-        deductible_percent: percent,
+        deductible_percent: Number(draft.deductible),
         description: draft.description || null,
         note: draft.note || null,
       });
@@ -209,6 +234,7 @@ function ExpenseSheet({
           end_type: repeat.end_type,
           end_date: repeat.end_type === "on_date" ? repeat.end_date : null,
           end_count: repeat.end_type === "after_count" ? Number(repeat.end_count) : null,
+          next_date: repeat.next || null,
         });
         toast.success(
           series.caught_up > 0 ? t("Recurring expense set up, {n} past date(s) booked", { n: series.caught_up }) : t("Recurring expense set up"),
@@ -289,7 +315,7 @@ function ExpenseSheet({
             </Button>
           </div>
         ) : (
-          <RepeatFields value={repeat} onChange={setRepeat} />
+          <RepeatFields value={repeat} onChange={setRepeat} from={draft.date} />
         )}
         <Field label={t("Description")}>
           <Input value={draft.description} onChange={(e) => set("description", e.target.value)} />
@@ -347,9 +373,131 @@ function ExpenseSheet({
   );
 }
 
-function RecurringExpenses() {
+function SeriesSheet({
+  series,
+  categories,
+  onClose,
+  onSaved,
+}: {
+  series: ExpenseRecurring | null;
+  categories: Category[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const toast = useToast();
+  const [draft, setDraft] = useState<Draft>(emptyDraft());
+  const [repeat, setRepeat] = useState<Repeat>(noRepeat);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setError(null);
+    if (!series) return;
+    setDraft({
+      date: series.next_scheduled_at,
+      name: series.name,
+      amount: centsToInput(series.amount_cents),
+      category: series.category_slug ?? "",
+      deductible: String(series.deductible_percent),
+      description: series.description ?? "",
+      note: series.note ?? "",
+    });
+    setRepeat({
+      frequency: series.frequency,
+      interval: String(series.frequency_interval ?? 30),
+      next: series.next_scheduled_at,
+      end_type: series.end_type,
+      end_date: series.end_date ?? "",
+      end_count: String(series.end_count ?? 12),
+    });
+  }, [series]);
+
+  const from = series?.last_expense_date ?? "";
+  const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setDraft((d) => ({ ...d, [k]: v }));
+  const setCategory = useDraftCategory(setDraft);
+
+  const save = async () => {
+    if (!series) return;
+    const invalid = draftError(draft);
+    if (invalid) return setError(invalid);
+    setBusy(true);
+    setError(null);
+    try {
+      const input: ExpenseRecurringUpdate = {
+        id: series.id,
+        name: draft.name,
+        description: draft.description || null,
+        amount_cents: parseMoney(draft.amount) ?? 0,
+        category_slug: draft.category || null,
+        deductible_percent: Number(draft.deductible),
+        note: draft.note || null,
+        frequency: repeat.frequency,
+        frequency_interval: repeat.frequency === "custom" ? Number(repeat.interval) : null,
+        next_scheduled_at: repeatNext(repeat, from) || series.next_scheduled_at,
+        end_type: repeat.end_type,
+        end_date: repeat.end_type === "on_date" ? repeat.end_date : null,
+        end_count: repeat.end_type === "after_count" ? Number(repeat.end_count) : null,
+      };
+      const saved = await api.updateExpenseRecurring(input);
+      toast.success(saved.caught_up > 0 ? t("Series saved, {n} past date(s) booked", { n: saved.caught_up }) : t("Series saved"));
+      onSaved();
+      onClose();
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Sheet
+      open={series !== null}
+      onClose={onClose}
+      title={series?.name ?? t("Recurring expense")}
+      footer={
+        <>
+          <Button onClick={onClose}>{t("Cancel")}</Button>
+          <Button variant="primary" loading={busy} onClick={save} disabled={!draft.name.trim()}>
+            {t("Save")}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <div className="grid grid-cols-[1fr_8rem] gap-4">
+          <Field label={t("What for?")}>
+            <Input value={draft.name} onChange={(e) => set("name", e.target.value)} />
+          </Field>
+          <Field label={t("Amount")}>
+            <Input value={draft.amount} onChange={(e) => set("amount", e.target.value)} placeholder={centsToInput(0)} className="tabular-nums" />
+          </Field>
+        </div>
+        <div className="grid grid-cols-[1fr_6rem] gap-4">
+          <Field label={t("Category")}>
+            <CategorySelect categories={categories} value={draft.category} onChange={setCategory} />
+          </Field>
+          <Field label={t("Deductible")}>
+            <PercentInput value={draft.deductible} onChange={(v) => set("deductible", v)} />
+          </Field>
+        </div>
+        <RepeatFields value={repeat} onChange={setRepeat} from={from} optional={false} countLabel={t("Number of expenses in total")} />
+        <Field label={t("Description")}>
+          <Input value={draft.description} onChange={(e) => set("description", e.target.value)} />
+        </Field>
+        <Field label={t("Note")}>
+          <Textarea value={draft.note} onChange={(e) => set("note", e.target.value)} />
+        </Field>
+        {series?.last_expense_date && <p className="text-xs text-muted">{t("Last booked on {date}. Expenses already booked stay as they are.", { date: date(series.last_expense_date) })}</p>}
+        {error && <ErrorNote message={error} />}
+      </div>
+    </Sheet>
+  );
+}
+
+function RecurringExpenses({ categories }: { categories: Category[] }) {
   const toast = useToast();
   const series = useAsync(() => api.listExpenseRecurring(), []);
+  const [editing, setEditing] = useState<ExpenseRecurring | null>(null);
   const STATUS: Record<ExpenseRecurring["status"], { label: string; tone: "pos" | "neutral" | "warn" }> = {
     active: { label: t("Active"), tone: "pos" },
     paused: { label: t("Paused"), tone: "warn" },
@@ -373,42 +521,42 @@ function RecurringExpenses() {
           text={t("Choose \"Repeat\" when recording an expense, e.g. for rent, software or insurance. Following expenses are booked automatically.")}
         />
       ) : (
-        <table className="w-full table-fixed text-[13px]">
+        <table className="w-full text-[13px]">
           <thead>
             <tr className="border-b border-line text-left text-xs text-muted">
-              <th className="py-2.5 pl-4 font-medium">{t("Description")}</th>
-              <th className="w-48 py-2.5 font-medium">{t("Category")}</th>
-              <th className="w-40 py-2.5 font-medium">{t("Frequency")}</th>
-              <th className="w-28 py-2.5 font-medium">{t("Next")}</th>
-              <th className="w-20 py-2.5 font-medium">{t("Booked")}</th>
-              <th className="w-28 py-2.5 text-right font-medium">{t("Amount")}</th>
-              <th className="w-28 py-2.5 pl-3 font-medium" />
-              <th className="w-24 py-2.5 pr-4" />
+              <th className="w-full py-2.5 pl-4 font-medium">{t("Description")}</th>
+              <th className="py-2.5 pr-6 font-medium whitespace-nowrap">{t("Category")}</th>
+              <th className="py-2.5 pr-6 font-medium whitespace-nowrap">{t("Frequency")}</th>
+              <th className="py-2.5 pr-6 font-medium whitespace-nowrap">{t("Next")}</th>
+              <th className="py-2.5 pr-6 font-medium whitespace-nowrap">{t("Booked")}</th>
+              <th className="py-2.5 text-right font-medium whitespace-nowrap">{t("Amount")}</th>
+              <th className="py-2.5 pl-6 font-medium" />
+              <th className="py-2.5 pr-4 pl-3" />
             </tr>
           </thead>
           <tbody>
             {series.data.map((r) => (
-              <tr key={r.id} className="border-b border-line last:border-0">
+              <tr key={r.id} onClick={() => setEditing(r)} className="cursor-pointer border-b border-line last:border-0 hover:bg-subtle">
                 <td className="max-w-0 py-2.5 pr-3 pl-4">
                   <div className="truncate">{r.name}</div>
                   {r.description && <div className="truncate text-xs text-muted">{maskText(r.description)}</div>}
                 </td>
-                <td className="py-2.5 pr-3">
+                <td className="py-2.5 pr-6 whitespace-nowrap">
                   <CategoryBadge color={r.category_color}>{r.category_name ?? t("Uncategorised")}</CategoryBadge>
                 </td>
-                <td className="py-2.5">{frequencyLabel(r.frequency, r.frequency_interval)}</td>
-                <td className="tabular-nums py-2.5">{r.status === "active" ? date(r.next_scheduled_at) : "–"}</td>
-                <td className="py-2.5 text-muted">
+                <td className="py-2.5 pr-6 whitespace-nowrap">{frequencyLabel(r.frequency, r.frequency_interval)}</td>
+                <td className="tabular-nums py-2.5 pr-6 whitespace-nowrap">{r.status === "active" ? date(r.next_scheduled_at) : "–"}</td>
+                <td className="py-2.5 pr-6 whitespace-nowrap text-muted">
                   {r.expenses_generated}
                   {r.end_type === "after_count" && r.end_count ? ` / ${r.end_count}` : ""}
                 </td>
-                <td className="py-2.5 text-right">
+                <td className="py-2.5 text-right whitespace-nowrap">
                   <Amount cents={-r.deductible_cents} currency={r.currency} />
                 </td>
-                <td className="py-2.5 pl-3">
+                <td className="py-2.5 pl-6 whitespace-nowrap">
                   <Badge tone={STATUS[r.status].tone}>{STATUS[r.status].label}</Badge>
                 </td>
-                <td className="py-2.5 pr-4 text-right">
+                <td className="py-2.5 pr-4 pl-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                   {r.status === "active" && (
                     <IconButton label={t("Pause")} onClick={() => act(api.setExpenseRecurringStatus(r.id, "paused"))}>
                       <Pause className="size-3.5" />
@@ -435,6 +583,7 @@ function RecurringExpenses() {
           </tbody>
         </table>
       )}
+      <SeriesSheet series={editing} categories={categories} onClose={() => setEditing(null)} onSaved={series.reload} />
     </Card>
   );
 }
@@ -548,7 +697,7 @@ export default function Ledger() {
       />
 
       {tab === "recurring" ? (
-        <RecurringExpenses />
+        <RecurringExpenses categories={categories.data ?? []} />
       ) : (
         <>
         <div className="flex flex-wrap items-center gap-2">
