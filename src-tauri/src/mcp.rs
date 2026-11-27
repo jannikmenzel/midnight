@@ -12,7 +12,7 @@ use crate::security::{load_mcp_access, McpAccess};
 
 const PROTOCOL_VERSIONS: &[&str] = &["2025-06-18", "2025-03-26", "2024-11-05"];
 
-const INSTRUCTIONS: &str = "Midnight is a local bookkeeping app for freelancers and the self-employed in Germany. \
+const INSTRUCTIONS: &str = "Midnight is a local bookkeeping app for freelancers in Germany. \
 Money amounts are always whole cents (€12.50 = 1250), dates are YYYY-MM-DD. \
 save_* tools create a record without id and update it with id; before changing a record, always read it and write it back in full. \
 Updates with missing fields are rejected. Only draft invoices can be changed or deleted. \

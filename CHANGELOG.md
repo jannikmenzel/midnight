@@ -1,8 +1,6 @@
 # Changelog
 
-All notable changes to this project are documented in this file. The format is based on
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
-[Semantic Versioning](https://semver.org/).
+All notable changes to this project are documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
@@ -117,11 +115,13 @@ All notable changes to this project are documented in this file. The format is b
 ### Changed
 
 - The company address is entered as street, postcode, town and country instead of free text
-- Countries are ISO 3166 codes chosen from a list; units are UN/ECE codes chosen from a list
+- Countries are ISO 3166 codes chosen from a list
+- Units are UN/ECE codes chosen from a list
 - If an invoice lacks data for the e-invoice, the PDF is still created without it and a warning is shown
 - Template previews in the settings use sample data (Max Mustermann as sender, an example customer) instead of real invoices and company details
-- The home office allowance in the tax return is counted automatically from the days with tracked time; each day can be excluded in time tracking
-- E-invoices with 0 % VAT need a known reason (small business, reverse charge, service abroad); XRechnung needs a Leitweg-ID or an order number as buyer reference
+- The home office allowance in the tax return is counted automatically from the days with tracked time, and each day can be excluded in time tracking
+- E-invoices with 0 % VAT need a known reason (small business, reverse charge, service abroad)
+- XRechnung needs a Leitweg-ID or an order number as buyer reference
 
 ## [0.1.0] - 2026-10-11
 

@@ -4,19 +4,11 @@
 
 # Midnight
 
-**Local bookkeeping for freelancers and self-employed in Germany.**
+**Local bookkeeping for freelancers in Germany.**
 
-[![CI](https://github.com/jannikmenzel/midnight/actions/workflows/ci.yml/badge.svg)](https://github.com/jannikmenzel/midnight/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/jannikmenzel/midnight?include_prereleases&sort=semver)](https://github.com/jannikmenzel/midnight/releases)
-[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
-[![Platform: macOS, Windows, Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey.svg)](#installation)
+[![CI](https://github.com/jannikmenzel/midnight/actions/workflows/ci.yml/badge.svg)](https://github.com/jannikmenzel/midnight/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/jannikmenzel/midnight?include_prereleases&sort=semver)](https://github.com/jannikmenzel/midnight/releases) [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE) [![Platform: macOS, Windows, Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey.svg)](#installation)
 <br />
-[![Tauri 2](https://img.shields.io/badge/Tauri-2-24C8DB.svg?logo=tauri&logoColor=white)](https://tauri.app)
-[![Rust](https://img.shields.io/badge/Rust-1.95-000000.svg?logo=rust)](https://www.rust-lang.org)
-[![React 18](https://img.shields.io/badge/React-18-61DAFB.svg?logo=react&logoColor=black)](https://react.dev)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![SQLite](https://img.shields.io/badge/SQLite-local-003B57.svg?logo=sqlite&logoColor=white)](https://www.sqlite.org)
-[![MCP](https://img.shields.io/badge/MCP-server-8A2BE2.svg)](#mcp-server)
+[![Tauri 2](https://img.shields.io/badge/Tauri-2-24C8DB.svg?logo=tauri&logoColor=white)](https://tauri.app) [![Rust](https://img.shields.io/badge/Rust-1.95-000000.svg?logo=rust)](https://www.rust-lang.org) [![React 18](https://img.shields.io/badge/React-18-61DAFB.svg?logo=react&logoColor=black)](https://react.dev) [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org) [![SQLite](https://img.shields.io/badge/SQLite-local-003B57.svg?logo=sqlite&logoColor=white)](https://www.sqlite.org) [![MCP](https://img.shields.io/badge/MCP-server-8A2BE2.svg)](#mcp-server)
 
 </div>
 
@@ -42,11 +34,11 @@
 | | |
 | --- | --- |
 | ![Invoices](docs/screenshots/invoices.webp) | ![Invoice editor](docs/screenshots/invoice-editor.webp) |
-| **Invoices** – status totals and all invoices at a glance | **Invoice editor** – line items from tracked time, VAT and totals |
+| **Invoices** - status totals and all invoices at a glance | **Invoice editor** - line items from tracked time, VAT and totals |
 | ![Time tracking](docs/screenshots/time-tracking.webp) | ![Income and expenses](docs/screenshots/income-expenses.webp) |
-| **Time tracking** – running timer, weekly limit and project budgets | **Income & expenses** – paid invoices and expenses with categories |
+| **Time tracking** - running timer, weekly limit and project budgets | **Income & expenses** - paid invoices and expenses with categories |
 | ![Reports](docs/screenshots/reports.webp) | ![Tax forecast](docs/screenshots/tax-forecast.webp) |
-| **Reports** – income per hour, payment behaviour and year comparison | **Tax forecast** – expected payment, what to set aside and income until year end |
+| **Reports** - income per hour, payment behaviour and year comparison | **Tax forecast** - expected payment, what to set aside and income until year end |
 
 All screenshots show fictional demo data.
 
@@ -54,34 +46,23 @@ All screenshots show fictional demo data.
 
 All downloads are on [Releases](https://github.com/jannikmenzel/midnight/releases).
 
-**macOS:** download the `.dmg` for Apple Silicon (`aarch64`) or Intel (`x64`) and drag Midnight into **Applications**.
-The app is not notarized by Apple. On first launch macOS will block it; open **System Settings / Privacy & Security**
-and click **Open Anyway**, or remove the quarantine flag:
+**macOS:** download the `.dmg` for Apple Silicon (`aarch64`) or Intel (`x64`) and drag Midnight into **Applications**. The app is not notarized by Apple, so macOS blocks it on first launch. Open **System Settings / Privacy & Security** and click **Open Anyway**, or remove the quarantine flag:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/Midnight.app
 ```
 
-**Windows:** run the `x64-setup.exe`. It installs for the current user without admin rights. The installer is not
-signed, so SmartScreen may warn on first launch; click **More info / Run anyway**.
+**Windows:** run the `x64-setup.exe`. It installs for the current user without admin rights. The installer is not signed, so SmartScreen may warn on first launch. Click **More info / Run anyway**.
 
-**Linux:** use the `.AppImage` (make it executable with `chmod +x`) or install the `.deb` with
-`sudo apt install ./Midnight_*_amd64.deb`. For the MCP server, prefer the `.deb`, because the AppImage runs from a
-different path on every start.
+**Linux:** use the `.AppImage` (make it executable with `chmod +x`) or install the `.deb` with `sudo apt install ./Midnight_*_amd64.deb`. For the MCP server, prefer the `.deb`, because the AppImage runs from a different path on every start.
 
-Midnight checks GitHub Releases for new versions and offers to install them. The check can be turned off in
-**Settings / General / Updates**. The menu bar timer and Touch ID are only available on macOS.
+Midnight checks GitHub Releases for new versions and offers to install them. The check can be turned off in **Settings / General / Updates**. The menu bar timer and Touch ID are only available on macOS.
 
-**Required for PDFs:** install a LaTeX distribution with `xelatex`: [MacTeX](https://www.tug.org/mactex/) on macOS,
-[MiKTeX](https://miktex.org/) or TeX Live on Windows, and on Debian or Ubuntu
-`sudo apt install texlive-xetex texlive-latex-extra texlive-lang-german`. Invoices and timesheets are typeset with
-LaTeX; without it, no PDFs can be created.
+**Required for PDFs:** install a LaTeX distribution with `xelatex`: [MacTeX](https://www.tug.org/mactex/) on macOS, [MiKTeX](https://miktex.org/) or TeX Live on Windows, and on Debian or Ubuntu `sudo apt install texlive-xetex texlive-latex-extra texlive-lang-german`. Invoices and timesheets are typeset with LaTeX. Without it, no PDFs can be created.
 
 ## Development
 
-Requirements: Node 20+ and the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your system (Xcode
-Command Line Tools on macOS, MSVC build tools on Windows, WebKitGTK on Linux). The Rust version is pinned in
-`rust-toolchain.toml`.
+Requirements: Node 20+ and the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your system (Xcode Command Line Tools on macOS, MSVC build tools on Windows, WebKitGTK on Linux). The Rust version is pinned in `rust-toolchain.toml`.
 
 ```bash
 npm install
@@ -91,22 +72,13 @@ npm run build
 cd src-tauri && cargo test
 ```
 
-Releases for macOS, Windows and Linux are built by GitHub Actions when a `v*` tag is pushed
-(`.github/workflows/release.yml`) and published as a draft release. The workflow signs the update archive and needs the
-repository secret `TAURI_SIGNING_PRIVATE_KEY`, plus `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if the key has a password.
-Installed apps pick up an update once the draft is published.
-In development, `MIDNIGHT_FAKE_UPDATE=0.2.0 npm run tauri dev` offers a fake version at startup and on **Check now** instead
-of asking GitHub.
+Releases for macOS, Windows and Linux are built by GitHub Actions when a `v*` tag is pushed (`.github/workflows/release.yml`) and published as a draft release. The workflow signs the update archive and needs the repository secret `TAURI_SIGNING_PRIVATE_KEY`, plus `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if the key has a password. Installed apps pick up an update once the draft is published. In development, `MIDNIGHT_FAKE_UPDATE=0.2.0 npm run tauri dev` offers a fake version at startup and on **Check now** instead of asking GitHub.
 
-The database schema lives in `src-tauri/migrations/`. New schema changes go into an additional, sequentially numbered
-file and are registered in `MIGRATIONS` in `src-tauri/src/db.rs`.
+The database schema lives in `src-tauri/migrations/`. New schema changes go into an additional file named after the version that ships them and are registered in `ALL` in `src-tauri/src/migrations.rs`.
 
 ## MCP server
 
-`midnight-mcp` exposes the app's features as MCP tools over stdio, for both reading and writing. It works directly on
-the same database and also runs while the app is closed. Updates with missing fields are rejected, and only draft
-invoices can be changed or deleted through it. Resetting all data is only possible inside the app. Under Settings →
-General → MCP server, access can be limited to reading, and customer data can be kept out of every tool result.
+`midnight-mcp` exposes the app's features as MCP tools over stdio, for both reading and writing. It works directly on the same database and also runs while the app is closed. Updates with missing fields are rejected, and only draft invoices can be changed or deleted through it. Resetting all data is only possible inside the app. Under Settings → General → MCP server, access can be limited to reading, and customer data can be kept out of every tool result.
 
 The installed app ships with the server. Settings → General → MCP server shows its path on your system. On macOS:
 
@@ -121,19 +93,15 @@ cd src-tauri && cargo build --release --bin midnight-mcp
 claude mcp add midnight -- "$PWD/target/release/midnight-mcp"
 ```
 
-A different data directory can be set via `MIDNIGHT_DATA_DIR`. New commands are registered in
-`src-tauri/src/commands.rs`; each entry produces both a Tauri command and an MCP tool.
+A different data directory can be set via `MIDNIGHT_DATA_DIR`. New backend commands are registered in `src-tauri/src/commands.rs`. Each entry there becomes both a Tauri command and an MCP tool.
 
 ## Data
 
-Data is stored in `~/Library/Application Support/app.midnight.desktop/` on macOS, `%APPDATA%\app.midnight.desktop\` on
-Windows and `~/.local/share/app.midnight.desktop/` on Linux: the database `midnight.db` and the `files/` folder with
-receipts, invoice PDFs and documents. Back up this folder to keep your data safe.
+Data is stored in `~/Library/Application Support/app.midnight.desktop/` on macOS, `%APPDATA%\app.midnight.desktop\` on Windows and `~/.local/share/app.midnight.desktop/` on Linux: the database `midnight.db` and the `files/` folder with receipts, invoice PDFs and documents. Back up this folder to keep your data safe.
 
 ## Contributing
 
-Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks and conventions. Notable
-changes are listed in [CHANGELOG.md](CHANGELOG.md).
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks and conventions. Notable changes are listed in [CHANGELOG.md](CHANGELOG.md). Please never attach real invoices, receipts or tax data to issues.
 
 ## License
 
@@ -141,17 +109,11 @@ Copyright (c) 2026 Jannik Menzel. Licensed under AGPL-3.0, see `LICENSE`.
 
 Third-party components:
 
-- **Postal codes:** The offline postcode and town suggestions use data from [GeoNames](https://www.geonames.org/),
-  licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) (see `src-tauri/data/README.md`).
-- **Interface fonts:** Hedvig Letters Serif and JetBrains Mono, licensed under the
-  [SIL Open Font License 1.1](https://openfontlicense.org).
-- **LaTeX template fonts:** Inter, Poppins and JetBrains Mono in `src-tauri/templates/Fonts/`, licensed under the
-  [SIL Open Font License 1.1](https://openfontlicense.org).
-- **Libraries:** All Rust crates and npm packages shipped with the app are listed with their licenses in
-  `THIRD_PARTY_NOTICES.txt`, which is bundled inside `Midnight.app` together with `LICENSE`. The file is generated
-  during the release build by `scripts/third_party_notices.sh`.
+- **Postal codes:** The offline postcode and town suggestions use data from [GeoNames](https://www.geonames.org/), licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) (see `src-tauri/data/README.md`).
+- **Interface fonts:** Hedvig Letters Serif and JetBrains Mono, licensed under the [SIL Open Font License 1.1](https://openfontlicense.org).
+- **LaTeX template fonts:** Inter, Poppins and JetBrains Mono in `src-tauri/templates/Fonts/`, licensed under the [SIL Open Font License 1.1](https://openfontlicense.org).
+- **Libraries:** All Rust crates and npm packages shipped with the app are listed with their licenses in `THIRD_PARTY_NOTICES.txt`, which is bundled inside `Midnight.app` together with `LICENSE`. The file is generated during the release build by `scripts/third_party_notices.sh`.
 
 ## Acknowledgements
 
-Midnight was inspired by [Midday](https://github.com/midday-ai/midday). Thanks to the Midday team for sharing their
-work as open source.
+Midnight was inspired by [Midday](https://github.com/midday-ai/midday). Thanks to the Midday team for sharing their work as open source.

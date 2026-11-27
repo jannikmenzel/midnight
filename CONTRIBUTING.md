@@ -9,9 +9,7 @@ Thanks for your interest in improving Midnight! Bug reports, ideas and pull requ
 
 ## Setup
 
-Requirements: Node 20+ and the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your system. The Rust
-version is pinned in `rust-toolchain.toml` and installed automatically by `rustup`. LaTeX (`xelatex` from MacTeX, MiKTeX
-or TeX Live) is required to create invoice and timesheet PDFs.
+Requirements: Node 20+ and the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your system. The Rust version is pinned in `rust-toolchain.toml` and installed automatically by `rustup`. LaTeX (`xelatex` from MacTeX, MiKTeX or TeX Live) is required to create invoice and timesheet PDFs.
 
 ```bash
 npm install
@@ -35,8 +33,7 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 ```
 
-The third-party license notices bundled with the app are generated during the release build. To inspect them
-locally, install [cargo-about](https://github.com/EmbarkStudios/cargo-about) and run:
+The third-party license notices bundled with the app are generated during the release build. To inspect them locally, install [cargo-about](https://github.com/EmbarkStudios/cargo-about) and run:
 
 ```bash
 cargo install cargo-about --locked --features cli
