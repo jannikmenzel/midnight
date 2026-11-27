@@ -32,12 +32,6 @@ describe("CashflowChart", () => {
     profit_cents: revenue - expenses,
   });
 
-  const profitPath = (months: MonthRow[]) => {
-    const { container } = render(<CashflowChart months={months} highlight={() => true} currency="EUR" />);
-    const path = container.querySelector('svg.block path[stroke="var(--profit)"]');
-    return { d: path?.getAttribute("d") ?? "", circles: container.querySelectorAll("circle").length };
-  };
-
   beforeEach(() => {
     vi.stubGlobal(
       "ResizeObserver",
@@ -54,42 +48,17 @@ describe("CashflowChart", () => {
     vi.unstubAllGlobals();
   });
 
-  it("shows the profit as a visible line when there is only one month", () => {
-    const { d } = profitPath([month("2026-10", 500000, 100000)]);
-    const [, x1, y1, x2, y2] = d.match(/^M([\d.]+),([\d.]+) L([\d.]+),([\d.]+)$/) ?? [];
-    expect(Number(x2)).toBeGreaterThan(Number(x1));
-    expect(y2).toBe(y1);
-  });
-
-  it("draws the bars in front of the profit line", () => {
+  it("draws only bars, no profit line", () => {
     const { container } = render(<CashflowChart months={[month("2026-09", 300000, 50000), month("2026-10", 800000, 200000)]} highlight={() => true} currency="EUR" />);
-    const line = container.querySelector('svg.block path[stroke="var(--profit)"]');
-    const bar = container.querySelector('svg.block path[fill="url(#bar-income)"]');
-    expect(line && bar && line.compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(container.querySelector('svg.block path[fill="none"]')).toBeNull();
+    expect(container.querySelectorAll('svg.block path[fill="url(#bar-income)"]')).toHaveLength(2);
   });
 
-  it("keeps dimmed bars opaque so the profit line stays hidden behind them", () => {
+  it("keeps dimmed bars opaque against the grid", () => {
     const { container } = render(<CashflowChart months={[month("2026-09", 300000, 50000), month("2026-10", 800000, 200000)]} highlight={() => false} currency="EUR" />);
-    const line = container.querySelector('svg.block path[stroke="var(--profit)"]');
     const backings = [...container.querySelectorAll('svg.block path[fill="var(--panel)"]')];
     expect(backings).toHaveLength(4);
-    for (const backing of backings) {
-      expect(backing.closest("g[opacity]")).toBeNull();
-      expect(line && line.compareDocumentPosition(backing) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    }
+    for (const backing of backings) expect(backing.closest("g[opacity]")).toBeNull();
     expect(container.querySelector('path[fill="url(#bar-income)"]')?.closest("g[opacity]")?.getAttribute("opacity")).toBe("0.3");
-  });
-
-  it("keeps the single month's profit line in front of its bar", () => {
-    const { container } = render(<CashflowChart months={[month("2026-10", 800000, 200000)]} highlight={() => true} currency="EUR" />);
-    const line = container.querySelector('svg.block path[stroke="var(--profit)"]');
-    const bar = container.querySelector('svg.block path[fill="url(#bar-income)"]');
-    expect(line && bar && line.compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
-  });
-
-  it("draws a curve without markers for several months", () => {
-    const { d, circles } = profitPath([month("2026-08", 500000, 100000), month("2026-09", 300000, 50000), month("2026-10", 800000, 200000)]);
-    expect(d).toContain("C");
-    expect(circles).toBe(0);
   });
 });

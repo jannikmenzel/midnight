@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { MonthRow } from "../lib/api";
 import { money, monthLabel } from "../lib/format";
 import { t } from "../lib/i18n";
-import { niceStep, PAD, smoothPath, useWidth, YGrid } from "./chart";
+import { niceStep, PAD, useWidth, YGrid } from "./chart";
 
 const INCOME = "var(--pos)";
 const EXPENSES = "var(--neg)";
@@ -66,12 +66,6 @@ export function CashflowChart({
   const labelEvery = Math.ceil(n / Math.max(1, Math.floor(plotW / 48)));
   const tipLeft = hover !== null && groupX(hover) + groupW / 2 > width / 2;
   const active = hover !== null ? months[hover] : null;
-  const center = (i: number) => groupX(i) + groupW / 2;
-  const profitLine =
-    months.length === 1
-      ? `M${center(0) - barW / 2 - 4},${y(months[0].profit_cents)} L${center(0) + barW / 2 + 4},${y(months[0].profit_cents)}`
-      : smoothPath(months.map((m) => m.profit_cents), center, y);
-  const profitPath = <path d={profitLine} fill="none" stroke="var(--profit)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />;
 
   return (
     <div>
@@ -83,10 +77,6 @@ export function CashflowChart({
         <span className="inline-flex items-center gap-1.5">
           <Swatch color={EXPENSES} />
           {t("Expenses")}
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <ProfitMark />
-          {t("Profit")}
         </span>
       </div>
       <div ref={ref} className="relative" style={{ height }}>
@@ -114,7 +104,6 @@ export function CashflowChart({
             </defs>
             <YGrid ticks={ticks} y={y} width={width} currency={currency} />
             {hover !== null && <rect x={groupX(hover)} y={PAD.top} width={groupW} height={plotH} rx={8} fill="var(--subtle)" pointerEvents="none" />}
-            {months.length > 1 && profitPath}
             {months.map((m, i) => {
               const x = groupX(i) + (groupW - barW) / 2;
               const on = highlight(m.month);
@@ -138,7 +127,6 @@ export function CashflowChart({
               );
             })}
             <line x1={PAD.left} x2={width - PAD.right} y1={zero} y2={zero} stroke="var(--muted)" strokeOpacity={0.5} />
-            {months.length === 1 && profitPath}
           </svg>
         )}
         {active && hover !== null && (
@@ -150,7 +138,7 @@ export function CashflowChart({
             <TipRow label={t("Income")} value={money(active.revenue_cents, currency)} marker={<Swatch color={INCOME} />} />
             <TipRow label={t("Expenses")} value={money(active.expenses_cents, currency)} marker={<Swatch color={EXPENSES} />} />
             <div className="mt-1 border-t border-line pt-1 font-medium">
-              <TipRow label={t("Profit")} value={money(active.profit_cents, currency)} marker={<ProfitMark />} negative={active.profit_cents < 0} />
+              <TipRow label={t("Profit")} value={money(active.profit_cents, currency)} negative={active.profit_cents < 0} />
             </div>
           </div>
         )}
@@ -159,7 +147,7 @@ export function CashflowChart({
   );
 }
 
-function TipRow({ label, value, marker, negative }: { label: string; value: string; marker: React.ReactNode; negative?: boolean }) {
+function TipRow({ label, value, marker, negative }: { label: string; value: string; marker?: React.ReactNode; negative?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-4">
       <span className="inline-flex items-center gap-1.5 text-muted">
@@ -173,12 +161,4 @@ function TipRow({ label, value, marker, negative }: { label: string; value: stri
 
 function Swatch({ color }: { color: string }) {
   return <span className="inline-block size-2 rounded-sm" style={{ background: color }} />;
-}
-
-function ProfitMark() {
-  return (
-    <svg width="12" height="6" aria-hidden className="shrink-0">
-      <line x1="1" x2="11" y1="3" y2="3" stroke="var(--profit)" strokeWidth={2} strokeLinecap="round" />
-    </svg>
-  );
 }
