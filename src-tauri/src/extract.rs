@@ -36,10 +36,33 @@ fn number_re() -> &'static Regex {
 }
 
 const TOTAL_KEYWORDS: &[&str] = &[
-    "gesamtbetrag", "rechnungsbetrag", "zu zahlen", "zahlbetrag", "endbetrag", "bruttobetrag", "gesamtsumme",
-    "summe brutto", "total due", "amount due", "grand total", "total (eur)", "gesamt", "total", "summe", "betrag",
+    "gesamtbetrag",
+    "rechnungsbetrag",
+    "zu zahlen",
+    "zahlbetrag",
+    "endbetrag",
+    "bruttobetrag",
+    "gesamtsumme",
+    "summe brutto",
+    "total due",
+    "amount due",
+    "grand total",
+    "total (eur)",
+    "gesamt",
+    "total",
+    "summe",
+    "betrag",
 ];
-const NOT_TOTAL: &[&str] = &["netto", "zwischensumme", "subtotal", "mwst", "ust.", "umsatzsteuer", "vat", "steuer"];
+const NOT_TOTAL: &[&str] = &[
+    "netto",
+    "zwischensumme",
+    "subtotal",
+    "mwst",
+    "ust.",
+    "umsatzsteuer",
+    "vat",
+    "steuer",
+];
 
 fn amounts_in(line: &str) -> Vec<i64> {
     amount_re()
@@ -74,30 +97,59 @@ fn find_total(lines: &[&str]) -> Option<i64> {
 }
 
 fn find_date(lines: &[&str]) -> Option<String> {
-    let valid = |s: &str| parse_any_date(s).filter(|d| (2000..=2100).contains(&chrono::Datelike::year(d)));
+    let valid =
+        |s: &str| parse_any_date(s).filter(|d| (2000..=2100).contains(&chrono::Datelike::year(d)));
     for line in lines {
         let lower = line.to_lowercase();
-        if ["rechnungsdatum", "belegdatum", "invoice date", "datum", "date"].iter().any(|k| lower.contains(k)) {
+        if [
+            "rechnungsdatum",
+            "belegdatum",
+            "invoice date",
+            "datum",
+            "date",
+        ]
+        .iter()
+        .any(|k| lower.contains(k))
+        {
             if let Some(d) = date_re().find_iter(line).find_map(|m| valid(m.as_str())) {
                 return Some(iso(d));
             }
         }
     }
-    lines.iter().flat_map(|l| date_re().find_iter(l)).find_map(|m| valid(m.as_str())).map(iso)
+    lines
+        .iter()
+        .flat_map(|l| date_re().find_iter(l))
+        .find_map(|m| valid(m.as_str()))
+        .map(iso)
 }
 
 fn find_currency(text: &str) -> Option<String> {
     let counts = [
-        ("EUR", text.matches('€').count() + text.matches("EUR").count()),
-        ("USD", text.matches('$').count() + text.matches("USD").count()),
-        ("GBP", text.matches('£').count() + text.matches("GBP").count()),
+        (
+            "EUR",
+            text.matches('€').count() + text.matches("EUR").count(),
+        ),
+        (
+            "USD",
+            text.matches('$').count() + text.matches("USD").count(),
+        ),
+        (
+            "GBP",
+            text.matches('£').count() + text.matches("GBP").count(),
+        ),
         ("CHF", text.matches("CHF").count()),
     ];
-    counts.iter().filter(|(_, n)| *n > 0).max_by_key(|(_, n)| *n).map(|(c, _)| c.to_string())
+    counts
+        .iter()
+        .filter(|(_, n)| *n > 0)
+        .max_by_key(|(_, n)| *n)
+        .map(|(c, _)| c.to_string())
 }
 
 fn find_vendor(lines: &[&str]) -> Option<String> {
-    const SKIP: &[&str] = &["rechnung", "invoice", "seite", "page", "datum", "date", "quittung", "receipt", "kunde"];
+    const SKIP: &[&str] = &[
+        "rechnung", "invoice", "seite", "page", "datum", "date", "quittung", "receipt", "kunde",
+    ];
     lines
         .iter()
         .map(|l| l.trim())
@@ -112,12 +164,19 @@ fn find_vendor(lines: &[&str]) -> Option<String> {
 }
 
 pub fn extract(text: &str) -> Extracted {
-    let lines: Vec<&str> = text.lines().map(str::trim).filter(|l| !l.is_empty()).collect();
+    let lines: Vec<&str> = text
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .collect();
     Extracted {
         amount_cents: find_total(&lines),
         currency: find_currency(text),
         date: find_date(&lines),
-        invoice_number: number_re().captures(text).and_then(|c| c.get(1)).map(|m| m.as_str().trim_end_matches('.').to_string()),
+        invoice_number: number_re()
+            .captures(text)
+            .and_then(|c| c.get(1))
+            .map(|m| m.as_str().trim_end_matches('.').to_string()),
         vendor: find_vendor(&lines),
     }
 }

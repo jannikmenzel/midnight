@@ -3,9 +3,9 @@ use std::collections::BTreeMap;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
-use crate::i18n::tr;
 use crate::db::{load_settings, AppState, Settings};
 use crate::error::AppResult;
+use crate::i18n::tr;
 use crate::util::{fmt_money, now_ts};
 
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -339,15 +339,24 @@ pub const DEDUCTIBLE_SQL: &str = deductible_sql!();
 pub fn euer_line(slug: Option<&str>) -> &'static str {
     let (en, de) = match slug.unwrap_or("") {
         "software" => ("Ongoing IT costs", "Laufende EDV-Kosten"),
-        "hardware" => ("Depreciation / low-value assets (IT hardware)", "Abschreibungen / GWG (EDV-Hardware)"),
-        "office" => ("Work equipment and office supplies", "Arbeitsmittel und Büromaterial"),
+        "hardware" => (
+            "Depreciation / low-value assets (IT hardware)",
+            "Abschreibungen / GWG (EDV-Hardware)",
+        ),
+        "office" => (
+            "Work equipment and office supplies",
+            "Arbeitsmittel und Büromaterial",
+        ),
         "telecom" => ("Telecommunications", "Telekommunikation"),
         "training" => ("Training costs", "Fortbildungskosten"),
         "travel" => ("Travel expenses", "Reisekosten"),
         "meals" => ("Business meals", "Bewirtungsaufwendungen"),
         "marketing" => ("Advertising costs", "Werbekosten"),
         "contractors" => ("Contractors", "Fremdleistungen"),
-        "insurance" => ("Contributions, fees, insurance", "Beiträge, Gebühren, Versicherungen"),
+        "insurance" => (
+            "Contributions, fees, insurance",
+            "Beiträge, Gebühren, Versicherungen",
+        ),
         "workspace" => ("Premises costs", "Raumkosten"),
         _ => ("Other business expenses", "Übrige Betriebsausgaben"),
     };
@@ -355,8 +364,16 @@ pub fn euer_line(slug: Option<&str>) -> &'static str {
 }
 
 fn load_input(conn: &Connection, year: i32, settings: &Settings) -> AppResult<TaxInput> {
-    let raw: Option<String> = conn.query_row("SELECT data FROM tax_years WHERE year = ?1", params![year], |r| r.get(0)).optional()?;
-    let mut input: TaxInput = raw.and_then(|j| serde_json::from_str(&j).ok()).unwrap_or_default();
+    let raw: Option<String> = conn
+        .query_row(
+            "SELECT data FROM tax_years WHERE year = ?1",
+            params![year],
+            |r| r.get(0),
+        )
+        .optional()?;
+    let mut input: TaxInput = raw
+        .and_then(|j| serde_json::from_str(&j).ok())
+        .unwrap_or_default();
     if input.tax_number.is_empty() {
         input.tax_number = settings.company_tax_number.clone();
     }
@@ -388,7 +405,17 @@ pub fn compute_with(conn: &Connection, year: i32, adj: &Adjust) -> AppResult<Tax
          FROM invoices WHERE status = 'paid' AND substr(paid_at, 1, 10) BETWEEN ?1 AND ?2 ORDER BY paid_at, invoice_number",
     )?;
     let mut income: Vec<IncomeRow> = stmt
-        .query_map(params![from, to], |r| Ok(IncomeRow { number: r.get(0)?, issue_date: r.get(1)?, customer: r.get::<_, Option<String>>(2)?.unwrap_or_else(|| tr!("No customer", "Ohne Kunde")), paid_at: r.get(3)?, amount_cents: r.get(4)? }))?
+        .query_map(params![from, to], |r| {
+            Ok(IncomeRow {
+                number: r.get(0)?,
+                issue_date: r.get(1)?,
+                customer: r
+                    .get::<_, Option<String>>(2)?
+                    .unwrap_or_else(|| tr!("No customer", "Ohne Kunde")),
+                paid_at: r.get(3)?,
+                amount_cents: r.get(4)?,
+            })
+        })?
         .collect::<Result<_, _>>()?;
     income.extend(adj.extra_income.iter().cloned());
     let income_cents: i64 = income.iter().map(|i| i.amount_cents).sum();
@@ -402,14 +429,26 @@ pub fn compute_with(conn: &Connection, year: i32, adj: &Adjust) -> AppResult<Tax
             let slug: Option<String> = r.get(3)?;
             let amount: i64 = r.get(4)?;
             let percent: i64 = r.get(6)?;
-            Ok(ExpenseRow { id: r.get(5)?, name: r.get(0)?, date: r.get(1)?, category: r.get::<_, Option<String>>(2)?.unwrap_or_else(|| tr!("Uncategorised", "Ohne Kategorie")), euer_line: euer_line(slug.as_deref()).into(), amount_cents: amount, deductible_percent: percent, deductible_cents: deductible_cents(amount, percent) })
+            Ok(ExpenseRow {
+                id: r.get(5)?,
+                name: r.get(0)?,
+                date: r.get(1)?,
+                category: r
+                    .get::<_, Option<String>>(2)?
+                    .unwrap_or_else(|| tr!("Uncategorised", "Ohne Kategorie")),
+                euer_line: euer_line(slug.as_deref()).into(),
+                amount_cents: amount,
+                deductible_percent: percent,
+                deductible_cents: deductible_cents(amount, percent),
+            })
         })?
         .collect::<Result<_, _>>()?;
     let mut by_line: BTreeMap<String, i64> = BTreeMap::new();
     for e in &expenses {
         *by_line.entry(e.euer_line.clone()).or_default() += e.deductible_cents;
     }
-    let expenses_cents: i64 = expenses.iter().map(|e| e.deductible_cents).sum::<i64>() + adj.extra_expense_cents;
+    let expenses_cents: i64 =
+        expenses.iter().map(|e| e.deductible_cents).sum::<i64>() + adj.extra_expense_cents;
 
     let home_office_days = crate::tracker::home_office_days(conn, &from, &to)?;
     let ho_business = home_office_days.min(p.home_office_max_days);
@@ -421,19 +460,37 @@ pub fn compute_with(conn: &Connection, year: i32, adj: &Adjust) -> AppResult<Tax
     let commute: i64 = input
         .jobs
         .iter()
-        .map(|j| j.commute_days * (j.commute_km.min(20) * p.commute_first_20 + (j.commute_km - 20).max(0) * p.commute_beyond))
+        .map(|j| {
+            j.commute_days
+                * (j.commute_km.min(20) * p.commute_first_20
+                    + (j.commute_km - 20).max(0) * p.commute_beyond)
+        })
         .sum();
     let equipment: i64 = input.jobs.iter().map(|j| j.equipment_cents).sum();
     let costs = commute + equipment;
-    let costs_used = if input.jobs.is_empty() { 0 } else if costs > p.employee_allowance { costs } else { p.employee_allowance.min(gross) };
+    let costs_used = if input.jobs.is_empty() {
+        0
+    } else if costs > p.employee_allowance {
+        costs
+    } else {
+        p.employee_allowance.min(gross)
+    };
     let employment_net = gross - costs_used;
 
     let (mut vol_income, mut vol_free, mut vol_taxable) = (0, 0, 0);
     for trainer in [true, false] {
-        let list: Vec<&Volunteer> = input.volunteering.iter().filter(|v| (v.kind == "trainer") == trainer).collect();
+        let list: Vec<&Volunteer> = input
+            .volunteering
+            .iter()
+            .filter(|v| (v.kind == "trainer") == trainer)
+            .collect();
         let inc: i64 = list.iter().map(|v| v.income_cents).sum();
         let cost: i64 = list.iter().map(|v| v.costs_cents).sum();
-        let allowance = if trainer { p.trainer_allowance } else { p.volunteer_allowance };
+        let allowance = if trainer {
+            p.trainer_allowance
+        } else {
+            p.volunteer_allowance
+        };
         vol_income += inc;
         vol_free += inc.min(allowance);
         vol_taxable += (inc - allowance.max(cost)).max(0);
@@ -441,25 +498,42 @@ pub fn compute_with(conn: &Connection, year: i32, adj: &Adjust) -> AppResult<Tax
 
     let total_income = profit_cents + employment_net + vol_taxable;
 
-    let health = ((input.health_cents - input.health_refund_cents).max(0) as f64 * if input.sick_pay { 0.96 } else { 1.0 }).round() as i64;
+    let health = ((input.health_cents - input.health_refund_cents).max(0) as f64
+        * if input.sick_pay { 0.96 } else { 1.0 })
+    .round() as i64;
     let basic = health + input.care_cents;
-    let retirement = input.jobs.iter().map(|j| j.pension_cents).sum::<i64>() + input.pension_voluntary_cents + input.ruerup_cents;
-    let other_limit = if input.health_status == "family" { 190_000 } else { 280_000 };
-    let other_used = input.other_insurance_cents.min((other_limit - basic).max(0));
+    let retirement = input.jobs.iter().map(|j| j.pension_cents).sum::<i64>()
+        + input.pension_voluntary_cents
+        + input.ruerup_cents;
+    let other_limit = if input.health_status == "family" {
+        190_000
+    } else {
+        280_000
+    };
+    let other_used = input
+        .other_insurance_cents
+        .min((other_limit - basic).max(0));
     let provision = basic + retirement + other_used;
 
-    let special = (input.study_cents.min(p.study_cost_max) + input.donations_cents).max(p.special_allowance);
+    let special =
+        (input.study_cents.min(p.study_cost_max) + input.donations_cents).max(p.special_allowance);
     let burden = reasonable_burden(total_income);
     let medical = (input.medical_cents - burden).max(0);
     let taxable = (total_income - provision - special - medical).max(0);
 
     let est = income_tax(&p, taxable);
-    let reduction = (((input.household_services_cents as f64 * 0.2).round() as i64).min(400_000) + ((input.craftsmen_cents as f64 * 0.2).round() as i64).min(120_000)).min(est);
+    let reduction = (((input.household_services_cents as f64 * 0.2).round() as i64).min(400_000)
+        + ((input.craftsmen_cents as f64 * 0.2).round() as i64).min(120_000))
+    .min(est);
     let est_after = est - reduction;
     let soli = solidarity(&p, est_after);
     let church = (est_after as f64 * input.church_tax_rate / 100.0).round() as i64;
     let tax_total = est_after + soli + church;
-    let withheld: i64 = input.jobs.iter().map(|j| j.wage_tax_cents + j.soli_cents + j.church_tax_cents).sum();
+    let withheld: i64 = input
+        .jobs
+        .iter()
+        .map(|j| j.wage_tax_cents + j.soli_cents + j.church_tax_cents)
+        .sum();
 
     let mut per_customer: BTreeMap<&str, i64> = BTreeMap::new();
     for i in &income {
@@ -498,7 +572,12 @@ pub fn compute_with(conn: &Connection, year: i32, adj: &Adjust) -> AppResult<Tax
     } else if settings.small_business && income_cents > limits.small_business_cents {
         warnings.push(Warning {
             level: "warn",
-            text: tr!("Revenue over {}: no small business scheme from {}.", "Umsatz über {}: Ab {} keine Kleinunternehmerregelung mehr.", fmt_money(limits.small_business_cents, "EUR"), year + 1),
+            text: tr!(
+                "Revenue over {}: no small business scheme from {}.",
+                "Umsatz über {}: Ab {} keine Kleinunternehmerregelung mehr.",
+                fmt_money(limits.small_business_cents, "EUR"),
+                year + 1
+            ),
         });
     }
     if taxable > p.basic_allowance {
@@ -507,7 +586,11 @@ pub fn compute_with(conn: &Connection, year: i32, adj: &Adjust) -> AppResult<Tax
     if vol_income > vol_free {
         warnings.push(Warning { level: "info", text: tr!("Volunteering: income exceeds the allowances, the remainder is taxable (form S or N).", "Ehrenamt: Die Einnahmen übersteigen die Freibeträge, der Rest ist steuerpflichtig (Anlage S bzw. N).") });
     }
-    for e in expenses.iter().filter(|e| e.amount_cents > limits.gwg_gross_cents && (e.euer_line == euer_line(Some("hardware")) || e.euer_line == euer_line(Some("office")))) {
+    for e in expenses.iter().filter(|e| {
+        e.amount_cents > limits.gwg_gross_cents
+            && (e.euer_line == euer_line(Some("hardware"))
+                || e.euer_line == euer_line(Some("office")))
+    }) {
         warnings.push(Warning { level: "info", text: tr!("\"{}\" ({}) is above the low-value asset limit: IT hardware is immediately deductible (form AVEÜR), furniture only via depreciation.", "„{}“ ({}) liegt über der GWG-Grenze: EDV-Hardware ist sofort absetzbar (Anlage AVEÜR), Möbel nur per AfA.", e.name, fmt_money(e.amount_cents, "EUR")) });
     }
     if !input.jobs.is_empty() || profit_cents > 0 {
@@ -579,9 +662,21 @@ mod tests {
     #[test]
     fn tariff_matches_the_published_formula() {
         let p = params_for(2026);
-        assert_eq!(income_tax(&p, 1_234_800), 0, "nothing up to the basic allowance");
-        assert_eq!(income_tax(&p, 1_500_000), 43_500, "zone 2: (914.51·0.2652 + 1400)·0.2652 ≈ 435 €");
-        assert_eq!(params_for(2031).year, 2026, "later years fall back to the newest known parameters");
+        assert_eq!(
+            income_tax(&p, 1_234_800),
+            0,
+            "nothing up to the basic allowance"
+        );
+        assert_eq!(
+            income_tax(&p, 1_500_000),
+            43_500,
+            "zone 2: (914.51·0.2652 + 1400)·0.2652 ≈ 435 €"
+        );
+        assert_eq!(
+            params_for(2031).year,
+            2026,
+            "later years fall back to the newest known parameters"
+        );
         assert_eq!(solidarity(&p, 1_000_000), 0);
         let at = |e: i64| income_tax(&p, e * 100) / 100;
         assert!((at(17_799) - at(17_800)).abs() <= 1);
@@ -592,7 +687,11 @@ mod tests {
     fn tariff_2024_is_continuous() {
         let p = params_for(2024);
         assert_eq!(p.year, 2024);
-        assert_eq!(income_tax(&p, 1_178_400), 0, "nothing up to the basic allowance");
+        assert_eq!(
+            income_tax(&p, 1_178_400),
+            0,
+            "nothing up to the basic allowance"
+        );
         let at = |e: i64| income_tax(&p, e * 100) / 100;
         assert!((at(17_005) - at(17_006)).abs() <= 1);
         assert!((at(66_760) - at(66_761)).abs() <= 1);
@@ -608,7 +707,11 @@ mod tests {
     #[test]
     fn reasonable_burden_is_stepwise() {
         assert_eq!(reasonable_burden(1_000_000), 50_000, "5 % of 10.000 €");
-        assert_eq!(reasonable_burden(2_000_000), 76_700 + 27_960, "5 % of 15.340 € + 6 % of 4.660 €");
+        assert_eq!(
+            reasonable_burden(2_000_000),
+            76_700 + 27_960,
+            "5 % of 15.340 € + 6 % of 4.660 €"
+        );
     }
 
     #[test]
@@ -632,20 +735,51 @@ mod tests {
             health_cents: 100_000,
             care_cents: 30_000,
             other_insurance_cents: 200_000,
-            jobs: vec![Job { employer: "Beispiel AG".into(), gross_cents: 600_000, wage_tax_cents: 20_000, pension_cents: 55_800, ..Job::default() }],
-            volunteering: vec![Volunteer { organisation: "Sportverein".into(), kind: "trainer".into(), income_cents: 400_000, ..Volunteer::default() }],
+            jobs: vec![Job {
+                employer: "Beispiel AG".into(),
+                gross_cents: 600_000,
+                wage_tax_cents: 20_000,
+                pension_cents: 55_800,
+                ..Job::default()
+            }],
+            volunteering: vec![Volunteer {
+                organisation: "Sportverein".into(),
+                kind: "trainer".into(),
+                income_cents: 400_000,
+                ..Volunteer::default()
+            }],
             ..TaxInput::default()
         };
-        conn.execute("INSERT INTO tax_years (year, data) VALUES (2026, ?1)", [serde_json::to_string(&input).unwrap()]).unwrap();
+        conn.execute(
+            "INSERT INTO tax_years (year, data) VALUES (2026, ?1)",
+            [serde_json::to_string(&input).unwrap()],
+        )
+        .unwrap();
 
         let r = compute(&conn, 2026).unwrap();
-        assert_eq!(r.income_cents, 1_000_000, "only payments received in 2026 count");
+        assert_eq!(
+            r.income_cents, 1_000_000,
+            "only payments received in 2026 count"
+        );
         assert_eq!(r.expenses_cents, 17_000, "Bewirtung only at 70 %");
-        assert_eq!((r.home_office_days, r.home_office_business_days), (273, 210), "every tracked day counts, capped at 210 days");
+        assert_eq!(
+            (r.home_office_days, r.home_office_business_days),
+            (273, 210),
+            "every tracked day counts, capped at 210 days"
+        );
         assert_eq!(r.profit_cents, 1_000_000 - 17_000 - 126_000);
-        assert_eq!(r.employment_costs_used_cents, 123_000, "employee allowance when actual costs are lower");
-        assert_eq!(r.volunteer_taxable_cents, 70_000, "4.000 € minus the 3.300 € trainer allowance");
-        assert_eq!(r.other_insurance_used_cents, 150_000, "2.800 € frame minus 1.300 € basic insurance");
+        assert_eq!(
+            r.employment_costs_used_cents, 123_000,
+            "employee allowance when actual costs are lower"
+        );
+        assert_eq!(
+            r.volunteer_taxable_cents, 70_000,
+            "4.000 € minus the 3.300 € trainer allowance"
+        );
+        assert_eq!(
+            r.other_insurance_used_cents, 150_000,
+            "2.800 € frame minus 1.300 € basic insurance"
+        );
         assert_eq!(r.provision_cents, 130_000 + 55_800 + 150_000);
         assert_eq!(r.special_cents, 3_600, "special expenses allowance");
         assert_eq!(r.withheld_cents, 20_000);
@@ -665,10 +799,24 @@ mod tests {
         )
         .unwrap();
         let r = compute(&conn, 2026).unwrap();
-        let rows: Vec<_> = r.expenses.iter().map(|e| (e.amount_cents, e.deductible_percent, e.deductible_cents)).collect();
-        assert_eq!(rows, [(10000, 50, 5000), (10000, 100, 10000), (10000, 0, 0), (333, 50, 167)]);
+        let rows: Vec<_> = r
+            .expenses
+            .iter()
+            .map(|e| (e.amount_cents, e.deductible_percent, e.deductible_cents))
+            .collect();
+        assert_eq!(
+            rows,
+            [
+                (10000, 50, 5000),
+                (10000, 100, 10000),
+                (10000, 0, 0),
+                (333, 50, 167)
+            ]
+        );
         assert_eq!(r.expenses_cents, 15_167);
-        assert!(r.expenses_by_line.contains(&("Telecommunications".to_string(), 5_167)));
+        assert!(r
+            .expenses_by_line
+            .contains(&("Telecommunications".to_string(), 5_167)));
     }
 
     #[test]
@@ -684,7 +832,13 @@ mod tests {
         settings.small_business = true;
         settings.limits.small_business_cents = 5_000_000;
         settings.limits.meals_deductible_percent = 50;
-        settings.tax_overrides.insert(2026, ParamOverrides { home_office_per_day: Some(800), ..ParamOverrides::default() });
+        settings.tax_overrides.insert(
+            2026,
+            ParamOverrides {
+                home_office_per_day: Some(800),
+                ..ParamOverrides::default()
+            },
+        );
         crate::db::store_settings(&conn, &settings).unwrap();
         conn.execute_batch(
             "INSERT INTO tracker_projects (id, name) VALUES ('p', 'Website');
@@ -697,22 +851,49 @@ mod tests {
         )
         .unwrap();
         let input = TaxInput::default();
-        conn.execute("INSERT INTO tax_years (year, data) VALUES (2026, ?1)", [serde_json::to_string(&input).unwrap()]).unwrap();
+        conn.execute(
+            "INSERT INTO tax_years (year, data) VALUES (2026, ?1)",
+            [serde_json::to_string(&input).unwrap()],
+        )
+        .unwrap();
 
         let r = compute(&conn, 2026).unwrap();
         assert_eq!(r.params.home_office_per_day, 800);
-        assert_eq!(r.home_office_days, 1, "one day per date, excluded days and running timers do not count");
+        assert_eq!(
+            r.home_office_days, 1,
+            "one day per date, excluded days and running timers do not count"
+        );
         assert_eq!(r.home_office_business_cents, 800);
-        assert_eq!(r.expenses_cents, 7_000, "the suggested share does not change existing expenses");
-        let small_business_warning = |r: &TaxReport| r.warnings.iter().any(|w| w.text.contains("small business scheme"));
-        assert!(!small_business_warning(&r), "30.000 € stays below the configured 50.000 €");
-        assert_eq!(compute(&conn, 2025).unwrap().params.home_office_per_day, 600, "overrides only apply to their year");
+        assert_eq!(
+            r.expenses_cents, 7_000,
+            "the suggested share does not change existing expenses"
+        );
+        let small_business_warning = |r: &TaxReport| {
+            r.warnings
+                .iter()
+                .any(|w| w.text.contains("small business scheme"))
+        };
+        assert!(
+            !small_business_warning(&r),
+            "30.000 € stays below the configured 50.000 €"
+        );
+        assert_eq!(
+            compute(&conn, 2025).unwrap().params.home_office_per_day,
+            600,
+            "overrides only apply to their year"
+        );
 
         settings.limits.small_business_cents = 2_500_000;
         crate::db::store_settings(&conn, &settings).unwrap();
-        assert!(small_business_warning(&compute(&conn, 2026).unwrap()), "30.000 € is over the default 25.000 €");
+        assert!(
+            small_business_warning(&compute(&conn, 2026).unwrap()),
+            "30.000 € is over the default 25.000 €"
+        );
         settings.small_business = false;
         crate::db::store_settings(&conn, &settings).unwrap();
-        assert!(!small_business_warning(&compute(&conn, 2026).unwrap()), "irrelevant without the small business scheme");
+        assert!(
+            !small_business_warning(&compute(&conn, 2026).unwrap()),
+            "irrelevant without the small business scheme"
+        );
     }
 }

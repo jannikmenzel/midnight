@@ -16,7 +16,12 @@ pub struct Activity {
     pub created_at: String,
 }
 
-pub fn log(conn: &Connection, kind: &str, message: &str, metadata: Option<serde_json::Value>) -> AppResult<()> {
+pub fn log(
+    conn: &Connection,
+    kind: &str,
+    message: &str,
+    metadata: Option<serde_json::Value>,
+) -> AppResult<()> {
     conn.execute(
         "INSERT INTO activities (id, type, message, metadata) VALUES (?1, ?2, ?3, ?4)",
         params![new_id(), kind, message, metadata.map(|m| m.to_string())],
@@ -43,7 +48,9 @@ pub async fn list_activities(state: &AppState) -> AppResult<Vec<Activity>> {
 }
 
 pub async fn mark_activities_read(state: &AppState) -> AppResult<()> {
-    state.conn()?.execute("UPDATE activities SET read = 1 WHERE read = 0", [])?;
+    state
+        .conn()?
+        .execute("UPDATE activities SET read = 1 WHERE read = 0", [])?;
     Ok(())
 }
 

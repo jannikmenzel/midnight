@@ -1,10 +1,10 @@
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
-use crate::i18n::tr;
 use crate::activities;
 use crate::db::AppState;
 use crate::error::{msg, AppResult, Context};
+use crate::i18n::tr;
 use crate::tax::deductible_cents;
 use crate::util::fmt_date_de;
 
@@ -52,7 +52,8 @@ fn non_empty(v: &Option<String>) -> Option<&str> {
 }
 
 fn income(conn: &Connection, f: &LedgerFilter) -> AppResult<Vec<LedgerEntry>> {
-    if f.kind.as_deref() == Some("expense") || non_empty(&f.category).is_some() || f.missing_receipt {
+    if f.kind.as_deref() == Some("expense") || non_empty(&f.category).is_some() || f.missing_receipt
+    {
         return Ok(Vec::new());
     }
     let like = non_empty(&f.search).map(|s| format!("%{s}%"));
@@ -62,27 +63,35 @@ fn income(conn: &Connection, f: &LedgerFilter) -> AppResult<Vec<LedgerEntry>> {
            AND (?1 IS NULL OR paid_at >= ?1) AND (?2 IS NULL OR paid_at <= ?2)
            AND (?3 IS NULL OR invoice_number LIKE ?3 OR COALESCE(customer_name, '') LIKE ?3 OR line_items LIKE ?3)",
     )?;
-    let rows = stmt.query_map(params![non_empty(&f.from), non_empty(&f.to), like, tr!("No customer", "Ohne Kunde")], |r| {
-        let number: String = r.get(3)?;
-        let amount: i64 = r.get(4)?;
-        Ok(LedgerEntry {
-            kind: "income".into(),
-            id: r.get(0)?,
-            date: r.get(1)?,
-            name: r.get(2)?,
-            description: Some(tr!("Invoice {number}", "Rechnung {number}")),
-            amount_cents: amount,
-            full_amount_cents: amount,
-            deductible_percent: None,
-            currency: r.get(5)?,
-            category_slug: None,
-            category_name: None,
-            category_color: None,
-            invoice_number: Some(number),
-            receipt_count: 0,
-            recurring: false,
-        })
-    })?;
+    let rows = stmt.query_map(
+        params![
+            non_empty(&f.from),
+            non_empty(&f.to),
+            like,
+            tr!("No customer", "Ohne Kunde")
+        ],
+        |r| {
+            let number: String = r.get(3)?;
+            let amount: i64 = r.get(4)?;
+            Ok(LedgerEntry {
+                kind: "income".into(),
+                id: r.get(0)?,
+                date: r.get(1)?,
+                name: r.get(2)?,
+                description: Some(tr!("Invoice {number}", "Rechnung {number}")),
+                amount_cents: amount,
+                full_amount_cents: amount,
+                deductible_percent: None,
+                currency: r.get(5)?,
+                category_slug: None,
+                category_name: None,
+                category_color: None,
+                invoice_number: Some(number),
+                receipt_count: 0,
+                recurring: false,
+            })
+        },
+    )?;
     Ok(rows.collect::<Result<_, _>>()?)
 }
 
@@ -101,7 +110,13 @@ fn expenses(conn: &Connection, f: &LedgerFilter) -> AppResult<Vec<LedgerEntry>> 
            AND (?5 = 0 OR receipts = 0)",
     )?;
     let rows = stmt.query_map(
-        params![non_empty(&f.from), non_empty(&f.to), like, non_empty(&f.category), f.missing_receipt],
+        params![
+            non_empty(&f.from),
+            non_empty(&f.to),
+            like,
+            non_empty(&f.category),
+            f.missing_receipt
+        ],
         |r| {
             let amount: i64 = r.get(4)?;
             let percent: i64 = r.get(11)?;
@@ -131,11 +146,24 @@ pub fn query_ledger(conn: &Connection, f: &LedgerFilter) -> AppResult<LedgerPage
     let mut items = income(conn, f)?;
     items.extend(expenses(conn, f)?);
     items.sort_by(|a, b| b.date.cmp(&a.date).then_with(|| a.kind.cmp(&b.kind)));
-    let income_cents = items.iter().filter(|e| e.amount_cents > 0).map(|e| e.amount_cents).sum();
-    let expense_cents = -items.iter().filter(|e| e.amount_cents < 0).map(|e| e.amount_cents).sum::<i64>();
+    let income_cents = items
+        .iter()
+        .filter(|e| e.amount_cents > 0)
+        .map(|e| e.amount_cents)
+        .sum();
+    let expense_cents = -items
+        .iter()
+        .filter(|e| e.amount_cents < 0)
+        .map(|e| e.amount_cents)
+        .sum::<i64>();
     let total = items.len();
     items.truncate(f.limit.unwrap_or(500));
-    Ok(LedgerPage { items, total, income_cents, expense_cents })
+    Ok(LedgerPage {
+        items,
+        total,
+        income_cents,
+        expense_cents,
+    })
 }
 
 pub async fn list_ledger(state: &AppState, filter: LedgerFilter) -> AppResult<LedgerPage> {
@@ -145,39 +173,98 @@ pub async fn list_ledger(state: &AppState, filter: LedgerFilter) -> AppResult<Le
 
 pub fn csv_amount(cents: i64) -> String {
     let sep = if crate::i18n::is_de() { ',' } else { '.' };
-    format!("{}{}{sep}{:02}", if cents < 0 { "-" } else { "" }, cents.unsigned_abs() / 100, cents.unsigned_abs() % 100)
+    format!(
+        "{}{}{sep}{:02}",
+        if cents < 0 { "-" } else { "" },
+        cents.unsigned_abs() / 100,
+        cents.unsigned_abs() % 100
+    )
 }
 
-pub async fn export_ledger_csv(state: &AppState, filter: LedgerFilter, path: String) -> AppResult<usize> {
+pub async fn export_ledger_csv(
+    state: &AppState,
+    filter: LedgerFilter,
+    path: String,
+) -> AppResult<usize> {
     let conn = state.conn()?;
     let mut f = filter;
     f.limit = Some(usize::MAX);
     let mut page = query_ledger(&conn, &f)?;
     page.items.reverse();
     std::fs::write(&path, ledger_csv(&page.items)?)?;
-    activities::log(&conn, "ledger_exported", &tr!("{} transactions exported", "{} Buchungen exportiert", page.items.len()), None)?;
+    activities::log(
+        &conn,
+        "ledger_exported",
+        &tr!(
+            "{} transactions exported",
+            "{} Buchungen exportiert",
+            page.items.len()
+        ),
+        None,
+    )?;
     Ok(page.items.len())
 }
 
 fn ledger_csv(items: &[LedgerEntry]) -> AppResult<Vec<u8>> {
     let de = crate::i18n::is_de();
-    let mut wtr = csv::WriterBuilder::new().delimiter(if de { b';' } else { b',' }).from_writer(Vec::new());
+    let mut wtr = csv::WriterBuilder::new()
+        .delimiter(if de { b';' } else { b',' })
+        .from_writer(Vec::new());
     let header = if de {
-        ["Datum", "Art", "Name", "Beschreibung", "Kategorie", "Rechnungsbetrag", "Abziehbar %", "Betrag", "Währung", "Rechnung", "Belege"]
+        [
+            "Datum",
+            "Art",
+            "Name",
+            "Beschreibung",
+            "Kategorie",
+            "Rechnungsbetrag",
+            "Abziehbar %",
+            "Betrag",
+            "Währung",
+            "Rechnung",
+            "Belege",
+        ]
     } else {
-        ["Date", "Type", "Name", "Description", "Category", "Invoice amount", "Deductible %", "Amount", "Currency", "Invoice", "Receipts"]
+        [
+            "Date",
+            "Type",
+            "Name",
+            "Description",
+            "Category",
+            "Invoice amount",
+            "Deductible %",
+            "Amount",
+            "Currency",
+            "Invoice",
+            "Receipts",
+        ]
     };
-    wtr.write_record(header).ctx(&tr!("Writing CSV", "CSV schreiben"))?;
+    wtr.write_record(header)
+        .ctx(&tr!("Writing CSV", "CSV schreiben"))?;
     for e in items {
-        let receipts = if e.kind == "expense" { e.receipt_count.to_string() } else { String::new() };
+        let receipts = if e.kind == "expense" {
+            e.receipt_count.to_string()
+        } else {
+            String::new()
+        };
         wtr.write_record([
-            if de { fmt_date_de(&e.date) } else { e.date.clone() },
-            if e.kind == "income" { tr!("Income", "Einnahme") } else { tr!("Expense", "Ausgabe") },
+            if de {
+                fmt_date_de(&e.date)
+            } else {
+                e.date.clone()
+            },
+            if e.kind == "income" {
+                tr!("Income", "Einnahme")
+            } else {
+                tr!("Expense", "Ausgabe")
+            },
             e.name.clone(),
             e.description.clone().unwrap_or_default(),
             e.category_name.clone().unwrap_or_default(),
             csv_amount(e.full_amount_cents),
-            e.deductible_percent.map(|p| p.to_string()).unwrap_or_default(),
+            e.deductible_percent
+                .map(|p| p.to_string())
+                .unwrap_or_default(),
             csv_amount(e.amount_cents),
             e.currency.clone(),
             e.invoice_number.clone().unwrap_or_default(),
@@ -214,41 +301,110 @@ mod tests {
         let conn = setup();
         let page = query_ledger(&conn, &LedgerFilter::default()).unwrap();
         let ids: Vec<&str> = page.items.iter().map(|e| e.id.as_str()).collect();
-        assert_eq!(ids, ["e1", "i1", "e2"], "newest first, unpaid invoices are not income");
+        assert_eq!(
+            ids,
+            ["e1", "i1", "e2"],
+            "newest first, unpaid invoices are not income"
+        );
         assert_eq!(page.income_cents, 100000);
         assert_eq!(page.expense_cents, 4430);
-        assert_eq!(page.items[1].date, "2026-09-10", "income counts on the payment date");
+        assert_eq!(
+            page.items[1].date, "2026-09-10",
+            "income counts on the payment date"
+        );
     }
 
     #[test]
     fn expenses_count_with_their_deductible_share() {
         let conn = setup();
-        conn.execute("UPDATE expenses SET amount_cents = 1222, deductible_percent = 20 WHERE id = 'e1'", []).unwrap();
-        let page = query_ledger(&conn, &LedgerFilter { kind: Some("expense".into()), ..Default::default() }).unwrap();
+        conn.execute(
+            "UPDATE expenses SET amount_cents = 1222, deductible_percent = 20 WHERE id = 'e1'",
+            [],
+        )
+        .unwrap();
+        let page = query_ledger(
+            &conn,
+            &LedgerFilter {
+                kind: Some("expense".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
         let e1 = &page.items[0];
-        assert_eq!((e1.amount_cents, e1.full_amount_cents, e1.deductible_percent), (-244, -1222, Some(20)));
+        assert_eq!(
+            (e1.amount_cents, e1.full_amount_cents, e1.deductible_percent),
+            (-244, -1222, Some(20))
+        );
         assert_eq!(page.expense_cents, 244 + 2990);
     }
 
     #[test]
     fn csv_shows_invoice_amount_share_and_deductible_amount() {
         let conn = setup();
-        conn.execute("UPDATE expenses SET amount_cents = 1222, deductible_percent = 20 WHERE id = 'e1'", []).unwrap();
+        conn.execute(
+            "UPDATE expenses SET amount_cents = 1222, deductible_percent = 20 WHERE id = 'e1'",
+            [],
+        )
+        .unwrap();
         let page = query_ledger(&conn, &LedgerFilter::default()).unwrap();
         let text = String::from_utf8(ledger_csv(&page.items).unwrap()).unwrap();
-        assert!(text.contains("Category,Invoice amount,Deductible %,Amount,Currency"), "{text}");
+        assert!(
+            text.contains("Category,Invoice amount,Deductible %,Amount,Currency"),
+            "{text}"
+        );
         assert!(text.contains(",-12.22,20,-2.44,EUR,"), "{text}");
-        assert!(text.contains(",1000.00,,1000.00,EUR,"), "income has no share: {text}");
+        assert!(
+            text.contains(",1000.00,,1000.00,EUR,"),
+            "income has no share: {text}"
+        );
     }
 
     #[test]
     fn filters_by_kind_period_category_and_receipt() {
         let conn = setup();
-        let f = |f: LedgerFilter| query_ledger(&conn, &f).unwrap().items.into_iter().map(|e| e.id).collect::<Vec<_>>();
-        assert_eq!(f(LedgerFilter { kind: Some("income".into()), ..Default::default() }), ["i1"]);
-        assert_eq!(f(LedgerFilter { from: Some("2026-09-01".into()), kind: Some("expense".into()), ..Default::default() }), ["e1"]);
-        assert_eq!(f(LedgerFilter { category: Some("uncategorized".into()), ..Default::default() }), ["e2"]);
-        assert_eq!(f(LedgerFilter { missing_receipt: true, ..Default::default() }), ["e2"]);
-        assert_eq!(f(LedgerFilter { search: Some("inv-001".into()), ..Default::default() }), ["i1"]);
+        let f = |f: LedgerFilter| {
+            query_ledger(&conn, &f)
+                .unwrap()
+                .items
+                .into_iter()
+                .map(|e| e.id)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            f(LedgerFilter {
+                kind: Some("income".into()),
+                ..Default::default()
+            }),
+            ["i1"]
+        );
+        assert_eq!(
+            f(LedgerFilter {
+                from: Some("2026-09-01".into()),
+                kind: Some("expense".into()),
+                ..Default::default()
+            }),
+            ["e1"]
+        );
+        assert_eq!(
+            f(LedgerFilter {
+                category: Some("uncategorized".into()),
+                ..Default::default()
+            }),
+            ["e2"]
+        );
+        assert_eq!(
+            f(LedgerFilter {
+                missing_receipt: true,
+                ..Default::default()
+            }),
+            ["e2"]
+        );
+        assert_eq!(
+            f(LedgerFilter {
+                search: Some("inv-001".into()),
+                ..Default::default()
+            }),
+            ["i1"]
+        );
     }
 }

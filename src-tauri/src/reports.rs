@@ -2,12 +2,11 @@ use chrono::{Datelike, Duration, Months, NaiveDate};
 use rusqlite::{params, Connection};
 use serde::Serialize;
 
-use crate::i18n::tr;
 use crate::db::{load_settings, AppState};
 use crate::error::{msg, AppResult};
+use crate::i18n::tr;
 use crate::tax::{deductible_cents, DEDUCTIBLE_SQL};
 use crate::util::{iso, parse_date, today_date};
-
 
 fn revenue(conn: &Connection, from: &str, to: &str) -> AppResult<i64> {
     Ok(conn.query_row(
@@ -62,7 +61,10 @@ pub struct Summary {
 }
 
 pub fn summary(conn: &Connection, from: &str, to: &str) -> AppResult<Summary> {
-    let (f, t) = (parse_date(from).ok_or_else(|| msg(tr!("Invalid start date", "Ungültiges Startdatum")))?, parse_date(to).ok_or_else(|| msg(tr!("Invalid end date", "Ungültiges Enddatum")))?);
+    let (f, t) = (
+        parse_date(from).ok_or_else(|| msg(tr!("Invalid start date", "Ungültiges Startdatum")))?,
+        parse_date(to).ok_or_else(|| msg(tr!("Invalid end date", "Ungültiges Enddatum")))?,
+    );
     let (prev_from, prev_to) = previous_period(f, t);
 
     let rev = revenue(conn, from, to)?;
@@ -118,14 +120,23 @@ pub struct MonthRow {
     pub profit_cents: i64,
 }
 
-fn sums_by_month(conn: &Connection, sql: &str, from: &str, to: &str) -> AppResult<std::collections::HashMap<String, i64>> {
+fn sums_by_month(
+    conn: &Connection,
+    sql: &str,
+    from: &str,
+    to: &str,
+) -> AppResult<std::collections::HashMap<String, i64>> {
     let mut stmt = conn.prepare(sql)?;
-    let rows = stmt.query_map(params![from, to], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?;
+    let rows = stmt.query_map(params![from, to], |r| {
+        Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?))
+    })?;
     Ok(rows.collect::<Result<_, _>>()?)
 }
 
 pub fn monthly(conn: &Connection, from: &str, to: &str) -> AppResult<Vec<MonthRow>> {
-    let (Some(f), Some(t)) = (parse_date(from), parse_date(to)) else { return Err(msg(tr!("Invalid period", "Ungültiger Zeitraum"))) };
+    let (Some(f), Some(t)) = (parse_date(from), parse_date(to)) else {
+        return Err(msg(tr!("Invalid period", "Ungültiger Zeitraum")));
+    };
     let rev = sums_by_month(
         conn,
         "SELECT substr(paid_at, 1, 7), SUM(amount_cents) FROM invoices WHERE status = 'paid' AND paid_at BETWEEN ?1 AND ?2 GROUP BY 1",
@@ -137,15 +148,30 @@ pub fn monthly(conn: &Connection, from: &str, to: &str) -> AppResult<Vec<MonthRo
     let mut cursor = month_start(f);
     while cursor <= t {
         let key = cursor.format("%Y-%m").to_string();
-        let (r, e) = (rev.get(&key).copied().unwrap_or(0), exp.get(&key).copied().unwrap_or(0));
-        rows.push(MonthRow { month: key, revenue_cents: r, expenses_cents: e, profit_cents: r - e });
+        let (r, e) = (
+            rev.get(&key).copied().unwrap_or(0),
+            exp.get(&key).copied().unwrap_or(0),
+        );
+        rows.push(MonthRow {
+            month: key,
+            revenue_cents: r,
+            expenses_cents: e,
+            profit_cents: r - e,
+        });
         cursor = cursor + Months::new(1);
     }
-    let first = rows.iter().position(|m| m.revenue_cents != 0 || m.expenses_cents != 0).unwrap_or(rows.len());
+    let first = rows
+        .iter()
+        .position(|m| m.revenue_cents != 0 || m.expenses_cents != 0)
+        .unwrap_or(rows.len());
     Ok(rows.split_off(first))
 }
 
-pub async fn report_monthly(state: &AppState, from: String, to: String) -> AppResult<Vec<MonthRow>> {
+pub async fn report_monthly(
+    state: &AppState,
+    from: String,
+    to: String,
+) -> AppResult<Vec<MonthRow>> {
     let conn = state.conn()?;
     monthly(&conn, &from, &to)
 }
@@ -159,9 +185,16 @@ pub struct ShareRow {
     pub count: i64,
 }
 
-const CUSTOMER_COLORS: &[&str] = &["#12804a", "#2457c5", "#a8640a", "#7c3aed", "#0e7490", "#be185d", "#4d7c0f", "#6b7280"];
+const CUSTOMER_COLORS: &[&str] = &[
+    "#12804a", "#2457c5", "#a8640a", "#7c3aed", "#0e7490", "#be185d", "#4d7c0f", "#6b7280",
+];
 
-pub fn shares(conn: &Connection, from: &str, to: &str, kind: Option<&str>) -> AppResult<Vec<ShareRow>> {
+pub fn shares(
+    conn: &Connection,
+    from: &str,
+    to: &str,
+    kind: Option<&str>,
+) -> AppResult<Vec<ShareRow>> {
     let income = kind == Some("income");
     let sql = if income {
         "SELECT COALESCE(customer_id, customer_name, '-'), customer_name, '', SUM(amount_cents), COUNT(*)
@@ -178,8 +211,20 @@ pub fn shares(conn: &Connection, from: &str, to: &str, kind: Option<&str>) -> Ap
     let mut stmt = conn.prepare(&sql)?;
     let rows = stmt.query_map(params![from, to], |r| {
         let name: Option<String> = r.get(1)?;
-        let fallback = || if income { tr!("No customer", "Ohne Kunde") } else { tr!("Uncategorised", "Ohne Kategorie") };
-        Ok(ShareRow { key: r.get(0)?, name: name.unwrap_or_else(fallback), color: r.get(2)?, total_cents: r.get(3)?, count: r.get(4)? })
+        let fallback = || {
+            if income {
+                tr!("No customer", "Ohne Kunde")
+            } else {
+                tr!("Uncategorised", "Ohne Kategorie")
+            }
+        };
+        Ok(ShareRow {
+            key: r.get(0)?,
+            name: name.unwrap_or_else(fallback),
+            color: r.get(2)?,
+            total_cents: r.get(3)?,
+            count: r.get(4)?,
+        })
     })?;
     let mut rows: Vec<ShareRow> = rows.collect::<Result<_, _>>()?;
     if income {
@@ -190,7 +235,12 @@ pub fn shares(conn: &Connection, from: &str, to: &str, kind: Option<&str>) -> Ap
     Ok(rows)
 }
 
-pub async fn report_categories(state: &AppState, from: String, to: String, kind: Option<String>) -> AppResult<Vec<ShareRow>> {
+pub async fn report_categories(
+    state: &AppState,
+    from: String,
+    to: String,
+    kind: Option<String>,
+) -> AppResult<Vec<ShareRow>> {
     let conn = state.conn()?;
     shares(&conn, &from, &to, kind.as_deref())
 }
@@ -252,7 +302,12 @@ fn monthly_factor(frequency: &str, interval_days: Option<i64>) -> f64 {
     }
 }
 
-fn customer_entry(by_key: &mut std::collections::HashMap<String, CustomerStat>, key: String, id: Option<String>, name: Option<String>) -> &mut CustomerStat {
+fn customer_entry(
+    by_key: &mut std::collections::HashMap<String, CustomerStat>,
+    key: String,
+    id: Option<String>,
+    name: Option<String>,
+) -> &mut CustomerStat {
     let stat = by_key.entry(key.clone()).or_insert_with(|| CustomerStat {
         key,
         customer_id: None,
@@ -274,7 +329,8 @@ fn customer_entry(by_key: &mut std::collections::HashMap<String, CustomerStat>, 
 }
 
 fn customer_stats(conn: &Connection, from: &str, to: &str) -> AppResult<Vec<CustomerStat>> {
-    let mut by_key: std::collections::HashMap<String, CustomerStat> = std::collections::HashMap::new();
+    let mut by_key: std::collections::HashMap<String, CustomerStat> =
+        std::collections::HashMap::new();
 
     let mut stmt = conn.prepare(
         "SELECT COALESCE(i.customer_id, i.customer_name, '-'), i.customer_id, COALESCE(c.name, i.customer_name),
@@ -284,7 +340,15 @@ fn customer_stats(conn: &Connection, from: &str, to: &str) -> AppResult<Vec<Cust
          WHERE i.status = 'paid' AND i.paid_at BETWEEN ?1 AND ?2 GROUP BY 1",
     )?;
     let rows = stmt.query_map(params![from, to], |r| {
-        Ok((r.get::<_, String>(0)?, r.get(1)?, r.get(2)?, r.get::<_, i64>(3)?, r.get::<_, i64>(4)?, r.get::<_, i64>(5)?, r.get::<_, Option<f64>>(6)?))
+        Ok((
+            r.get::<_, String>(0)?,
+            r.get(1)?,
+            r.get(2)?,
+            r.get::<_, i64>(3)?,
+            r.get::<_, i64>(4)?,
+            r.get::<_, i64>(5)?,
+            r.get::<_, Option<f64>>(6)?,
+        ))
     })?;
     for row in rows {
         let (key, id, name, revenue, count, on_time, days) = row?;
@@ -300,7 +364,13 @@ fn customer_stats(conn: &Connection, from: &str, to: &str) -> AppResult<Vec<Cust
          FROM tracker_entries e JOIN tracker_projects p ON p.id = e.project_id JOIN customers c ON c.id = p.customer_id
          WHERE e.stop IS NOT NULL AND e.date BETWEEN ?1 AND ?2 GROUP BY 1",
     )?;
-    let rows = stmt.query_map(params![from, to], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, i64>(2)?)))?;
+    let rows = stmt.query_map(params![from, to], |r| {
+        Ok((
+            r.get::<_, String>(0)?,
+            r.get::<_, String>(1)?,
+            r.get::<_, i64>(2)?,
+        ))
+    })?;
     for row in rows {
         let (id, name, secs) = row?;
         customer_entry(&mut by_key, id.clone(), Some(id), Some(name)).tracked_secs = secs;
@@ -311,7 +381,14 @@ fn customer_stats(conn: &Connection, from: &str, to: &str) -> AppResult<Vec<Cust
          FROM invoices i LEFT JOIN customers c ON c.id = i.customer_id
          WHERE i.status IN ('unpaid','overdue') GROUP BY 1",
     )?;
-    let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get(1)?, r.get(2)?, r.get::<_, i64>(3)?)))?;
+    let rows = stmt.query_map([], |r| {
+        Ok((
+            r.get::<_, String>(0)?,
+            r.get(1)?,
+            r.get(2)?,
+            r.get::<_, i64>(3)?,
+        ))
+    })?;
     for row in rows {
         let (key, id, name, open) = row?;
         customer_entry(&mut by_key, key, id, name).open_cents = open;
@@ -323,11 +400,23 @@ fn customer_stats(conn: &Connection, from: &str, to: &str) -> AppResult<Vec<Cust
             s.name = tr!("No customer", "Ohne Kunde");
         }
     }
-    out.sort_by(|a, b| b.revenue_cents.cmp(&a.revenue_cents).then(b.tracked_secs.cmp(&a.tracked_secs)).then(b.open_cents.cmp(&a.open_cents)).then(a.name.cmp(&b.name)));
+    out.sort_by(|a, b| {
+        b.revenue_cents
+            .cmp(&a.revenue_cents)
+            .then(b.tracked_secs.cmp(&a.tracked_secs))
+            .then(b.open_cents.cmp(&a.open_cents))
+            .then(a.name.cmp(&b.name))
+    });
     Ok(out)
 }
 
-fn category_stats(conn: &Connection, from: &str, to: &str, prev_from: &str, prev_to: &str) -> AppResult<Vec<CategoryStat>> {
+fn category_stats(
+    conn: &Connection,
+    from: &str,
+    to: &str,
+    prev_from: &str,
+    prev_to: &str,
+) -> AppResult<Vec<CategoryStat>> {
     let mut stmt = conn.prepare(&format!(
         "SELECT COALESCE(c.slug, 'uncategorized'), c.name, COALESCE(c.color, '#A0A3AC'),
                 SUM(CASE WHEN e.date BETWEEN ?1 AND ?2 THEN {DEDUCTIBLE_SQL} ELSE 0 END),
@@ -338,7 +427,13 @@ fn category_stats(conn: &Connection, from: &str, to: &str, prev_from: &str, prev
     ))?;
     let rows = stmt.query_map(params![from, to, prev_from, prev_to], |r| {
         let name: Option<String> = r.get(1)?;
-        Ok(CategoryStat { key: r.get(0)?, name: name.unwrap_or_else(|| tr!("Uncategorised", "Ohne Kategorie")), color: r.get(2)?, total_cents: r.get(3)?, prev_cents: r.get(4)? })
+        Ok(CategoryStat {
+            key: r.get(0)?,
+            name: name.unwrap_or_else(|| tr!("Uncategorised", "Ohne Kategorie")),
+            color: r.get(2)?,
+            total_cents: r.get(3)?,
+            prev_cents: r.get(4)?,
+        })
     })?;
     Ok(rows.collect::<Result<_, _>>()?)
 }
@@ -350,14 +445,27 @@ fn project_stats(conn: &Connection, from: &str, to: &str) -> AppResult<Vec<Proje
          WHERE e.stop IS NOT NULL AND e.date BETWEEN ?1 AND ?2 GROUP BY p.id HAVING SUM(e.duration) > 0 ORDER BY 5 DESC",
     )?;
     let rows = stmt.query_map(params![from, to], |r| {
-        Ok(ProjectStat { id: r.get(0)?, name: r.get(1)?, customer_name: r.get(2)?, billable: r.get(3)?, tracked_secs: r.get(4)? })
+        Ok(ProjectStat {
+            id: r.get(0)?,
+            name: r.get(1)?,
+            customer_name: r.get(2)?,
+            billable: r.get(3)?,
+            tracked_secs: r.get(4)?,
+        })
     })?;
     Ok(rows.collect::<Result<_, _>>()?)
 }
 
 fn fixed_costs(conn: &Connection) -> AppResult<(i64, i64)> {
     let mut stmt = conn.prepare("SELECT amount_cents, frequency, frequency_interval, deductible_percent FROM expense_recurring WHERE status = 'active'")?;
-    let rows = stmt.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, Option<i64>>(2)?, r.get::<_, i64>(3)?)))?;
+    let rows = stmt.query_map([], |r| {
+        Ok((
+            r.get::<_, i64>(0)?,
+            r.get::<_, String>(1)?,
+            r.get::<_, Option<i64>>(2)?,
+            r.get::<_, i64>(3)?,
+        ))
+    })?;
     let (mut total, mut count) = (0.0, 0);
     for row in rows {
         let (amount, frequency, interval, percent) = row?;
@@ -368,7 +476,9 @@ fn fixed_costs(conn: &Connection) -> AppResult<(i64, i64)> {
 }
 
 pub fn analysis(conn: &Connection, from: &str, to: &str) -> AppResult<Analysis> {
-    let (Some(f), Some(t)) = (parse_date(from), parse_date(to)) else { return Err(msg(tr!("Invalid period", "Ungültiger Zeitraum"))) };
+    let (Some(f), Some(t)) = (parse_date(from), parse_date(to)) else {
+        return Err(msg(tr!("Invalid period", "Ungültiger Zeitraum")));
+    };
     let (prev_from, prev_to) = previous_period(f, t);
     let (paid_count, on_time_count, avg_payment_days): (i64, i64, Option<f64>) = conn.query_row(
         "SELECT COUNT(*), COALESCE(SUM(substr(paid_at, 1, 10) <= due_date), 0),
@@ -414,14 +524,27 @@ mod tests {
         )
         .unwrap();
         let s = summary(&conn, "2026-09-01", "2026-09-30").unwrap();
-        assert_eq!((s.revenue_cents, s.expenses_cents, s.profit_cents), (219000, 1440, 217560));
-        assert_eq!((s.prev_revenue_cents, s.prev_expenses_cents), (237000, 2990));
+        assert_eq!(
+            (s.revenue_cents, s.expenses_cents, s.profit_cents),
+            (219000, 1440, 217560)
+        );
+        assert_eq!(
+            (s.prev_revenue_cents, s.prev_expenses_cents),
+            (237000, 2990)
+        );
         assert_eq!((s.open_invoices_count, s.open_invoices_cents), (1, 120000));
 
         let months = monthly(&conn, "2026-08-01", "2026-09-30").unwrap();
-        assert_eq!(months.iter().map(|m| m.profit_cents).collect::<Vec<_>>(), [237000 - 2990, 219000 - 1440]);
+        assert_eq!(
+            months.iter().map(|m| m.profit_cents).collect::<Vec<_>>(),
+            [237000 - 2990, 219000 - 1440]
+        );
         let all = monthly(&conn, "2000-01-01", "2026-10-31").unwrap();
-        assert_eq!(all.first().map(|m| m.month.as_str()), Some("2026-08"), "leading empty months are dropped");
+        assert_eq!(
+            all.first().map(|m| m.month.as_str()),
+            Some("2026-08"),
+            "leading empty months are dropped"
+        );
         assert_eq!(all.len(), 3, "empty months after the first booking stay");
 
         let by_customer = shares(&conn, "2026-08-01", "2026-09-30", Some("income")).unwrap();
@@ -445,16 +568,32 @@ mod tests {
         )
         .unwrap();
         let expected = deductible_cents(1222, 20) + deductible_cents(35999, 70);
-        assert_eq!(expected, 244 + 25199, "rounded per expense, like the tax report");
+        assert_eq!(
+            expected,
+            244 + 25199,
+            "rounded per expense, like the tax report"
+        );
 
         let s = summary(&conn, "2026-09-01", "2026-09-30").unwrap();
-        assert_eq!((s.expenses_cents, s.profit_cents, s.prev_expenses_cents), (expected, 100000 - expected, 240));
+        assert_eq!(
+            (s.expenses_cents, s.profit_cents, s.prev_expenses_cents),
+            (expected, 100000 - expected, 240)
+        );
 
         let months = monthly(&conn, "2026-09-01", "2026-09-30").unwrap();
-        assert_eq!((months[0].expenses_cents, months[0].profit_cents), (expected, 100000 - expected));
+        assert_eq!(
+            (months[0].expenses_cents, months[0].profit_cents),
+            (expected, 100000 - expected)
+        );
 
         let by_category = shares(&conn, "2026-09-01", "2026-09-30", None).unwrap();
-        assert_eq!(by_category.iter().map(|c| c.total_cents).collect::<Vec<_>>(), [25199, 244]);
+        assert_eq!(
+            by_category
+                .iter()
+                .map(|c| c.total_cents)
+                .collect::<Vec<_>>(),
+            [25199, 244]
+        );
 
         let a = analysis(&conn, "2026-09-01", "2026-09-30").unwrap();
         let telecom = a.categories.iter().find(|c| c.key == "telecom").unwrap();
@@ -485,15 +624,38 @@ mod tests {
         .unwrap();
         let a = analysis(&conn, "2026-09-01", "2026-09-30").unwrap();
         let acme = &a.customers[0];
-        assert_eq!((acme.name.as_str(), acme.revenue_cents, acme.paid_count, acme.on_time_count, acme.tracked_secs), ("Acme GmbH", 400000, 2, 1, 28800));
+        assert_eq!(
+            (
+                acme.name.as_str(),
+                acme.revenue_cents,
+                acme.paid_count,
+                acme.on_time_count,
+                acme.tracked_secs
+            ),
+            ("Acme GmbH", 400000, 2, 1, 28800)
+        );
         assert_eq!(acme.avg_payment_days, Some(15.0));
         let beta = a.customers.iter().find(|c| c.key == "beta").unwrap();
         assert_eq!((beta.revenue_cents, beta.open_cents), (0, 50000));
         assert_eq!((a.paid_count, a.on_time_count), (2, 1));
-        assert_eq!(a.projects.iter().map(|p| p.tracked_secs).collect::<Vec<_>>(), [28800, 3600]);
+        assert_eq!(
+            a.projects
+                .iter()
+                .map(|p| p.tracked_secs)
+                .collect::<Vec<_>>(),
+            [28800, 3600]
+        );
         let software = a.categories.iter().find(|c| c.key == "software").unwrap();
         assert_eq!((software.total_cents, software.prev_cents), (2000, 1000));
-        assert!(a.categories.iter().any(|c| c.key == "travel" && c.total_cents == 0), "categories only booked in the previous period stay visible");
-        assert_eq!((a.fixed_costs_monthly_cents, a.fixed_costs_count), (1400, 2));
+        assert!(
+            a.categories
+                .iter()
+                .any(|c| c.key == "travel" && c.total_cents == 0),
+            "categories only booked in the previous period stay visible"
+        );
+        assert_eq!(
+            (a.fixed_costs_monthly_cents, a.fixed_costs_count),
+            (1400, 2)
+        );
     }
 }

@@ -4,13 +4,13 @@ use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, Utc};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
-use crate::i18n::tr;
+use crate::activities;
 use crate::customers::get_customer;
 use crate::db::{load_settings, AppState};
 use crate::error::{msg, AppResult};
+use crate::i18n::tr;
 use crate::invoices::{load_invoice, upsert_invoice, Invoice, InvoiceInput, LineItem};
 use crate::util::{fmt_money, iso, new_id, now_ts, parse_date, today_date};
-use crate::activities;
 
 #[derive(Debug, Serialize)]
 pub struct Project {
@@ -52,7 +52,10 @@ pub struct Entry {
     pub home_office: bool,
 }
 
-pub async fn list_projects(state: &AppState, include_completed: Option<bool>) -> AppResult<Vec<Project>> {
+pub async fn list_projects(
+    state: &AppState,
+    include_completed: Option<bool>,
+) -> AppResult<Vec<Project>> {
     let conn = state.conn()?;
     query_projects(&conn, include_completed.unwrap_or(false))
 }
@@ -130,7 +133,9 @@ pub fn fixed_price_billed(conn: &Connection, project_id: &str, price: i64) -> Ap
            AND i.id IN (SELECT invoice_id FROM tracker_entries WHERE project_id = ?1 AND billed = 1)",
     )?;
     let billed = stmt
-        .query_map(params![project_id], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, bool>(1)?)))?
+        .query_map(params![project_id], |r| {
+            Ok((r.get::<_, i64>(0)?, r.get::<_, bool>(1)?))
+        })?
         .map(|row| row.map(|(net, shared)| if shared { price } else { net }))
         .sum::<Result<i64, _>>()?;
     Ok(billed.clamp(0, price))
@@ -163,7 +168,11 @@ pub async fn save_project(state: &AppState, project: ProjectInput) -> AppResult<
     let conn = state.conn()?;
     let customer = p.customer_id.filter(|s| !s.is_empty());
     let id = p.id.clone().unwrap_or_else(new_id);
-    let rate = if p.fixed_price_cents.is_some() { None } else { p.rate_cents };
+    let rate = if p.fixed_price_cents.is_some() {
+        None
+    } else {
+        p.rate_cents
+    };
     conn.execute(
         "INSERT INTO tracker_projects (id, name, description, customer_id, rate_cents, currency, billable, estimate_hours, status,
             fixed_price_cents, start_date, end_date)
@@ -176,16 +185,30 @@ pub async fn save_project(state: &AppState, project: ProjectInput) -> AppResult<
             p.start_date.filter(|d| !d.is_empty()), p.end_date.filter(|d| !d.is_empty())],
     )?;
     if p.fixed_price_cents.is_some() {
-        conn.execute("UPDATE tracker_entries SET rate_cents = NULL WHERE project_id = ?1 AND billed = 0", params![id])?;
+        conn.execute(
+            "UPDATE tracker_entries SET rate_cents = NULL WHERE project_id = ?1 AND billed = 0",
+            params![id],
+        )?;
     }
     if p.id.is_none() {
-        activities::log(&conn, "tracker_project_created", &tr!("Project \"{}\" created", "Projekt „{}“ angelegt", p.name.trim()), None)?;
+        activities::log(
+            &conn,
+            "tracker_project_created",
+            &tr!(
+                "Project \"{}\" created",
+                "Projekt „{}“ angelegt",
+                p.name.trim()
+            ),
+            None,
+        )?;
     }
     Ok(id)
 }
 
 pub async fn delete_project(state: &AppState, id: String) -> AppResult<()> {
-    state.conn()?.execute("DELETE FROM tracker_projects WHERE id = ?1", params![id])?;
+    state
+        .conn()?
+        .execute("DELETE FROM tracker_projects WHERE id = ?1", params![id])?;
     Ok(())
 }
 
@@ -222,12 +245,20 @@ pub fn home_office_days(conn: &Connection, from: &str, to: &str) -> AppResult<i6
 }
 
 pub async fn set_home_office(state: &AppState, date: String, applies: bool) -> AppResult<()> {
-    let date = crate::util::parse_date(&date).map(crate::util::iso).ok_or_else(|| msg(tr!("Invalid date", "Ungültiges Datum")))?;
+    let date = crate::util::parse_date(&date)
+        .map(crate::util::iso)
+        .ok_or_else(|| msg(tr!("Invalid date", "Ungültiges Datum")))?;
     let conn = state.conn()?;
     if applies {
-        conn.execute("DELETE FROM home_office_exclusions WHERE date = ?1", params![date])?;
+        conn.execute(
+            "DELETE FROM home_office_exclusions WHERE date = ?1",
+            params![date],
+        )?;
     } else {
-        conn.execute("INSERT OR IGNORE INTO home_office_exclusions (date) VALUES (?1)", params![date])?;
+        conn.execute(
+            "INSERT OR IGNORE INTO home_office_exclusions (date) VALUES (?1)",
+            params![date],
+        )?;
     }
     Ok(())
 }
@@ -248,7 +279,13 @@ pub async fn list_entries(
 }
 
 fn running_entry(conn: &Connection) -> AppResult<Option<Entry>> {
-    Ok(conn.query_row(&format!("{ENTRY_SELECT} WHERE e.stop IS NULL"), [], map_entry).optional()?)
+    Ok(conn
+        .query_row(
+            &format!("{ENTRY_SELECT} WHERE e.stop IS NULL"),
+            [],
+            map_entry,
+        )
+        .optional()?)
 }
 
 pub async fn running_timer(state: &AppState) -> AppResult<Option<Entry>> {
@@ -257,16 +294,22 @@ pub async fn running_timer(state: &AppState) -> AppResult<Option<Entry>> {
 }
 
 fn local_date_of(ts: &str) -> AppResult<String> {
-    let dt = DateTime::parse_from_rfc3339(ts).map_err(|_| msg(tr!("Invalid timestamp: {ts}", "Ungültiger Zeitpunkt: {ts}")))?;
+    let dt = DateTime::parse_from_rfc3339(ts)
+        .map_err(|_| msg(tr!("Invalid timestamp: {ts}", "Ungültiger Zeitpunkt: {ts}")))?;
     Ok(dt.with_timezone(&Local).format("%Y-%m-%d").to_string())
 }
 
 fn seconds_between(start: &str, stop: &str) -> AppResult<i64> {
-    let a = DateTime::parse_from_rfc3339(start).map_err(|_| msg(tr!("Invalid start time", "Ungültige Startzeit")))?;
-    let b = DateTime::parse_from_rfc3339(stop).map_err(|_| msg(tr!("Invalid end time", "Ungültige Endzeit")))?;
+    let a = DateTime::parse_from_rfc3339(start)
+        .map_err(|_| msg(tr!("Invalid start time", "Ungültige Startzeit")))?;
+    let b = DateTime::parse_from_rfc3339(stop)
+        .map_err(|_| msg(tr!("Invalid end time", "Ungültige Endzeit")))?;
     let secs = (b - a).num_seconds();
     if secs < 0 {
-        return Err(msg(tr!("The end is before the start", "Das Ende liegt vor dem Start")));
+        return Err(msg(tr!(
+            "The end is before the start",
+            "Das Ende liegt vor dem Start"
+        )));
     }
     Ok(secs)
 }
@@ -292,13 +335,16 @@ pub fn round_duration(secs: i64) -> i64 {
 
 fn rounded_span(start: &str, stop: &str) -> AppResult<(String, i64)> {
     let duration = round_duration(seconds_between(start, stop)?);
-    let begin = DateTime::parse_from_rfc3339(start).map_err(|_| msg(tr!("Invalid start time", "Ungültige Startzeit")))?;
+    let begin = DateTime::parse_from_rfc3339(start)
+        .map_err(|_| msg(tr!("Invalid start time", "Ungültige Startzeit")))?;
     let end = (begin + Duration::seconds(duration)).with_timezone(&Utc);
     Ok((end.format("%Y-%m-%dT%H:%M:%SZ").to_string(), duration))
 }
 
 fn stop_running(conn: &Connection) -> AppResult<Option<String>> {
-    let Some(entry) = running_entry(conn)? else { return Ok(None) };
+    let Some(entry) = running_entry(conn)? else {
+        return Ok(None);
+    };
     let (stop, duration) = rounded_span(&entry.start, &now_ts())?;
     conn.execute(
         "UPDATE tracker_entries SET stop = ?2, duration = ?3 WHERE id = ?1",
@@ -307,7 +353,11 @@ fn stop_running(conn: &Connection) -> AppResult<Option<String>> {
     Ok(Some(entry.id))
 }
 
-pub async fn start_timer(state: &AppState, project_id: String, description: Option<String>) -> AppResult<Entry> {
+pub async fn start_timer(
+    state: &AppState,
+    project_id: String,
+    description: Option<String>,
+) -> AppResult<Entry> {
     let conn = state.conn()?;
     stop_running(&conn)?;
     let rate: Option<i64> = conn.query_row(
@@ -321,14 +371,23 @@ pub async fn start_timer(state: &AppState, project_id: String, description: Opti
         "INSERT INTO tracker_entries (id, project_id, date, start, description, rate_cents) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         params![id, project_id, local_date_of(&start)?, start, description, rate],
     )?;
-    Ok(conn.query_row(&format!("{ENTRY_SELECT} WHERE e.id = ?1"), params![id], map_entry)?)
+    Ok(conn.query_row(
+        &format!("{ENTRY_SELECT} WHERE e.id = ?1"),
+        params![id],
+        map_entry,
+    )?)
 }
 
 pub async fn stop_timer(state: &AppState) -> AppResult<Option<String>> {
     let conn = state.conn()?;
     let stopped = stop_running(&conn)?;
     if stopped.is_some() {
-        activities::log(&conn, "tracker_entry_created", &tr!("Time entry saved", "Zeiteintrag gespeichert"), None)?;
+        activities::log(
+            &conn,
+            "tracker_entry_created",
+            &tr!("Time entry saved", "Zeiteintrag gespeichert"),
+            None,
+        )?;
         check_weekly_limits(&conn)?;
     }
     Ok(stopped)
@@ -382,7 +441,11 @@ pub struct ExceededWeek {
 
 pub fn week_bounds(today: NaiveDate, starts_on_monday: bool) -> (NaiveDate, NaiveDate) {
     let weekday = today.weekday();
-    let offset = if starts_on_monday { weekday.num_days_from_monday() } else { weekday.num_days_from_sunday() };
+    let offset = if starts_on_monday {
+        weekday.num_days_from_monday()
+    } else {
+        weekday.num_days_from_sunday()
+    };
     let start = today - Duration::days(offset.into());
     (start, start + Duration::days(6))
 }
@@ -390,7 +453,10 @@ pub fn week_bounds(today: NaiveDate, starts_on_monday: bool) -> (NaiveDate, Naiv
 fn week_usage(conn: &Connection) -> AppResult<WeeklyHours> {
     let settings = load_settings(conn)?;
     let (start, end) = week_bounds(today_date(), settings.week_starts_on_monday);
-    let (week_start, week_end) = (start.format("%Y-%m-%d").to_string(), end.format("%Y-%m-%d").to_string());
+    let (week_start, week_end) = (
+        start.format("%Y-%m-%d").to_string(),
+        end.format("%Y-%m-%d").to_string(),
+    );
     let tracked_seconds = conn.query_row(
         "SELECT COALESCE(SUM(duration), 0) FROM tracker_entries WHERE stop IS NOT NULL AND date BETWEEN ?1 AND ?2",
         params![week_start, week_end],
@@ -402,12 +468,22 @@ fn week_usage(conn: &Connection) -> AppResult<WeeklyHours> {
             .into_values()
             .rev()
             .filter(|(week, _)| *week < start)
-            .map(|(week, seconds)| ExceededWeek { week_start: iso(week), week_end: iso(week + Duration::days(6)), tracked_seconds: seconds })
+            .map(|(week, seconds)| ExceededWeek {
+                week_start: iso(week),
+                week_end: iso(week + Duration::days(6)),
+                tracked_seconds: seconds,
+            })
             .collect()
     } else {
         Vec::new()
     };
-    Ok(WeeklyHours { week_start, week_end, limit_hours, tracked_seconds, past_exceeded })
+    Ok(WeeklyHours {
+        week_start,
+        week_end,
+        limit_hours,
+        tracked_seconds,
+        past_exceeded,
+    })
 }
 
 pub async fn weekly_hours(state: &AppState) -> AppResult<WeeklyHours> {
@@ -422,36 +498,71 @@ fn hours_minutes(seconds: i64) -> String {
 }
 
 fn week_label(start: NaiveDate) -> String {
-    start.format(if crate::i18n::is_de() { "%d.%m.%Y" } else { "%d/%m/%Y" }).to_string()
+    start
+        .format(if crate::i18n::is_de() {
+            "%d.%m.%Y"
+        } else {
+            "%d/%m/%Y"
+        })
+        .to_string()
 }
 
-fn exceeded_weeks(conn: &Connection, limit_hours: f64, starts_on_monday: bool) -> AppResult<BTreeMap<String, (NaiveDate, i64)>> {
+fn exceeded_weeks(
+    conn: &Connection,
+    limit_hours: f64,
+    starts_on_monday: bool,
+) -> AppResult<BTreeMap<String, (NaiveDate, i64)>> {
     let mut totals: BTreeMap<NaiveDate, i64> = BTreeMap::new();
-    let mut stmt = conn.prepare("SELECT date, SUM(duration) FROM tracker_entries WHERE stop IS NOT NULL GROUP BY date")?;
+    let mut stmt = conn.prepare(
+        "SELECT date, SUM(duration) FROM tracker_entries WHERE stop IS NOT NULL GROUP BY date",
+    )?;
     let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?;
     for row in rows {
         let (day, seconds) = row?;
         if let Some(day) = parse_date(&day) {
-            *totals.entry(week_bounds(day, starts_on_monday).0).or_default() += seconds;
+            *totals
+                .entry(week_bounds(day, starts_on_monday).0)
+                .or_default() += seconds;
         }
     }
     if let Some(entry) = running_entry(conn)? {
         if let Some(day) = parse_date(&entry.date) {
-            *totals.entry(week_bounds(day, starts_on_monday).0).or_default() += seconds_between(&entry.start, &now_ts()).unwrap_or(0);
+            *totals
+                .entry(week_bounds(day, starts_on_monday).0)
+                .or_default() += seconds_between(&entry.start, &now_ts()).unwrap_or(0);
         }
     }
     let limit = (limit_hours * 3600.0).round() as i64;
-    Ok(totals.into_iter().filter(|&(_, seconds)| seconds > limit).map(|(start, seconds)| (iso(start), (start, seconds))).collect())
+    Ok(totals
+        .into_iter()
+        .filter(|&(_, seconds)| seconds > limit)
+        .map(|(start, seconds)| (iso(start), (start, seconds)))
+        .collect())
 }
 
 pub fn check_weekly_limits(conn: &Connection) -> AppResult<()> {
     let settings = load_settings(conn)?;
     let limit_hours = settings.weekly_hours_limit;
-    let exceeded = if limit_hours > 0.0 { exceeded_weeks(conn, limit_hours, settings.week_starts_on_monday)? } else { BTreeMap::new() };
-    let raw: Option<String> = conn.query_row("SELECT value FROM settings WHERE key = ?1", params![WARNED_KEY], |r| r.get(0)).optional()?;
-    let previous: BTreeMap<String, f64> = raw.and_then(|json| serde_json::from_str(&json).ok()).unwrap_or_default();
-    let fresh: Vec<(NaiveDate, i64)> =
-        exceeded.iter().filter(|(week, _)| previous.get(*week) != Some(&limit_hours)).map(|(_, &value)| value).collect();
+    let exceeded = if limit_hours > 0.0 {
+        exceeded_weeks(conn, limit_hours, settings.week_starts_on_monday)?
+    } else {
+        BTreeMap::new()
+    };
+    let raw: Option<String> = conn
+        .query_row(
+            "SELECT value FROM settings WHERE key = ?1",
+            params![WARNED_KEY],
+            |r| r.get(0),
+        )
+        .optional()?;
+    let previous: BTreeMap<String, f64> = raw
+        .and_then(|json| serde_json::from_str(&json).ok())
+        .unwrap_or_default();
+    let fresh: Vec<(NaiveDate, i64)> = exceeded
+        .iter()
+        .filter(|(week, _)| previous.get(*week) != Some(&limit_hours))
+        .map(|(_, &value)| value)
+        .collect();
     let warned: BTreeMap<&String, f64> = exceeded.keys().map(|week| (week, limit_hours)).collect();
     if warned.len() != previous.len() || !fresh.is_empty() {
         conn.execute(
@@ -471,7 +582,13 @@ pub fn check_weekly_limits(conn: &Connection) -> AppResult<()> {
         }
         weeks => {
             let n = weeks.len();
-            let list = weeks.iter().rev().take(5).map(|(start, _)| week_label(*start)).collect::<Vec<_>>().join(", ");
+            let list = weeks
+                .iter()
+                .rev()
+                .take(5)
+                .map(|(start, _)| week_label(*start))
+                .collect::<Vec<_>>()
+                .join(", ");
             let more = if n > 5 { ", …" } else { "" };
             tr!(
                 "Weekly limit of {limit} h exceeded in {n} weeks (weeks of {list}{more})",
@@ -480,7 +597,12 @@ pub fn check_weekly_limits(conn: &Connection) -> AppResult<()> {
         }
     };
     let weeks: Vec<String> = fresh.iter().map(|(start, _)| iso(*start)).collect();
-    activities::log(conn, "weekly_limit_exceeded", &message, Some(serde_json::json!({ "weeks": weeks })))
+    activities::log(
+        conn,
+        "weekly_limit_exceeded",
+        &message,
+        Some(serde_json::json!({ "weeks": weeks })),
+    )
 }
 
 pub async fn delete_entry(state: &AppState, id: String) -> AppResult<()> {
@@ -498,10 +620,21 @@ pub struct TrackerInvoiceDraft {
 }
 
 fn short_period(first: &str, last: &str) -> String {
-    let (Some(a), Some(b)) = (crate::util::parse_date(first), crate::util::parse_date(last)) else {
-        return format!("{} – {}", crate::i18n::fmt_date(first), crate::i18n::fmt_date(last));
+    let (Some(a), Some(b)) = (
+        crate::util::parse_date(first),
+        crate::util::parse_date(last),
+    ) else {
+        return format!(
+            "{} – {}",
+            crate::i18n::fmt_date(first),
+            crate::i18n::fmt_date(last)
+        );
     };
-    let (day, full) = if !crate::i18n::is_de() { ("%d/%m", "%d/%m/%y") } else { ("%d.%m.", "%d.%m.%y") };
+    let (day, full) = if !crate::i18n::is_de() {
+        ("%d/%m", "%d/%m/%y")
+    } else {
+        ("%d.%m.", "%d.%m.%y")
+    };
     if a == b {
         a.format(full).to_string()
     } else if a.format("%Y").to_string() == b.format("%Y").to_string() {
@@ -522,10 +655,15 @@ pub fn draft_from_project(conn: &Connection, project_id: &str) -> AppResult<Trac
          WHERE project_id = ?1 AND billed = 0 AND stop IS NOT NULL ORDER BY date",
     )?;
     let entries: Vec<(String, String, i64, Option<i64>)> = stmt
-        .query_map(params![project_id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?
+        .query_map(params![project_id], |r| {
+            Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
+        })?
         .collect::<Result<_, _>>()?;
     if entries.is_empty() {
-        return Err(msg(tr!("No unbilled time entries for this project", "Keine offenen Zeiteinträge für dieses Projekt")));
+        return Err(msg(tr!(
+            "No unbilled time entries for this project",
+            "Keine offenen Zeiteinträge für dieses Projekt"
+        )));
     }
     let period = short_period(&entries.first().unwrap().1, &entries.last().unwrap().1);
 
@@ -533,18 +671,46 @@ pub fn draft_from_project(conn: &Connection, project_id: &str) -> AppResult<Trac
         let billed = fixed_price_billed(conn, project_id, price)?;
         let remaining = price - billed;
         let line = if billed == 0 {
-            LineItem { name: format!("{name} ({period})"), quantity: 1.0, price_cents: price, unit: Some(crate::units::PIECES.into()) }
+            LineItem {
+                name: format!("{name} ({period})"),
+                quantity: 1.0,
+                price_cents: price,
+                unit: Some(crate::units::PIECES.into()),
+            }
         } else if remaining > 0 {
-            LineItem { name: tr!("{name} – remaining amount of fixed price ({period})", "{name} – Restbetrag Festpreis ({period})"), quantity: 1.0, price_cents: remaining, unit: Some(crate::units::PIECES.into()) }
+            LineItem {
+                name: tr!(
+                    "{name} – remaining amount of fixed price ({period})",
+                    "{name} – Restbetrag Festpreis ({period})"
+                ),
+                quantity: 1.0,
+                price_cents: remaining,
+                unit: Some(crate::units::PIECES.into()),
+            }
         } else {
-            LineItem { name: tr!("{name} – follow-up work, included in fixed price ({period})", "{name} – Nacharbeiten, im Festpreis enthalten ({period})"), quantity: 1.0, price_cents: 0, unit: Some(crate::units::PIECES.into()) }
+            LineItem {
+                name: tr!(
+                    "{name} – follow-up work, included in fixed price ({period})",
+                    "{name} – Nacharbeiten, im Festpreis enthalten ({period})"
+                ),
+                quantity: 1.0,
+                price_cents: 0,
+                unit: Some(crate::units::PIECES.into()),
+            }
         };
-        return Ok(TrackerInvoiceDraft { customer_id, currency, lines: vec![line], entry_ids: entries.into_iter().map(|e| e.0).collect() });
+        return Ok(TrackerInvoiceDraft {
+            customer_id,
+            currency,
+            lines: vec![line],
+            entry_ids: entries.into_iter().map(|e| e.0).collect(),
+        });
     }
 
     let mut by_rate: BTreeMap<i64, i64> = BTreeMap::new();
     for (_, _, duration, rate) in &entries {
-        *by_rate.entry(rate.or(project_rate).unwrap_or(0)).or_insert(0) += duration;
+        *by_rate
+            .entry(rate.or(project_rate).unwrap_or(0))
+            .or_insert(0) += duration;
     }
     let lines = by_rate
         .into_iter()
@@ -563,7 +729,10 @@ pub fn draft_from_project(conn: &Connection, project_id: &str) -> AppResult<Trac
     })
 }
 
-pub async fn invoice_lines_from_tracker(state: &AppState, project_id: String) -> AppResult<TrackerInvoiceDraft> {
+pub async fn invoice_lines_from_tracker(
+    state: &AppState,
+    project_id: String,
+) -> AppResult<TrackerInvoiceDraft> {
     let conn = state.conn()?;
     draft_from_project(&conn, &project_id)
 }
@@ -573,46 +742,105 @@ const TIMESHEET_SELECT: &str = "SELECT e.date, e.start, e.duration, COALESCE(NUL
   FROM tracker_entries e JOIN tracker_projects p ON p.id = e.project_id LEFT JOIN customers c ON c.id = p.customer_id
   WHERE e.stop IS NOT NULL";
 
-fn timesheet_rows(conn: &Connection, filter: &str, args: &[&dyn rusqlite::ToSql]) -> AppResult<Vec<crate::latex::TimesheetEntry>> {
+fn timesheet_rows(
+    conn: &Connection,
+    filter: &str,
+    args: &[&dyn rusqlite::ToSql],
+) -> AppResult<Vec<crate::latex::TimesheetEntry>> {
     let mut stmt = conn.prepare(&format!("{TIMESHEET_SELECT} AND {filter} ORDER BY e.start"))?;
     let rows = stmt.query_map(args, |r| {
-        Ok(crate::latex::TimesheetEntry { date: r.get(0)?, start: r.get(1)?, duration: r.get(2)?, description: r.get(3)?, customer: r.get::<_, Option<String>>(4)?.unwrap_or_else(|| tr!("No customer", "Ohne Kunde")) })
+        Ok(crate::latex::TimesheetEntry {
+            date: r.get(0)?,
+            start: r.get(1)?,
+            duration: r.get(2)?,
+            description: r.get(3)?,
+            customer: r
+                .get::<_, Option<String>>(4)?
+                .unwrap_or_else(|| tr!("No customer", "Ohne Kunde")),
+        })
     })?;
     Ok(rows.collect::<Result<_, _>>()?)
 }
 
-pub fn timesheet_in_range(conn: &Connection, from: &str, to: &str, customer_id: Option<&str>) -> AppResult<Vec<crate::latex::TimesheetEntry>> {
-    timesheet_rows(conn, "e.date BETWEEN ?1 AND ?2 AND (?3 IS NULL OR p.customer_id = ?3)", &[&from, &to, &customer_id])
+pub fn timesheet_in_range(
+    conn: &Connection,
+    from: &str,
+    to: &str,
+    customer_id: Option<&str>,
+) -> AppResult<Vec<crate::latex::TimesheetEntry>> {
+    timesheet_rows(
+        conn,
+        "e.date BETWEEN ?1 AND ?2 AND (?3 IS NULL OR p.customer_id = ?3)",
+        &[&from, &to, &customer_id],
+    )
 }
 
-pub fn timesheet_of_invoice(conn: &Connection, invoice_id: &str) -> AppResult<Vec<crate::latex::TimesheetEntry>> {
+pub fn timesheet_of_invoice(
+    conn: &Connection,
+    invoice_id: &str,
+) -> AppResult<Vec<crate::latex::TimesheetEntry>> {
     timesheet_rows(conn, "e.invoice_id = ?1", &[&invoice_id])
 }
 
 fn range_label(from: chrono::NaiveDate, to: chrono::NaiveDate) -> String {
-    if from.year() == to.year() && (from.month(), from.day()) == (1, 1) && (to.month(), to.day()) == (12, 31) {
+    if from.year() == to.year()
+        && (from.month(), from.day()) == (1, 1)
+        && (to.month(), to.day()) == (12, 31)
+    {
         tr!("Fiscal year {}", "Wirtschaftsjahr {}", from.year())
     } else {
-        format!("{} – {}", crate::i18n::fmt_date(&crate::util::iso(from)), crate::i18n::fmt_date(&crate::util::iso(to)))
+        format!(
+            "{} – {}",
+            crate::i18n::fmt_date(&crate::util::iso(from)),
+            crate::i18n::fmt_date(&crate::util::iso(to))
+        )
     }
 }
 
-pub async fn export_timesheet(state: &AppState, from: String, to: String, customer_id: Option<String>, target: String) -> AppResult<usize> {
-    let (Some(start), Some(end)) = (crate::util::parse_date(&from), crate::util::parse_date(&to)) else {
+pub async fn export_timesheet(
+    state: &AppState,
+    from: String,
+    to: String,
+    customer_id: Option<String>,
+    target: String,
+) -> AppResult<usize> {
+    let (Some(start), Some(end)) = (crate::util::parse_date(&from), crate::util::parse_date(&to))
+    else {
         return Err(msg(tr!("Invalid period", "Ungültiger Zeitraum")));
     };
     if end < start {
-        return Err(msg(tr!("The end is before the start", "Das Ende liegt vor dem Beginn")));
+        return Err(msg(tr!(
+            "The end is before the start",
+            "Das Ende liegt vor dem Beginn"
+        )));
     }
     let (entries, settings) = {
         let conn = state.conn()?;
-        (timesheet_in_range(&conn, &from, &to, customer_id.as_deref().filter(|c| !c.is_empty()))?, load_settings(&conn)?)
+        (
+            timesheet_in_range(
+                &conn,
+                &from,
+                &to,
+                customer_id.as_deref().filter(|c| !c.is_empty()),
+            )?,
+            load_settings(&conn)?,
+        )
     };
     if entries.is_empty() {
-        return Err(msg(tr!("There are no completed time entries in this period", "In diesem Zeitraum gibt es keine abgeschlossenen Zeiteinträge")));
+        return Err(msg(tr!(
+            "There are no completed time entries in this period",
+            "In diesem Zeitraum gibt es keine abgeschlossenen Zeiteinträge"
+        )));
     }
     let tc = crate::latex::toolchain(&state.files_dir).map_err(msg)?;
-    crate::latex::render_timesheet(&tc, &entries, &range_label(start, end), start, &settings, std::path::Path::new(&target))?;
+    crate::latex::render_timesheet(
+        &tc,
+        &entries,
+        &range_label(start, end),
+        start,
+        &settings,
+        std::path::Path::new(&target),
+    )?;
     Ok(entries.len())
 }
 
@@ -622,12 +850,20 @@ pub fn invoice_unbilled(conn: &Connection, customer_id: &str) -> AppResult<Strin
          WHERE p.customer_id = ?1 AND p.billable = 1 AND e.billed = 0 AND e.stop IS NOT NULL
          ORDER BY p.name COLLATE NOCASE",
     )?;
-    let project_ids: Vec<String> = stmt.query_map(params![customer_id], |r| r.get(0))?.collect::<Result<_, _>>()?;
+    let project_ids: Vec<String> = stmt
+        .query_map(params![customer_id], |r| r.get(0))?
+        .collect::<Result<_, _>>()?;
     if project_ids.is_empty() {
-        return Err(msg(tr!("There is no unbilled time for this customer", "Für diesen Kunden gibt es keine offenen Zeiten")));
+        return Err(msg(tr!(
+            "There is no unbilled time for this customer",
+            "Für diesen Kunden gibt es keine offenen Zeiten"
+        )));
     }
 
-    let drafts = project_ids.iter().map(|id| draft_from_project(conn, id)).collect::<AppResult<Vec<_>>>()?;
+    let drafts = project_ids
+        .iter()
+        .map(|id| draft_from_project(conn, id))
+        .collect::<AppResult<Vec<_>>>()?;
     let currency = drafts[0].currency.clone();
     if drafts.iter().any(|d| d.currency != currency) {
         return Err(msg(tr!("This customer's projects use different currencies – please bill each project separately", "Die Projekte dieses Kunden haben unterschiedliche Währungen – bitte pro Projekt abrechnen")));
@@ -636,14 +872,23 @@ pub fn invoice_unbilled(conn: &Connection, customer_id: &str) -> AppResult<Strin
     let settings = load_settings(conn)?;
     let customer = get_customer(conn, customer_id)?;
     let issue = today_date();
-    let terms = customer.default_payment_terms.unwrap_or(settings.default_payment_terms).max(0);
+    let terms = customer
+        .default_payment_terms
+        .unwrap_or(settings.default_payment_terms)
+        .max(0);
     let input = InvoiceInput {
         customer_id: Some(customer_id.to_string()),
         issue_date: issue.format("%Y-%m-%d").to_string(),
-        due_date: (issue + chrono::Duration::days(terms)).format("%Y-%m-%d").to_string(),
+        due_date: (issue + chrono::Duration::days(terms))
+            .format("%Y-%m-%d")
+            .to_string(),
         currency,
         line_items: drafts.iter().flat_map(|d| d.lines.clone()).collect(),
-        vat_rate: if settings.small_business { 0.0 } else { settings.default_vat_rate },
+        vat_rate: if settings.small_business {
+            0.0
+        } else {
+            settings.default_vat_rate
+        },
         note: Some(settings.invoice_note.clone()).filter(|n| !n.trim().is_empty()),
         status: Some("draft".into()),
         tracker_entry_ids: drafts.into_iter().flat_map(|d| d.entry_ids).collect(),
@@ -669,7 +914,10 @@ pub fn invoice_unbilled(conn: &Connection, customer_id: &str) -> AppResult<Strin
     Ok(id)
 }
 
-pub async fn invoice_unbilled_for_customer(state: &AppState, customer_id: String) -> AppResult<Invoice> {
+pub async fn invoice_unbilled_for_customer(
+    state: &AppState,
+    customer_id: String,
+) -> AppResult<Invoice> {
     let conn = state.conn()?;
     let id = invoice_unbilled(&conn, &customer_id)?;
     crate::invoices::timesheet_after_create(&conn, &state.files_dir, &id);
@@ -686,7 +934,11 @@ mod tests {
         let d = |s: &str| NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap();
         assert_eq!(week_bounds(wed, true), (d("2026-10-05"), d("2026-10-11")));
         assert_eq!(week_bounds(wed, false), (d("2026-10-04"), d("2026-10-10")));
-        assert_eq!(week_bounds(d("2026-10-11"), true).0, d("2026-10-05"), "Sunday belongs to the week that began on Monday");
+        assert_eq!(
+            week_bounds(d("2026-10-11"), true).0,
+            d("2026-10-05"),
+            "Sunday belongs to the week that began on Monday"
+        );
     }
 
     #[test]
@@ -695,7 +947,11 @@ mod tests {
         let mut settings = load_settings(&conn).unwrap();
         settings.weekly_hours_limit = 2.0;
         crate::db::store_settings(&conn, &settings).unwrap();
-        conn.execute("INSERT INTO tracker_projects (id, name) VALUES ('p', 'P')", []).unwrap();
+        conn.execute(
+            "INSERT INTO tracker_projects (id, name) VALUES ('p', 'P')",
+            [],
+        )
+        .unwrap();
         let add = |id: &str, date: &str, seconds: i64| {
             conn.execute(
                 "INSERT INTO tracker_entries (id, project_id, date, start, stop, duration) VALUES (?1, 'p', ?2, '2026-01-01T09:00:00Z', '2026-01-01T10:00:00Z', ?3)",
@@ -705,39 +961,84 @@ mod tests {
         };
         let warnings = |conn: &Connection| -> Vec<String> {
             let mut stmt = conn.prepare("SELECT message FROM activities WHERE type = 'weekly_limit_exceeded' ORDER BY rowid").unwrap();
-            stmt.query_map([], |r| r.get(0)).unwrap().map(Result::unwrap).collect()
+            stmt.query_map([], |r| r.get(0))
+                .unwrap()
+                .map(Result::unwrap)
+                .collect()
         };
 
         add("a", "2026-03-02", 5400);
         add("b", "2026-03-08", 3600);
         add("c", "2026-03-09", 3600);
         check_weekly_limits(&conn).unwrap();
-        assert_eq!(warnings(&conn).len(), 1, "Mon 02.03. + Sun 08.03. = 2.5 h in one past week");
-        assert!(warnings(&conn)[0].contains("02/03/2026"), "{:?}", warnings(&conn));
+        assert_eq!(
+            warnings(&conn).len(),
+            1,
+            "Mon 02.03. + Sun 08.03. = 2.5 h in one past week"
+        );
+        assert!(
+            warnings(&conn)[0].contains("02/03/2026"),
+            "{:?}",
+            warnings(&conn)
+        );
 
         check_weekly_limits(&conn).unwrap();
-        assert_eq!(warnings(&conn).len(), 1, "no repeat for an already reported week");
+        assert_eq!(
+            warnings(&conn).len(),
+            1,
+            "no repeat for an already reported week"
+        );
 
         add("d", "2026-03-10", 5400);
         add("e", "2025-12-01", 9000);
         check_weekly_limits(&conn).unwrap();
-        assert_eq!(warnings(&conn).len(), 2, "newly exceeded weeks are reported together");
-        assert!(warnings(&conn)[1].contains("2 weeks"), "{:?}", warnings(&conn));
+        assert_eq!(
+            warnings(&conn).len(),
+            2,
+            "newly exceeded weeks are reported together"
+        );
+        assert!(
+            warnings(&conn)[1].contains("2 weeks"),
+            "{:?}",
+            warnings(&conn)
+        );
 
-        conn.execute("DELETE FROM tracker_entries WHERE id = 'b'", []).unwrap();
+        conn.execute("DELETE FROM tracker_entries WHERE id = 'b'", [])
+            .unwrap();
         check_weekly_limits(&conn).unwrap();
         add("b2", "2026-03-08", 3600);
         check_weekly_limits(&conn).unwrap();
-        assert_eq!(warnings(&conn).len(), 3, "a week that dropped below and is exceeded again warns again");
+        assert_eq!(
+            warnings(&conn).len(),
+            3,
+            "a week that dropped below and is exceeded again warns again"
+        );
 
         settings.weekly_hours_limit = 2.25;
         crate::db::store_settings(&conn, &settings).unwrap();
         check_weekly_limits(&conn).unwrap();
-        assert_eq!(warnings(&conn).len(), 4, "a changed limit re-evaluates all weeks");
-        assert!(warnings(&conn)[3].contains("3 weeks"), "{:?}", warnings(&conn));
+        assert_eq!(
+            warnings(&conn).len(),
+            4,
+            "a changed limit re-evaluates all weeks"
+        );
+        assert!(
+            warnings(&conn)[3].contains("3 weeks"),
+            "{:?}",
+            warnings(&conn)
+        );
 
-        let past: Vec<String> = week_usage(&conn).unwrap().past_exceeded.into_iter().map(|w| w.week_start).collect();
-        assert_eq!(past, ["2026-03-09", "2026-03-02", "2025-12-01"], "past weeks over the limit, newest first");
+        let past: Vec<String> = week_usage(&conn)
+            .unwrap()
+            .past_exceeded
+            .into_iter()
+            .map(|w| w.week_start)
+            .collect();
+        assert_eq!(
+            past,
+            ["2026-03-09", "2026-03-02", "2025-12-01"],
+            "past weeks over the limit, newest first"
+        );
     }
 
     #[test]
@@ -756,8 +1057,15 @@ mod tests {
         .unwrap();
         let ps = query_projects(&conn, true).unwrap();
         let ids: Vec<&str> = ps.iter().map(|p| p.id.as_str()).collect();
-        assert_eq!(ids, ["running", "recent", "long"], "running first, then latest work, not longest");
-        assert_eq!((ps[2].first_date.as_deref(), ps[2].last_date.as_deref()), (Some("2026-03-10"), Some("2026-03-24")));
+        assert_eq!(
+            ids,
+            ["running", "recent", "long"],
+            "running first, then latest work, not longest"
+        );
+        assert_eq!(
+            (ps[2].first_date.as_deref(), ps[2].last_date.as_deref()),
+            (Some("2026-03-10"), Some("2026-03-24"))
+        );
     }
 
     #[test]
@@ -772,19 +1080,38 @@ mod tests {
         )
         .unwrap();
         let p = &query_projects(&conn, true).unwrap()[0];
-        assert_eq!((p.unbilled_cents, p.rate_cents), (350000, None), "open amount is the fixed price, not hours × rate");
+        assert_eq!(
+            (p.unbilled_cents, p.rate_cents),
+            (350000, None),
+            "open amount is the fixed price, not hours × rate"
+        );
 
         let d = draft_from_project(&conn, "m").unwrap();
         assert_eq!(d.lines.len(), 1);
-        assert_eq!((d.lines[0].name.as_str(), d.lines[0].quantity, d.lines[0].price_cents), ("Joomla Migration (01/06–24/06/26)", 1.0, 350000));
+        assert_eq!(
+            (
+                d.lines[0].name.as_str(),
+                d.lines[0].quantity,
+                d.lines[0].price_cents
+            ),
+            ("Joomla Migration (01/06–24/06/26)", 1.0, 350000)
+        );
 
         conn.execute_batch(
             "UPDATE tracker_entries SET billed = 1;
              INSERT INTO tracker_entries (id, project_id, date, start, stop, duration) VALUES ('3', 'm', '2026-07-02', '2026-07-02T09:00:00+02:00', '2026-07-02T10:00:00+02:00', 3600);",
         )
         .unwrap();
-        assert_eq!(query_projects(&conn, true).unwrap()[0].unbilled_cents, 0, "billed once, nothing more is owed");
-        assert_eq!(draft_from_project(&conn, "m").unwrap().lines[0].price_cents, 0, "later time is included, not billed twice");
+        assert_eq!(
+            query_projects(&conn, true).unwrap()[0].unbilled_cents,
+            0,
+            "billed once, nothing more is owed"
+        );
+        assert_eq!(
+            draft_from_project(&conn, "m").unwrap().lines[0].price_cents,
+            0,
+            "later time is included, not billed twice"
+        );
     }
 
     #[test]
@@ -801,23 +1128,46 @@ mod tests {
                ('2', 'm', '2026-07-02', '2026-07-02T09:00:00+02:00', '2026-07-02T10:00:00+02:00', 3600);",
         )
         .unwrap();
-        assert_eq!(fixed_price_billed(&conn, "m", 350000).unwrap(), 100000, "net after discount");
-        assert_eq!(query_projects(&conn, false).unwrap()[0].unbilled_cents, 250000);
-        assert_eq!(draft_from_project(&conn, "m").unwrap().lines[0].price_cents, 250000);
+        assert_eq!(
+            fixed_price_billed(&conn, "m", 350000).unwrap(),
+            100000,
+            "net after discount"
+        );
+        assert_eq!(
+            query_projects(&conn, false).unwrap()[0].unbilled_cents,
+            250000
+        );
+        assert_eq!(
+            draft_from_project(&conn, "m").unwrap().lines[0].price_cents,
+            250000
+        );
 
         let today = NaiveDate::from_ymd_opt(2026, 7, 5).unwrap();
         let items = crate::forecast::collect_items(&conn, today).unwrap().items;
-        let project: i64 = items.iter().filter(|i| i.kind == "project").map(|i| i.amount_cents).sum();
+        let project: i64 = items
+            .iter()
+            .filter(|i| i.kind == "project")
+            .map(|i| i.amount_cents)
+            .sum();
         assert_eq!(project, 297500, "remaining 2500 € plus 19 % VAT");
 
-        conn.execute("UPDATE invoices SET status = 'canceled'", []).unwrap();
-        assert_eq!(fixed_price_billed(&conn, "m", 350000).unwrap(), 0, "canceled invoices do not count");
+        conn.execute("UPDATE invoices SET status = 'canceled'", [])
+            .unwrap();
+        assert_eq!(
+            fixed_price_billed(&conn, "m", 350000).unwrap(),
+            0,
+            "canceled invoices do not count"
+        );
     }
 
     #[test]
     fn home_office_applies_unless_the_day_is_excluded() {
         let dir = tempfile::tempdir().unwrap();
-        let state = AppState::new(crate::db::open_in_memory().unwrap(), dir.path().to_path_buf()).unwrap();
+        let state = AppState::new(
+            crate::db::open_in_memory().unwrap(),
+            dir.path().to_path_buf(),
+        )
+        .unwrap();
         state
             .conn()
             .unwrap()
@@ -826,14 +1176,26 @@ mod tests {
                  INSERT INTO tracker_entries (id, project_id, date, start, stop, duration) VALUES ('e', 'p', '2026-03-02', '2026-03-02T09:00:00Z', '2026-03-02T11:00:00Z', 7200);",
             )
             .unwrap();
-        let flag = || tauri::async_runtime::block_on(list_entries(&state, None, None, None)).unwrap()[0].home_office;
+        let flag = || {
+            tauri::async_runtime::block_on(list_entries(&state, None, None, None)).unwrap()[0]
+                .home_office
+        };
         assert!(flag(), "applies by default");
-        tauri::async_runtime::block_on(set_home_office(&state, "2026-03-02".into(), false)).unwrap();
+        tauri::async_runtime::block_on(set_home_office(&state, "2026-03-02".into(), false))
+            .unwrap();
         assert!(!flag());
-        assert_eq!(home_office_days(&state.conn().unwrap(), "2026-01-01", "2026-12-31").unwrap(), 0);
+        assert_eq!(
+            home_office_days(&state.conn().unwrap(), "2026-01-01", "2026-12-31").unwrap(),
+            0
+        );
         tauri::async_runtime::block_on(set_home_office(&state, "2026-03-02".into(), true)).unwrap();
         assert!(flag());
-        assert!(tauri::async_runtime::block_on(set_home_office(&state, "02.03.2026".into(), false)).is_err());
+        assert!(tauri::async_runtime::block_on(set_home_office(
+            &state,
+            "02.03.2026".into(),
+            false
+        ))
+        .is_err());
     }
 
     #[test]
@@ -854,7 +1216,14 @@ mod tests {
             end_date: Some("2026-12-31".into()),
             status: Some(status.into()),
         };
-        state.conn().unwrap().execute("INSERT INTO customers (id, name) VALUES ('c', 'Acme GmbH')", []).unwrap();
+        state
+            .conn()
+            .unwrap()
+            .execute(
+                "INSERT INTO customers (id, name) VALUES ('c', 'Acme GmbH')",
+                [],
+            )
+            .unwrap();
         tauri::async_runtime::block_on(save_project(&state, input("in_progress"))).unwrap();
         state
             .conn()
@@ -866,10 +1235,18 @@ mod tests {
             )
             .unwrap();
         let dates = || {
-            let p = query_projects(&state.conn().unwrap(), true).unwrap().remove(0);
+            let p = query_projects(&state.conn().unwrap(), true)
+                .unwrap()
+                .remove(0);
             (p.start_date, p.end_date, p.finished_date)
         };
-        let plan = |finished: Option<&str>| (Some("2026-11-01".to_string()), Some("2026-12-31".to_string()), finished.map(String::from));
+        let plan = |finished: Option<&str>| {
+            (
+                Some("2026-11-01".to_string()),
+                Some("2026-12-31".to_string()),
+                finished.map(String::from),
+            )
+        };
 
         invoice_unbilled(&state.conn().unwrap(), "c").unwrap();
         assert_eq!(dates(), plan(None), "billing leaves the plan alone");
@@ -884,10 +1261,22 @@ mod tests {
             )
             .unwrap();
         tauri::async_runtime::block_on(save_project(&state, input("completed"))).unwrap();
-        assert_eq!(dates(), plan(Some("2026-10-20")), "ends with the last billed position");
+        assert_eq!(
+            dates(),
+            plan(Some("2026-10-20")),
+            "ends with the last billed position"
+        );
 
-        state.conn().unwrap().execute("UPDATE invoices SET status = 'canceled'", []).unwrap();
-        assert_eq!(dates(), plan(Some("2026-10-25")), "a canceled invoice does not count, tracked time is the fallback");
+        state
+            .conn()
+            .unwrap()
+            .execute("UPDATE invoices SET status = 'canceled'", [])
+            .unwrap();
+        assert_eq!(
+            dates(),
+            plan(Some("2026-10-25")),
+            "a canceled invoice does not count, tracked time is the fallback"
+        );
 
         tauri::async_runtime::block_on(save_project(&state, input("in_progress"))).unwrap();
         assert_eq!(dates(), plan(None), "reopening brings the plan back");
@@ -897,15 +1286,24 @@ mod tests {
     #[test]
     fn range_label_names_full_years() {
         let d = |s: &str| crate::util::parse_date(s).unwrap();
-        assert_eq!(range_label(d("2026-01-01"), d("2026-12-31")), "Fiscal year 2026");
-        assert_eq!(range_label(d("2026-08-01"), d("2026-09-30")), "01/08/2026 – 30/09/2026");
+        assert_eq!(
+            range_label(d("2026-01-01"), d("2026-12-31")),
+            "Fiscal year 2026"
+        );
+        assert_eq!(
+            range_label(d("2026-08-01"), d("2026-09-30")),
+            "01/08/2026 – 30/09/2026"
+        );
     }
 
     #[test]
     fn periods_use_the_short_invoice_style() {
         assert_eq!(short_period("2026-08-28", "2026-08-28"), "28/08/26");
         assert_eq!(short_period("2026-08-30", "2026-09-09"), "30/08–09/09/26");
-        assert_eq!(short_period("2025-12-29", "2026-01-05"), "29/12/25–05/01/26");
+        assert_eq!(
+            short_period("2025-12-29", "2026-01-05"),
+            "29/12/25–05/01/26"
+        );
     }
 
     #[test]
@@ -924,8 +1322,13 @@ mod tests {
         assert_eq!(m(67), 70, "works past the hour: 1:07 → 1:10");
         assert_eq!(m(2), 10, "short entries count as at least 10 minutes");
         assert_eq!(round_duration(0), 0);
-        let (stop, d) = rounded_span("2026-10-04T09:00:00+02:00", "2026-10-04T10:07:00+02:00").unwrap();
-        assert_eq!((stop.as_str(), d), ("2026-10-04T08:10:00Z", 4200), "end moves to start + rounded duration");
+        let (stop, d) =
+            rounded_span("2026-10-04T09:00:00+02:00", "2026-10-04T10:07:00+02:00").unwrap();
+        assert_eq!(
+            (stop.as_str(), d),
+            ("2026-10-04T08:10:00Z", 4200),
+            "end moves to start + rounded duration"
+        );
     }
 
     #[test]
@@ -963,8 +1366,15 @@ mod tests {
             .unwrap()
             .collect::<Result<_, _>>()
             .unwrap();
-        assert_eq!(billed, ["a1", "w1", "w2"], "only finished, unbilled entries of billable projects of this customer");
+        assert_eq!(
+            billed,
+            ["a1", "w1", "w2"],
+            "only finished, unbilled entries of billable projects of this customer"
+        );
 
-        assert!(invoice_unbilled(&conn, "c").is_err(), "nothing left to bill");
+        assert!(
+            invoice_unbilled(&conn, "c").is_err(),
+            "nothing left to bill"
+        );
     }
 }

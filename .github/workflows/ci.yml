@@ -60,6 +60,10 @@ jobs:
         with:
           workspaces: src-tauri
 
+      - name: Rustfmt
+        working-directory: src-tauri
+        run: cargo fmt --check
+
       - name: Clippy
         working-directory: src-tauri
         run: cargo clippy --all-targets --locked -- -D warnings

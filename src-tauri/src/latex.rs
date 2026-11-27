@@ -14,19 +14,39 @@ use crate::templates::{self, INVOICE, TIMESHEET};
 use crate::util::{amount, currency_symbol, new_id, parse_date};
 
 pub fn find_xelatex() -> Option<PathBuf> {
-    let mut dirs: Vec<PathBuf> = std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default();
+    let mut dirs: Vec<PathBuf> = std::env::var_os("PATH")
+        .map(|p| std::env::split_paths(&p).collect())
+        .unwrap_or_default();
     if cfg!(windows) {
-        let roots = [std::env::var_os("LOCALAPPDATA").map(|d| PathBuf::from(d).join("Programs")), std::env::var_os("ProgramFiles").map(PathBuf::from)];
-        dirs.extend(roots.into_iter().flatten().map(|r| r.join("MiKTeX").join("miktex").join("bin").join("x64")));
+        let roots = [
+            std::env::var_os("LOCALAPPDATA").map(|d| PathBuf::from(d).join("Programs")),
+            std::env::var_os("ProgramFiles").map(PathBuf::from),
+        ];
+        dirs.extend(
+            roots
+                .into_iter()
+                .flatten()
+                .map(|r| r.join("MiKTeX").join("miktex").join("bin").join("x64")),
+        );
     } else {
-        dirs.extend(["/Library/TeX/texbin", "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"].map(PathBuf::from));
+        dirs.extend(
+            [
+                "/Library/TeX/texbin",
+                "/opt/homebrew/bin",
+                "/usr/local/bin",
+                "/usr/bin",
+            ]
+            .map(PathBuf::from),
+        );
     }
     xelatex_in(dirs)
 }
 
 fn xelatex_in(dirs: impl IntoIterator<Item = PathBuf>) -> Option<PathBuf> {
     let name = format!("xelatex{}", std::env::consts::EXE_SUFFIX);
-    dirs.into_iter().map(|d| d.join(&name)).find(|p| p.is_file())
+    dirs.into_iter()
+        .map(|d| d.join(&name))
+        .find(|p| p.is_file())
 }
 
 pub struct Toolchain {
@@ -42,16 +62,30 @@ pub fn toolchain(files_dir: &Path) -> Result<Toolchain, String> {
 
 impl Toolchain {
     fn template(&self, name: &str) -> AppResult<String> {
-        std::fs::read_to_string(self.dir.join(name)).map_err(|e| msg(tr!("Reading {name}: {e}", "{name} lesen: {e}")))
+        std::fs::read_to_string(self.dir.join(name))
+            .map_err(|e| msg(tr!("Reading {name}: {e}", "{name} lesen: {e}")))
     }
 }
 
-pub fn render_invoice(tc: &Toolchain, inv: &Invoice, customer: Option<&Customer>, s: &Settings, out: &Path) -> AppResult<()> {
+pub fn render_invoice(
+    tc: &Toolchain,
+    inv: &Invoice,
+    customer: Option<&Customer>,
+    s: &Settings,
+    out: &Path,
+) -> AppResult<()> {
     let tex = invoice_tex(&tc.template(INVOICE)?, inv, customer, s)?;
     compile(tc, &tex, 1, out)
 }
 
-pub fn render_timesheet(tc: &Toolchain, entries: &[TimesheetEntry], label: &str, from: NaiveDate, s: &Settings, out: &Path) -> AppResult<()> {
+pub fn render_timesheet(
+    tc: &Toolchain,
+    entries: &[TimesheetEntry],
+    label: &str,
+    from: NaiveDate,
+    s: &Settings,
+    out: &Path,
+) -> AppResult<()> {
     let tex = timesheet_tex(&tc.template(TIMESHEET)?, entries, label, from, s)?;
     compile(tc, &tex, 2, out)
 }
@@ -69,19 +103,43 @@ fn compile(tc: &Toolchain, tex: &str, runs: u8, out: &Path) -> AppResult<()> {
         }
         std::fs::write(job.join("doc.tex"), tex)?;
 
-        let mut dirs: Vec<PathBuf> = tc.xelatex.parent().map(Path::to_path_buf).into_iter().collect();
-        dirs.extend(std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect::<Vec<_>>()).unwrap_or_default());
-        let path = std::env::join_paths(dirs).map_err(|_| msg(tr!("Could not set PATH", "PATH konnte nicht gesetzt werden")))?;
+        let mut dirs: Vec<PathBuf> = tc
+            .xelatex
+            .parent()
+            .map(Path::to_path_buf)
+            .into_iter()
+            .collect();
+        dirs.extend(
+            std::env::var_os("PATH")
+                .map(|p| std::env::split_paths(&p).collect::<Vec<_>>())
+                .unwrap_or_default(),
+        );
+        let path = std::env::join_paths(dirs).map_err(|_| {
+            msg(tr!(
+                "Could not set PATH",
+                "PATH konnte nicht gesetzt werden"
+            ))
+        })?;
         for _ in 0..runs.max(1) {
             let mut cmd = Command::new(&tc.xelatex);
-            cmd.args(["-no-shell-escape", "-interaction=nonstopmode", "-halt-on-error", "-file-line-error", "doc.tex"])
-                .current_dir(&job)
-                .env("PATH", &path);
+            cmd.args([
+                "-no-shell-escape",
+                "-interaction=nonstopmode",
+                "-halt-on-error",
+                "-file-line-error",
+                "doc.tex",
+            ])
+            .current_dir(&job)
+            .env("PATH", &path);
             #[cfg(windows)]
             std::os::windows::process::CommandExt::creation_flags(&mut cmd, CREATE_NO_WINDOW);
             let output = cmd.output()?;
             if !output.status.success() {
-                return Err(msg(tr!("LaTeX error: {}", "LaTeX-Fehler: {}", first_error(&job.join("doc.log")))));
+                return Err(msg(tr!(
+                    "LaTeX error: {}",
+                    "LaTeX-Fehler: {}",
+                    first_error(&job.join("doc.log"))
+                )));
             }
         }
         if let Some(parent) = out.parent() {
@@ -122,9 +180,14 @@ fn is_file_line_error(line: &str) -> bool {
 }
 
 fn first_error(log: &Path) -> String {
-    let text = std::fs::read(log).map(|b| String::from_utf8_lossy(&b).into_owned()).unwrap_or_default();
+    let text = std::fs::read(log)
+        .map(|b| String::from_utf8_lossy(&b).into_owned())
+        .unwrap_or_default();
     let lines: Vec<&str> = text.lines().collect();
-    let Some(i) = lines.iter().position(|l| l.starts_with('!') || is_file_line_error(l)) else {
+    let Some(i) = lines
+        .iter()
+        .position(|l| l.starts_with('!') || is_file_line_error(l))
+    else {
         return tr!("unknown (see doc.log)", "unbekannt (siehe doc.log)");
     };
     let mut out = lines[i].trim_start_matches('!').trim().to_string();
@@ -136,14 +199,53 @@ fn first_error(log: &Path) -> String {
 }
 
 pub const INVOICE_PLACEHOLDERS: &[&str] = &[
-    "language", "title", "label_from", "label_to", "label_details", "from", "to", "details", "columns", "rows", "sums", "tax_note",
-    "label_total", "total", "currency", "note", "regards", "signer", "payment", "invoice_number", "issue_date", "due_date",
-    "company_name", "company_email", "company_phone", "company_website", "iban", "bic", "bank_name",
+    "language",
+    "title",
+    "label_from",
+    "label_to",
+    "label_details",
+    "from",
+    "to",
+    "details",
+    "columns",
+    "rows",
+    "sums",
+    "tax_note",
+    "label_total",
+    "total",
+    "currency",
+    "note",
+    "regards",
+    "signer",
+    "payment",
+    "invoice_number",
+    "issue_date",
+    "due_date",
+    "company_name",
+    "company_email",
+    "company_phone",
+    "company_website",
+    "iban",
+    "bic",
+    "bank_name",
 ];
 
 pub const TIMESHEET_PLACEHOLDERS: &[&str] = &[
-    "language", "title", "subtitle", "owner", "email", "label_by", "label_email", "period", "body", "label_summary", "label_week",
-    "label_hours", "label_hours_total", "overview", "grand_total",
+    "language",
+    "title",
+    "subtitle",
+    "owner",
+    "email",
+    "label_by",
+    "label_email",
+    "period",
+    "body",
+    "label_summary",
+    "label_week",
+    "label_hours",
+    "label_hours_total",
+    "overview",
+    "grand_total",
 ];
 
 fn fill(template: &str, file: &str, vars: &[(&str, String)]) -> AppResult<String> {
@@ -168,18 +270,30 @@ fn comment_start(line: &str) -> usize {
     line.len()
 }
 
-fn fill_code(mut rest: &str, file: &str, vars: &[(&str, String)], out: &mut String) -> AppResult<()> {
+fn fill_code(
+    mut rest: &str,
+    file: &str,
+    vars: &[(&str, String)],
+    out: &mut String,
+) -> AppResult<()> {
     while let Some(start) = rest.find("<<") {
         out.push_str(&rest[..start]);
         let after = &rest[start + 2..];
-        let len = after.find(|c: char| !(c.is_ascii_lowercase() || c == '_')).unwrap_or(after.len());
+        let len = after
+            .find(|c: char| !(c.is_ascii_lowercase() || c == '_'))
+            .unwrap_or(after.len());
         if len > 0 && after[len..].starts_with(">>") {
             let name = &after[..len];
             let value = vars
                 .iter()
                 .find(|(k, _)| *k == name)
                 .map(|(_, v)| v)
-                .ok_or_else(|| msg(tr!("Unknown placeholder <<{name}>> in {file}", "Unbekannter Platzhalter <<{name}>> in {file}")))?;
+                .ok_or_else(|| {
+                    msg(tr!(
+                        "Unknown placeholder <<{name}>> in {file}",
+                        "Unbekannter Platzhalter <<{name}>> in {file}"
+                    ))
+                })?;
             out.push_str(value);
             rest = &after[len + 2..];
         } else {
@@ -227,8 +341,34 @@ pub fn hm(secs: i64) -> String {
 
 const WEEKDAYS: [&str; 7] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const WEEKDAYS_DE: [&str; 7] = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
-const MONTHS: [&str; 12] = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-const MONTHS_DE: [&str; 12] = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+const MONTHS: [&str; 12] = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+];
+const MONTHS_DE: [&str; 12] = [
+    "Januar",
+    "Februar",
+    "März",
+    "April",
+    "Mai",
+    "Juni",
+    "Juli",
+    "August",
+    "September",
+    "Oktober",
+    "November",
+    "Dezember",
+];
 
 fn split_period(name: &str) -> (String, Option<String>) {
     let t = name.trim();
@@ -246,8 +386,17 @@ fn or_empty(v: &Option<String>) -> &str {
 }
 
 fn postal_lines(street: [&str; 2], zip: &str, city: &str) -> Vec<String> {
-    let mut lines: Vec<String> = street.into_iter().map(str::trim).filter(|l| !l.is_empty()).map(esc).collect();
-    let place = [zip.trim(), city.trim()].into_iter().filter(|p| !p.is_empty()).collect::<Vec<_>>().join(", ");
+    let mut lines: Vec<String> = street
+        .into_iter()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .map(esc)
+        .collect();
+    let place = [zip.trim(), city.trim()]
+        .into_iter()
+        .filter(|p| !p.is_empty())
+        .collect::<Vec<_>>()
+        .join(", ");
     if !place.is_empty() {
         lines.push(esc(&format!("{place},")));
     }
@@ -273,16 +422,29 @@ fn minipage_lines(lines: &[String], gap_after: Option<usize>) -> String {
         .join("\n")
 }
 
-pub fn invoice_tex(template: &str, inv: &Invoice, customer: Option<&Customer>, s: &Settings) -> AppResult<String> {
+pub fn invoice_tex(
+    template: &str,
+    inv: &Invoice,
+    customer: Option<&Customer>,
+    s: &Settings,
+) -> AppResult<String> {
     let cur = esc(currency_symbol(&inv.currency));
-    let signer = esc(if s.company_owner.trim().is_empty() { &s.company_name } else { &s.company_owner });
+    let signer = esc(if s.company_owner.trim().is_empty() {
+        &s.company_name
+    } else {
+        &s.company_owner
+    });
 
     let mut from = vec![signer.clone()];
     if !s.company_email.trim().is_empty() {
         from.push(esc(s.company_email.trim()));
     }
     let from_gap = from.len() - 1;
-    let company_address = postal_lines([&s.company_address_line1, &s.company_address_line2], &s.company_zip, &s.company_city);
+    let company_address = postal_lines(
+        [&s.company_address_line1, &s.company_address_line2],
+        &s.company_zip,
+        &s.company_city,
+    );
     if !company_address.is_empty() {
         from.extend(company_address);
         from.push(esc(&country_name(&s.company_country)));
@@ -293,34 +455,77 @@ pub fn invoice_tex(template: &str, inv: &Invoice, customer: Option<&Customer>, s
     match customer {
         Some(c) => {
             to.push(esc(&c.name));
-            if let Some(mail) = c.billing_email.as_deref().filter(|v| !v.trim().is_empty()).or(c.email.as_deref().filter(|v| !v.trim().is_empty())) {
+            if let Some(mail) = c
+                .billing_email
+                .as_deref()
+                .filter(|v| !v.trim().is_empty())
+                .or(c.email.as_deref().filter(|v| !v.trim().is_empty()))
+            {
                 to.push(esc(mail));
             }
             to_gap = to.len() - 1;
-            to.extend(postal_lines([or_empty(&c.address_line1), or_empty(&c.address_line2)], or_empty(&c.zip), or_empty(&c.city)));
+            to.extend(postal_lines(
+                [or_empty(&c.address_line1), or_empty(&c.address_line2)],
+                or_empty(&c.zip),
+                or_empty(&c.city),
+            ));
             to.push(esc(&country_name(&country_of(c, s))));
         }
         None => {
-            to.extend(inv.customer_details.as_deref().unwrap_or("").lines().map(esc));
+            to.extend(
+                inv.customer_details
+                    .as_deref()
+                    .unwrap_or("")
+                    .lines()
+                    .map(esc),
+            );
             to_gap = 0;
         }
     }
 
-    let mut details = vec![tr!("Invoice no.: \\hfill {}", "Rechnungs-Nr.: \\hfill {}", esc(&inv.invoice_number))];
+    let mut details = vec![tr!(
+        "Invoice no.: \\hfill {}",
+        "Rechnungs-Nr.: \\hfill {}",
+        esc(&inv.invoice_number)
+    )];
     if let Some(n) = inv.customer_number.as_deref() {
-        details.push(tr!("Customer no.: \\hfill {}", "Kunden-Nr.: \\hfill {}", esc(n)));
+        details.push(tr!(
+            "Customer no.: \\hfill {}",
+            "Kunden-Nr.: \\hfill {}",
+            esc(n)
+        ));
     }
     let details_gap = details.len() - 1;
     if let Some(o) = inv.order_number.as_deref().filter(|o| !o.trim().is_empty()) {
-        details.push(tr!("Order no.: \\hfill {}", "Auftrags-Nr.: \\hfill {}", esc(o.trim()).replace('-', "\\mbox{-}")));
+        details.push(tr!(
+            "Order no.: \\hfill {}",
+            "Auftrags-Nr.: \\hfill {}",
+            esc(o.trim()).replace('-', "\\mbox{-}")
+        ));
     }
-    details.push(tr!("Invoice date: \\hfill {}", "Rechnungsdatum: \\hfill {}", fmt_date(&inv.issue_date)));
-    details.push(tr!("Due date: \\hfill {}", "Fälligkeitsdatum: \\hfill {}", fmt_date(&inv.due_date)));
+    details.push(tr!(
+        "Invoice date: \\hfill {}",
+        "Rechnungsdatum: \\hfill {}",
+        fmt_date(&inv.issue_date)
+    ));
+    details.push(tr!(
+        "Due date: \\hfill {}",
+        "Fälligkeitsdatum: \\hfill {}",
+        fmt_date(&inv.due_date)
+    ));
     if !s.company_tax_number.trim().is_empty() {
-        details.push(tr!("Tax number: \\hfill {}", "Steuernummer: \\hfill {}", esc(s.company_tax_number.trim())));
+        details.push(tr!(
+            "Tax number: \\hfill {}",
+            "Steuernummer: \\hfill {}",
+            esc(s.company_tax_number.trim())
+        ));
     }
     if !s.company_vat_id.trim().is_empty() {
-        details.push(tr!("VAT ID: \\hfill {}", "USt-IdNr.: \\hfill {}", esc(s.company_vat_id.trim())));
+        details.push(tr!(
+            "VAT ID: \\hfill {}",
+            "USt-IdNr.: \\hfill {}",
+            esc(s.company_vat_id.trim())
+        ));
     }
 
     let rate = inv.vat_rate;
@@ -346,13 +551,25 @@ pub fn invoice_tex(template: &str, inv: &Invoice, customer: Option<&Customer>, s
         .collect();
     let mut sums = String::new();
     if inv.discount_cents > 0 || inv.vat_cents > 0 {
-        sums.push_str(&tr!("\\multicolumn{{5}}{{r}}{{Subtotal:}} & {}~{cur} \\\\\n", "\\multicolumn{{5}}{{r}}{{Zwischensumme:}} & {}~{cur} \\\\\n", amount(inv.subtotal_cents)));
+        sums.push_str(&tr!(
+            "\\multicolumn{{5}}{{r}}{{Subtotal:}} & {}~{cur} \\\\\n",
+            "\\multicolumn{{5}}{{r}}{{Zwischensumme:}} & {}~{cur} \\\\\n",
+            amount(inv.subtotal_cents)
+        ));
     }
     if inv.discount_cents > 0 {
-        sums.push_str(&tr!("\\multicolumn{{5}}{{r}}{{Discount:}} & -{}~{cur} \\\\\n", "\\multicolumn{{5}}{{r}}{{Rabatt:}} & -{}~{cur} \\\\\n", amount(inv.discount_cents)));
+        sums.push_str(&tr!(
+            "\\multicolumn{{5}}{{r}}{{Discount:}} & -{}~{cur} \\\\\n",
+            "\\multicolumn{{5}}{{r}}{{Rabatt:}} & -{}~{cur} \\\\\n",
+            amount(inv.discount_cents)
+        ));
     }
     if inv.vat_cents > 0 {
-        sums.push_str(&tr!("\\multicolumn{{5}}{{r}}{{VAT ({rate_txt}\\%):}} & {}~{cur} \\\\\n", "\\multicolumn{{5}}{{r}}{{MwSt. ({rate_txt}\\%):}} & {}~{cur} \\\\\n", amount(inv.vat_cents)));
+        sums.push_str(&tr!(
+            "\\multicolumn{{5}}{{r}}{{VAT ({rate_txt}\\%):}} & {}~{cur} \\\\\n",
+            "\\multicolumn{{5}}{{r}}{{MwSt. ({rate_txt}\\%):}} & {}~{cur} \\\\\n",
+            amount(inv.vat_cents)
+        ));
     }
     let tax_note = crate::vat::TaxCase::of(inv, customer, s).note();
 
@@ -360,7 +577,12 @@ pub fn invoice_tex(template: &str, inv: &Invoice, customer: Option<&Customer>, s
         .note
         .as_deref()
         .filter(|n| !n.trim().is_empty())
-        .map(|n| format!("{}\n\n\\vspace{{4.5mm}}\n\n", n.lines().map(esc).collect::<Vec<_>>().join("\\\\\n")))
+        .map(|n| {
+            format!(
+                "{}\n\n\\vspace{{4.5mm}}\n\n",
+                n.lines().map(esc).collect::<Vec<_>>().join("\\\\\n")
+            )
+        })
         .unwrap_or_default();
 
     let mut payment = Vec::new();
@@ -368,7 +590,10 @@ pub fn invoice_tex(template: &str, inv: &Invoice, customer: Option<&Customer>, s
         (pick("Recipient", "Empfänger"), signer.clone()),
         ("IBAN", esc(s.company_iban.trim())),
         ("BIC/SWIFT", esc(s.company_bic.trim())),
-        (pick("Bank name", "Name der Bank"), esc(s.company_bank_name.trim())),
+        (
+            pick("Bank name", "Name der Bank"),
+            esc(s.company_bank_name.trim()),
+        ),
     ] {
         if !value.is_empty() {
             payment.push(format!("{label} & {value} \\\\"));
@@ -448,14 +673,31 @@ pub struct TimesheetEntry {
     pub customer: String,
 }
 
-pub fn timesheet_tex(template: &str, entries: &[TimesheetEntry], label: &str, from: NaiveDate, s: &Settings) -> AppResult<String> {
-    let owner = esc(if s.company_owner.trim().is_empty() { &s.company_name } else { &s.company_owner });
+pub fn timesheet_tex(
+    template: &str,
+    entries: &[TimesheetEntry],
+    label: &str,
+    from: NaiveDate,
+    s: &Settings,
+) -> AppResult<String> {
+    let owner = esc(if s.company_owner.trim().is_empty() {
+        &s.company_name
+    } else {
+        &s.company_owner
+    });
 
     let mut weeks: BTreeMap<NaiveDate, BTreeMap<String, Vec<&TimesheetEntry>>> = BTreeMap::new();
     for e in entries {
-        let Some(d) = parse_date(&e.date) else { continue };
+        let Some(d) = parse_date(&e.date) else {
+            continue;
+        };
         let monday = d - chrono::Duration::days(d.weekday().num_days_from_monday() as i64);
-        weeks.entry(monday).or_default().entry(e.customer.clone()).or_default().push(e);
+        weeks
+            .entry(monday)
+            .or_default()
+            .entry(e.customer.clone())
+            .or_default()
+            .push(e);
     }
 
     let mut body = String::new();
@@ -464,14 +706,25 @@ pub fn timesheet_tex(template: &str, entries: &[TimesheetEntry], label: &str, fr
     let mut current_month: Option<(i32, u32)> = None;
     for (monday, by_customer) in &weeks {
         let sunday = *monday + chrono::Duration::days(6);
-        let section = if *monday < from { (from.year(), from.month()) } else { (monday.year(), monday.month()) };
+        let section = if *monday < from {
+            (from.year(), from.month())
+        } else {
+            (monday.year(), monday.month())
+        };
         if current_month != Some(section) {
             let months = if is_de() { MONTHS_DE } else { MONTHS };
-            body.push_str(&format!("\\section{{{} {}}}\n\n", months[section.1 as usize - 1], section.0));
+            body.push_str(&format!(
+                "\\section{{{} {}}}\n\n",
+                months[section.1 as usize - 1],
+                section.0
+            ));
             current_month = Some(section);
         }
         let kw = monday.iso_week().week();
-        body.push_str(&tr!("\\subsection{{Calendar week {kw:02}}}\n", "\\subsection{{Kalenderwoche {kw:02}}}\n"));
+        body.push_str(&tr!(
+            "\\subsection{{Calendar week {kw:02}}}\n",
+            "\\subsection{{Kalenderwoche {kw:02}}}\n"
+        ));
 
         let mut week_total = 0;
         for (customer, list) in by_customer {
@@ -480,9 +733,19 @@ pub fn timesheet_tex(template: &str, entries: &[TimesheetEntry], label: &str, fr
             let total: i64 = list.iter().map(|e| e.duration).sum();
             week_total += total;
             let head = if is_de() {
-                format!("{} – {} | Klient: {}", monday.format("%d.%m."), sunday.format("%d.%m.%Y"), esc(customer))
+                format!(
+                    "{} – {} | Klient: {}",
+                    monday.format("%d.%m."),
+                    sunday.format("%d.%m.%Y"),
+                    esc(customer)
+                )
             } else {
-                format!("{} – {} | Client: {}", monday.format("%d/%m"), sunday.format("%d/%m/%Y"), esc(customer))
+                format!(
+                    "{} – {} | Client: {}",
+                    monday.format("%d/%m"),
+                    sunday.format("%d/%m/%Y"),
+                    esc(customer)
+                )
             };
             let rows: String = list
                 .iter()
@@ -490,7 +753,8 @@ pub fn timesheet_tex(template: &str, entries: &[TimesheetEntry], label: &str, fr
                     let d = parse_date(&e.date)?;
                     Some(format!(
                         "{}, {} & {} & {} \\\\\n\\hline\n",
-                        (if is_de() { WEEKDAYS_DE } else { WEEKDAYS })[d.weekday().num_days_from_monday() as usize],
+                        (if is_de() { WEEKDAYS_DE } else { WEEKDAYS })
+                            [d.weekday().num_days_from_monday() as usize],
                         fmt_date(&e.date),
                         esc(&e.description),
                         hm(e.duration)
@@ -521,23 +785,43 @@ pub fn timesheet_tex(template: &str, entries: &[TimesheetEntry], label: &str, fr
             ));
         }
         grand += week_total;
-        overview.push_str(&tr!("CW {kw:02} & {} \\\\\n\\hline\n", "KW {kw:02} & {} \\\\\n\\hline\n", hm(week_total)));
+        overview.push_str(&tr!(
+            "CW {kw:02} & {} \\\\\n\\hline\n",
+            "KW {kw:02} & {} \\\\\n\\hline\n",
+            hm(week_total)
+        ));
     }
 
     let vars = [
         ("language", pick("british", "ngerman").to_string()),
         ("title", pick("Time tracking", "Zeiterfassung").to_string()),
-        ("subtitle", pick("Record of hours worked.", "Dokumentation der geleisteten Arbeitsstunden.").to_string()),
+        (
+            "subtitle",
+            pick(
+                "Record of hours worked.",
+                "Dokumentation der geleisteten Arbeitsstunden.",
+            )
+            .to_string(),
+        ),
         ("owner", owner),
         ("email", esc(s.company_email.trim())),
         ("label_by", pick("by", "von").to_string()),
         ("label_email", pick("Email", "E-Mail").to_string()),
         ("period", esc(label)),
         ("body", body),
-        ("label_summary", pick("Summary", "Gesamtübersicht").to_string()),
-        ("label_week", pick("Calendar week", "Kalenderwoche").to_string()),
+        (
+            "label_summary",
+            pick("Summary", "Gesamtübersicht").to_string(),
+        ),
+        (
+            "label_week",
+            pick("Calendar week", "Kalenderwoche").to_string(),
+        ),
         ("label_hours", pick("Hours", "Stunden").to_string()),
-        ("label_hours_total", pick("Total hours", "Gesamtstunden").to_string()),
+        (
+            "label_hours_total",
+            pick("Total hours", "Gesamtstunden").to_string(),
+        ),
         ("overview", overview),
         ("grand_total", hm(grand)),
     ];
@@ -571,13 +855,22 @@ mod tests {
         std::fs::create_dir_all(&job).unwrap();
         link(&src.join("Report.cls"), &job.join("Report.cls")).unwrap();
         link(&src.join("Fonts"), &job.join("Fonts")).unwrap();
-        assert_eq!(std::fs::read_to_string(job.join("Report.cls")).unwrap(), "cls");
-        assert_eq!(std::fs::read_to_string(job.join("Fonts").join("a.otf")).unwrap(), "font");
+        assert_eq!(
+            std::fs::read_to_string(job.join("Report.cls")).unwrap(),
+            "cls"
+        );
+        assert_eq!(
+            std::fs::read_to_string(job.join("Fonts").join("a.otf")).unwrap(),
+            "font"
+        );
     }
 
     #[test]
     fn escapes_latex_specials() {
-        assert_eq!(esc("Design & Concept 100% #1 a_b"), "Design \\& Concept 100\\% \\#1 a\\_b");
+        assert_eq!(
+            esc("Design & Concept 100% #1 a_b"),
+            "Design \\& Concept 100\\% \\#1 a\\_b"
+        );
     }
 
     #[test]
@@ -588,44 +881,105 @@ mod tests {
         assert_eq!(qty(15.0), "15");
         assert_eq!(qty(16.5), "16.5");
         assert_eq!(hm(9000), "2:30 h");
-        assert_eq!(split_period("Website – UI-Design (30.08.–09.09.26)"), ("Website – UI-Design".into(), Some("30.08.–09.09.26".into())));
-        assert_eq!(split_period("Maintenance (monthly)"), ("Maintenance (monthly)".into(), None), "only dates count as period");
+        assert_eq!(
+            split_period("Website – UI-Design (30.08.–09.09.26)"),
+            ("Website – UI-Design".into(), Some("30.08.–09.09.26".into()))
+        );
+        assert_eq!(
+            split_period("Maintenance (monthly)"),
+            ("Maintenance (monthly)".into(), None),
+            "only dates count as period"
+        );
     }
 
     #[test]
     fn postal_lines_skip_empty_parts() {
-        assert_eq!(postal_lines(["Weg 2", " "], "10115", "Berlin"), ["Weg 2", "10115, Berlin,"]);
-        assert_eq!(postal_lines(["Weg 2", ""], "", "Berlin"), ["Weg 2", "Berlin,"]);
+        assert_eq!(
+            postal_lines(["Weg 2", " "], "10115", "Berlin"),
+            ["Weg 2", "10115, Berlin,"]
+        );
+        assert_eq!(
+            postal_lines(["Weg 2", ""], "", "Berlin"),
+            ["Weg 2", "Berlin,"]
+        );
         assert!(postal_lines(["", ""], " ", "").is_empty());
     }
 
     #[test]
     fn timesheet_groups_weeks_by_client() {
-        let s = Settings { company_owner: "Jane Doe".into(), ..Settings::default() };
-        let e = |date: &str| TimesheetEntry { date: date.into(), start: format!("{date}T09:00:00Z"), duration: 7200, description: "Design & Code".into(), customer: "Acme GmbH".into() };
+        let s = Settings {
+            company_owner: "Jane Doe".into(),
+            ..Settings::default()
+        };
+        let e = |date: &str| TimesheetEntry {
+            date: date.into(),
+            start: format!("{date}T09:00:00Z"),
+            duration: 7200,
+            description: "Design & Code".into(),
+            customer: "Acme GmbH".into(),
+        };
         let template = templates::default_content(TIMESHEET).unwrap();
-        let tex = timesheet_tex(template, &[e("2026-04-14"), e("2026-07-29")], "Fiscal year 2026", NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(), &s).unwrap();
+        let tex = timesheet_tex(
+            template,
+            &[e("2026-04-14"), e("2026-07-29")],
+            "Fiscal year 2026",
+            NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+            &s,
+        )
+        .unwrap();
         assert!(tex.contains("13/04 – 19/04/2026 | Client: Acme GmbH"));
         assert!(tex.contains("27/07 – 02/08/2026 | Client: Acme GmbH"));
         assert!(tex.contains("Tue, 14/04/2026 & Design \\& Code & 2:00 h"));
-        assert!(tex.contains("\\textbf{4:00 h}"), "grand total in the overview");
-        assert!(tex.lines().filter(|l| !l.starts_with('%')).all(|l| !l.contains("<<")), "every placeholder is filled");
+        assert!(
+            tex.contains("\\textbf{4:00 h}"),
+            "grand total in the overview"
+        );
+        assert!(
+            tex.lines()
+                .filter(|l| !l.starts_with('%'))
+                .all(|l| !l.contains("<<")),
+            "every placeholder is filled"
+        );
     }
 
     #[test]
     fn fills_placeholders_and_rejects_unknown_ones() {
         let vars = [("name", "Jane".to_string())];
-        assert_eq!(fill(r"Hi <<name>>, \draw[<<-] a << b", "t.tex", &vars).unwrap(), r"Hi Jane, \draw[<<-] a << b");
-        assert_eq!(fill("<<name>> % see <<rows>>\n50\\% <<name>>", "t.tex", &vars).unwrap(), "Jane % see <<rows>>\n50\\% Jane", "comments stay untouched");
+        assert_eq!(
+            fill(r"Hi <<name>>, \draw[<<-] a << b", "t.tex", &vars).unwrap(),
+            r"Hi Jane, \draw[<<-] a << b"
+        );
+        assert_eq!(
+            fill("<<name>> % see <<rows>>\n50\\% <<name>>", "t.tex", &vars).unwrap(),
+            "Jane % see <<rows>>\n50\\% Jane",
+            "comments stay untouched"
+        );
         let err = fill("<<nmae>>", "t.tex", &vars).unwrap_err().to_string();
         assert!(err.contains("<<nmae>>") && err.contains("t.tex"), "{err}");
     }
 
     #[test]
     fn default_invoice_template_uses_exactly_the_known_placeholders() {
-        let inv = crate::invoices::Invoice { invoice_number: "INV-1".into(), issue_date: "2026-10-03".into(), due_date: "2026-10-17".into(), currency: "EUR".into(), ..Default::default() };
-        let tex = invoice_tex(templates::default_content(INVOICE).unwrap(), &inv, None, &Settings::default()).unwrap();
+        let inv = crate::invoices::Invoice {
+            invoice_number: "INV-1".into(),
+            issue_date: "2026-10-03".into(),
+            due_date: "2026-10-17".into(),
+            currency: "EUR".into(),
+            ..Default::default()
+        };
+        let tex = invoice_tex(
+            templates::default_content(INVOICE).unwrap(),
+            &inv,
+            None,
+            &Settings::default(),
+        )
+        .unwrap();
         assert!(tex.contains("INV-1"));
-        assert!(tex.lines().filter(|l| !l.starts_with('%')).all(|l| !l.contains("<<")), "every placeholder is filled");
+        assert!(
+            tex.lines()
+                .filter(|l| !l.starts_with('%'))
+                .all(|l| !l.contains("<<")),
+            "every placeholder is filled"
+        );
     }
 }

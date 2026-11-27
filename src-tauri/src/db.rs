@@ -21,7 +21,10 @@ impl AppState {
     pub fn new(conn: Connection, files_dir: PathBuf) -> AppResult<Self> {
         ensure_file_dirs(&files_dir)?;
         rebase_file_paths(&conn, &files_dir)?;
-        Ok(Self { db: Arc::new(Mutex::new(conn)), files_dir })
+        Ok(Self {
+            db: Arc::new(Mutex::new(conn)),
+            files_dir,
+        })
     }
 
     pub fn conn(&self) -> AppResult<MutexGuard<'_, Connection>> {
@@ -30,16 +33,24 @@ impl AppState {
 }
 
 fn rebase_file_paths(conn: &Connection, files_dir: &Path) -> AppResult<()> {
-    for (table, col) in [("documents", "path"), ("receipts", "path"), ("invoices", "file_path")] {
+    for (table, col) in [
+        ("documents", "path"),
+        ("receipts", "path"),
+        ("invoices", "file_path"),
+    ] {
         let rows: Vec<(String, String)> = conn
-            .prepare(&format!("SELECT id, {col} FROM {table} WHERE {col} IS NOT NULL"))?
+            .prepare(&format!(
+                "SELECT id, {col} FROM {table} WHERE {col} IS NOT NULL"
+            ))?
             .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
             .collect::<Result<_, _>>()?;
         for (id, path) in rows {
             if Path::new(&path).exists() {
                 continue;
             }
-            let Some(i) = path.rfind("/files/") else { continue };
+            let Some(i) = path.rfind("/files/") else {
+                continue;
+            };
             let rebased = files_dir.join(&path[i + "/files/".len()..]);
             if rebased.exists() {
                 conn.execute(
@@ -69,7 +80,12 @@ pub fn reset(conn: &Connection) -> AppResult<()> {
 }
 
 pub fn lock(db: &Db) -> AppResult<MutexGuard<'_, Connection>> {
-    db.lock().map_err(|_| msg(tr!("Database is locked, please restart the app", "Datenbank ist blockiert, bitte die App neu starten")))
+    db.lock().map_err(|_| {
+        msg(tr!(
+            "Database is locked, please restart the app",
+            "Datenbank ist blockiert, bitte die App neu starten"
+        ))
+    })
 }
 
 pub fn open(path: &Path) -> AppResult<Connection> {
@@ -88,7 +104,9 @@ pub fn open_in_memory() -> AppResult<Connection> {
 }
 
 fn configure(conn: &Connection) -> AppResult<()> {
-    conn.execute_batch("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;")?;
+    conn.execute_batch(
+        "PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;",
+    )?;
     Ok(())
 }
 
@@ -106,9 +124,16 @@ fn migrate(conn: &Connection) -> AppResult<()> {
                 data(&tx)?;
             }
             tx.execute_batch(&format!("PRAGMA user_version = {}", i + 1))?;
-            let broken: i64 = tx.query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| r.get(0))?;
+            let broken: i64 =
+                tx.query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| {
+                    r.get(0)
+                })?;
             if broken > 0 {
-                return Err(msg(tr!("Migration {} created {broken} invalid references", "Migration {} hat {broken} ungültige Verknüpfungen erzeugt", i + 1)));
+                return Err(msg(tr!(
+                    "Migration {} created {broken} invalid references",
+                    "Migration {} hat {broken} ungültige Verknüpfungen erzeugt",
+                    i + 1
+                )));
             }
             tx.commit()?;
         }
@@ -119,26 +144,105 @@ fn migrate(conn: &Connection) -> AppResult<()> {
 }
 
 const DEFAULT_CATEGORIES: &[(&str, &str, &str, &str, &str)] = &[
-    ("software", "Software & subscriptions", "Licences, SaaS, hosting, domains", "Software & Abos", "Lizenzen, SaaS, Hosting, Domains"),
-    ("hardware", "Hardware & equipment", "Computers, monitors, accessories", "Hardware & Technik", "Computer, Monitore, Zubehör"),
-    ("office", "Office & supplies", "Office supplies, furniture, postage", "Büro & Arbeitsmittel", "Büromaterial, Möbel, Porto"),
-    ("telecom", "Phone & internet", "Mobile and internet (business share)", "Telefon & Internet", "Mobilfunk und Internet (beruflicher Anteil)"),
-    ("training", "Training & literature", "Courses, conferences, books", "Fortbildung & Fachliteratur", "Kurse, Konferenzen, Bücher"),
-    ("travel", "Travel", "Train, public transport, mileage, accommodation", "Reisen & Fahrten", "Bahn, ÖPNV, Fahrtkosten, Übernachtung"),
-    ("meals", "Business meals", "Business meals with customers", "Bewirtung", "Geschäftsessen mit Kunden"),
-    ("marketing", "Advertising & marketing", "Ads, print, website", "Werbung & Marketing", "Anzeigen, Druck, Website"),
-    ("contractors", "Contractors", "Freelancers and service providers you hire", "Fremdleistungen", "Beauftragte Freelancer und Dienstleister"),
-    ("insurance", "Insurance & memberships", "Business insurance, chambers, associations", "Versicherungen & Beiträge", "Berufliche Versicherungen, Kammern, Verbände"),
-    ("banking-fees", "Bank & fees", "Account fees, payment services", "Bank & Gebühren", "Kontoführung, Zahlungsdienste"),
-    ("workspace", "Workspace", "Home office room, coworking", "Raumkosten", "Arbeitszimmer, Coworking"),
+    (
+        "software",
+        "Software & subscriptions",
+        "Licences, SaaS, hosting, domains",
+        "Software & Abos",
+        "Lizenzen, SaaS, Hosting, Domains",
+    ),
+    (
+        "hardware",
+        "Hardware & equipment",
+        "Computers, monitors, accessories",
+        "Hardware & Technik",
+        "Computer, Monitore, Zubehör",
+    ),
+    (
+        "office",
+        "Office & supplies",
+        "Office supplies, furniture, postage",
+        "Büro & Arbeitsmittel",
+        "Büromaterial, Möbel, Porto",
+    ),
+    (
+        "telecom",
+        "Phone & internet",
+        "Mobile and internet (business share)",
+        "Telefon & Internet",
+        "Mobilfunk und Internet (beruflicher Anteil)",
+    ),
+    (
+        "training",
+        "Training & literature",
+        "Courses, conferences, books",
+        "Fortbildung & Fachliteratur",
+        "Kurse, Konferenzen, Bücher",
+    ),
+    (
+        "travel",
+        "Travel",
+        "Train, public transport, mileage, accommodation",
+        "Reisen & Fahrten",
+        "Bahn, ÖPNV, Fahrtkosten, Übernachtung",
+    ),
+    (
+        "meals",
+        "Business meals",
+        "Business meals with customers",
+        "Bewirtung",
+        "Geschäftsessen mit Kunden",
+    ),
+    (
+        "marketing",
+        "Advertising & marketing",
+        "Ads, print, website",
+        "Werbung & Marketing",
+        "Anzeigen, Druck, Website",
+    ),
+    (
+        "contractors",
+        "Contractors",
+        "Freelancers and service providers you hire",
+        "Fremdleistungen",
+        "Beauftragte Freelancer und Dienstleister",
+    ),
+    (
+        "insurance",
+        "Insurance & memberships",
+        "Business insurance, chambers, associations",
+        "Versicherungen & Beiträge",
+        "Berufliche Versicherungen, Kammern, Verbände",
+    ),
+    (
+        "banking-fees",
+        "Bank & fees",
+        "Account fees, payment services",
+        "Bank & Gebühren",
+        "Kontoführung, Zahlungsdienste",
+    ),
+    (
+        "workspace",
+        "Workspace",
+        "Home office room, coworking",
+        "Raumkosten",
+        "Arbeitszimmer, Coworking",
+    ),
     ("other", "Other", "", "Sonstiges", ""),
 ];
 
 pub fn localize_default_categories(conn: &Connection) -> AppResult<()> {
     let de = crate::i18n::is_de();
     for &(slug, en_name, en_desc, de_name, de_desc) in DEFAULT_CATEGORIES {
-        let (from_name, from_desc, to_name, to_desc) = if de { (en_name, en_desc, de_name, de_desc) } else { (de_name, de_desc, en_name, en_desc) };
-        conn.execute("UPDATE categories SET name = ?1 WHERE slug = ?2 AND name = ?3", params![to_name, slug, from_name])?;
+        let (from_name, from_desc, to_name, to_desc) = if de {
+            (en_name, en_desc, de_name, de_desc)
+        } else {
+            (de_name, de_desc, en_name, en_desc)
+        };
+        conn.execute(
+            "UPDATE categories SET name = ?1 WHERE slug = ?2 AND name = ?3",
+            params![to_name, slug, from_name],
+        )?;
         conn.execute(
             "UPDATE categories SET description = ?1 WHERE slug = ?2 AND COALESCE(description, '') = ?3",
             params![(!to_desc.is_empty()).then_some(to_desc), slug, from_desc],
@@ -199,7 +303,12 @@ pub struct Limits {
 
 impl Default for Limits {
     fn default() -> Self {
-        Self { small_business_cents: 2_500_000, small_business_upper_cents: 10_000_000, gwg_gross_cents: 95_200, meals_deductible_percent: 70 }
+        Self {
+            small_business_cents: 2_500_000,
+            small_business_upper_cents: 10_000_000,
+            gwg_gross_cents: 95_200,
+            meals_deductible_percent: 70,
+        }
     }
 }
 
@@ -248,15 +357,25 @@ impl Default for Settings {
 
 pub fn legacy_latex_dir(conn: &Connection) -> AppResult<Option<String>> {
     let raw: Option<String> = conn
-        .query_row("SELECT value FROM settings WHERE key = 'app'", [], |r| r.get(0))
+        .query_row("SELECT value FROM settings WHERE key = 'app'", [], |r| {
+            r.get(0)
+        })
         .optional()?;
     let value: Option<serde_json::Value> = raw.and_then(|json| serde_json::from_str(&json).ok());
-    Ok(value.and_then(|v| v["latex_dir"].as_str().map(str::trim).filter(|d| !d.is_empty()).map(String::from)))
+    Ok(value.and_then(|v| {
+        v["latex_dir"]
+            .as_str()
+            .map(str::trim)
+            .filter(|d| !d.is_empty())
+            .map(String::from)
+    }))
 }
 
 pub fn load_settings(conn: &Connection) -> AppResult<Settings> {
     let raw: Option<String> = conn
-        .query_row("SELECT value FROM settings WHERE key = 'app'", [], |r| r.get(0))
+        .query_row("SELECT value FROM settings WHERE key = 'app'", [], |r| {
+            r.get(0)
+        })
         .optional()?;
     Ok(match raw {
         Some(json) => serde_json::from_str(&json).unwrap_or_default(),
@@ -285,7 +404,14 @@ mod tests {
     fn migrates_with_default_categories() {
         let conn = open_in_memory().unwrap();
         assert_eq!(count(&conn, "SELECT COUNT(*) FROM categories"), 13);
-        assert_eq!(count(&conn, "SELECT COUNT(*) FROM categories WHERE color IN ('#14B8A6', '#22C55E', '#84CC16')"), 0, "no green categories");
+        assert_eq!(
+            count(
+                &conn,
+                "SELECT COUNT(*) FROM categories WHERE color IN ('#14B8A6', '#22C55E', '#84CC16')"
+            ),
+            0,
+            "no green categories"
+        );
         let s = load_settings(&conn).unwrap();
         assert_eq!(s.base_currency, "EUR");
     }
@@ -297,8 +423,14 @@ mod tests {
         let s = load_settings(&conn).unwrap();
         assert_eq!(s.company_name, "Alt GmbH");
         assert!(s.menu_bar_icon && s.menu_bar_show_time && s.menu_bar_keep_running);
-        assert!(s.e_invoice, "e-invoicing is on for settings saved before it existed");
-        assert!(s.check_updates, "update checks are on for settings saved before they existed");
+        assert!(
+            s.e_invoice,
+            "e-invoicing is on for settings saved before it existed"
+        );
+        assert!(
+            s.check_updates,
+            "update checks are on for settings saved before they existed"
+        );
     }
 
     #[test]
@@ -316,7 +448,9 @@ mod tests {
         assert!(!s.onboarded);
         assert!(s.company_name.is_empty());
         assert_eq!(count(&conn, "SELECT COUNT(*) FROM categories"), 13);
-        let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(version, MIGRATIONS.len() as i64);
     }
 }

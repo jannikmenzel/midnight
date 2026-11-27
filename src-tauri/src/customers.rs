@@ -3,11 +3,11 @@ use std::collections::HashMap;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
-use crate::i18n::tr;
+use crate::activities;
 use crate::db::{AppState, Settings};
 use crate::error::{msg, AppResult};
+use crate::i18n::tr;
 use crate::util::{clean, new_id};
-use crate::activities;
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone, schemars::JsonSchema)]
 #[serde(default)]
@@ -88,7 +88,15 @@ fn map_row(r: &rusqlite::Row) -> rusqlite::Result<Customer> {
 fn attach_contacts(conn: &Connection, customers: &mut [Customer]) -> AppResult<()> {
     let mut stmt = conn.prepare("SELECT customer_id, id, name, email, phone FROM customer_contacts ORDER BY position, rowid")?;
     let rows = stmt.query_map([], |r| {
-        Ok((r.get::<_, String>(0)?, CustomerContact { id: r.get(1)?, name: r.get(2)?, email: r.get(3)?, phone: r.get(4)? }))
+        Ok((
+            r.get::<_, String>(0)?,
+            CustomerContact {
+                id: r.get(1)?,
+                name: r.get(2)?,
+                email: r.get(3)?,
+                phone: r.get(4)?,
+            },
+        ))
     })?;
     let mut by_customer: HashMap<String, Vec<CustomerContact>> = HashMap::new();
     for row in rows {
@@ -96,16 +104,34 @@ fn attach_contacts(conn: &Connection, customers: &mut [Customer]) -> AppResult<(
         by_customer.entry(customer_id).or_default().push(contact);
     }
     for c in customers.iter_mut() {
-        c.contacts = Some(c.id.as_ref().and_then(|id| by_customer.remove(id)).unwrap_or_default());
+        c.contacts = Some(
+            c.id.as_ref()
+                .and_then(|id| by_customer.remove(id))
+                .unwrap_or_default(),
+        );
     }
     Ok(())
 }
 
-fn store_contacts(conn: &Connection, customer_id: &str, contacts: &[CustomerContact]) -> AppResult<()> {
-    conn.execute("DELETE FROM customer_contacts WHERE customer_id = ?1", params![customer_id])?;
+fn store_contacts(
+    conn: &Connection,
+    customer_id: &str,
+    contacts: &[CustomerContact],
+) -> AppResult<()> {
+    conn.execute(
+        "DELETE FROM customer_contacts WHERE customer_id = ?1",
+        params![customer_id],
+    )?;
     let mut stmt = conn.prepare("INSERT INTO customer_contacts (id, customer_id, position, name, email, phone) VALUES (?1, ?2, ?3, ?4, ?5, ?6)")?;
     for (i, k) in contacts.iter().enumerate() {
-        stmt.execute(params![clean(&k.id).unwrap_or_else(new_id), customer_id, i as i64, clean(&k.name), clean(&k.email), clean(&k.phone)])?;
+        stmt.execute(params![
+            clean(&k.id).unwrap_or_else(new_id),
+            customer_id,
+            i as i64,
+            clean(&k.name),
+            clean(&k.email),
+            clean(&k.phone)
+        ])?;
     }
     Ok(())
 }
@@ -122,11 +148,15 @@ pub fn get_customer(conn: &Connection, id: &str) -> AppResult<Customer> {
 const NUMBER_PREFIX: &str = "CUS-";
 
 pub fn next_customer_number(conn: &Connection) -> AppResult<String> {
-    let mut stmt = conn.prepare("SELECT customer_number FROM customers WHERE customer_number LIKE 'CUS-%'")?;
+    let mut stmt =
+        conn.prepare("SELECT customer_number FROM customers WHERE customer_number LIKE 'CUS-%'")?;
     let max = stmt
         .query_map([], |r| r.get::<_, String>(0))?
         .filter_map(Result::ok)
-        .filter_map(|n| n.strip_prefix(NUMBER_PREFIX).and_then(|d| d.parse::<u32>().ok()))
+        .filter_map(|n| {
+            n.strip_prefix(NUMBER_PREFIX)
+                .and_then(|d| d.parse::<u32>().ok())
+        })
         .max()
         .unwrap_or(0);
     Ok(format!("{NUMBER_PREFIX}{:03}", max + 1))
@@ -143,7 +173,11 @@ pub fn address_block(c: &Customer, s: &Settings) -> String {
             lines.push(v.clone());
         }
     }
-    let city = [c.zip.clone().unwrap_or_default(), c.city.clone().unwrap_or_default()].join(" ");
+    let city = [
+        c.zip.clone().unwrap_or_default(),
+        c.city.clone().unwrap_or_default(),
+    ]
+    .join(" ");
     if !city.trim().is_empty() {
         lines.push(city.trim().to_string());
     }
@@ -157,7 +191,11 @@ pub fn address_block(c: &Customer, s: &Settings) -> String {
     lines.join("\n")
 }
 
-pub async fn list_customers(state: &AppState, search: Option<String>, include_archived: Option<bool>) -> AppResult<Vec<Customer>> {
+pub async fn list_customers(
+    state: &AppState,
+    search: Option<String>,
+    include_archived: Option<bool>,
+) -> AppResult<Vec<Customer>> {
     let conn = state.conn()?;
     let pattern = format!("%{}%", search.unwrap_or_default().trim());
     let archived = include_archived.unwrap_or(false);
@@ -168,7 +206,9 @@ pub async fn list_customers(state: &AppState, search: Option<String>, include_ar
            AND (?2 OR c.is_archived = 0)
          ORDER BY c.is_archived, c.customer_number IS NULL, CAST(SUBSTR(c.customer_number, 5) AS INTEGER), c.name COLLATE NOCASE"
     ))?;
-    let mut customers = stmt.query_map(params![pattern, archived], map_row)?.collect::<Result<Vec<_>, _>>()?;
+    let mut customers = stmt
+        .query_map(params![pattern, archived], map_row)?
+        .collect::<Result<Vec<_>, _>>()?;
     attach_contacts(&conn, &mut customers)?;
     Ok(customers)
 }
@@ -176,11 +216,16 @@ pub async fn list_customers(state: &AppState, search: Option<String>, include_ar
 pub async fn save_customer(state: &AppState, customer: Customer) -> AppResult<Customer> {
     let mut c = customer;
     if c.name.trim().is_empty() {
-        return Err(msg(tr!("The customer name must not be empty", "Der Kundenname darf nicht leer sein")));
+        return Err(msg(tr!(
+            "The customer name must not be empty",
+            "Der Kundenname darf nicht leer sein"
+        )));
     }
     let contacts = c.contacts.take().map(|list| {
         list.into_iter()
-            .filter(|k| clean(&k.name).is_some() || clean(&k.email).is_some() || clean(&k.phone).is_some())
+            .filter(|k| {
+                clean(&k.name).is_some() || clean(&k.email).is_some() || clean(&k.phone).is_some()
+            })
             .collect::<Vec<_>>()
     });
     if let Some(list) = &contacts {
@@ -193,7 +238,11 @@ pub async fn save_customer(state: &AppState, customer: Customer) -> AppResult<Cu
     let conn = state.conn()?;
     let id = c.id.clone().unwrap_or_else(new_id);
     let is_new = c.id.is_none();
-    let number = if is_new { Some(next_customer_number(&conn)?) } else { None };
+    let number = if is_new {
+        Some(next_customer_number(&conn)?)
+    } else {
+        None
+    };
     conn.execute(
         "INSERT INTO customers (id, name, contact, email, billing_email, phone, website, address_line1, address_line2,
             zip, city, country, vat_number, note, preferred_currency, default_payment_terms, is_archived,
@@ -214,21 +263,45 @@ pub async fn save_customer(state: &AppState, customer: Customer) -> AppResult<Cu
     match contacts {
         Some(list) => store_contacts(&conn, &id, &list)?,
         None => {
-            let existing: i64 = conn.query_row("SELECT COUNT(*) FROM customer_contacts WHERE customer_id = ?1", params![id], |r| r.get(0))?;
-            let legacy = CustomerContact { id: None, name: c.contact.clone(), email: c.email.clone(), phone: c.phone.clone() };
-            if existing == 0 && (clean(&legacy.name).is_some() || clean(&legacy.email).is_some() || clean(&legacy.phone).is_some()) {
+            let existing: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM customer_contacts WHERE customer_id = ?1",
+                params![id],
+                |r| r.get(0),
+            )?;
+            let legacy = CustomerContact {
+                id: None,
+                name: c.contact.clone(),
+                email: c.email.clone(),
+                phone: c.phone.clone(),
+            };
+            if existing == 0
+                && (clean(&legacy.name).is_some()
+                    || clean(&legacy.email).is_some()
+                    || clean(&legacy.phone).is_some())
+            {
                 store_contacts(&conn, &id, &[legacy])?;
             }
         }
     }
     if is_new {
-        activities::log(&conn, "customer_created", &tr!("Customer \"{}\" created", "Kunde „{}“ angelegt", c.name.trim()), None)?;
+        activities::log(
+            &conn,
+            "customer_created",
+            &tr!(
+                "Customer \"{}\" created",
+                "Kunde „{}“ angelegt",
+                c.name.trim()
+            ),
+            None,
+        )?;
     }
     get_customer(&conn, &id)
 }
 
 pub async fn delete_customer(state: &AppState, id: String) -> AppResult<()> {
-    state.conn()?.execute("DELETE FROM customers WHERE id = ?1", params![id])?;
+    state
+        .conn()?
+        .execute("DELETE FROM customers WHERE id = ?1", params![id])?;
     Ok(())
 }
 
@@ -237,23 +310,49 @@ mod tests {
     use super::*;
 
     fn contact(name: &str, email: &str, phone: &str) -> CustomerContact {
-        CustomerContact { id: None, name: Some(name.into()), email: Some(email.into()), phone: Some(phone.into()) }
+        CustomerContact {
+            id: None,
+            name: Some(name.into()),
+            email: Some(email.into()),
+            phone: Some(phone.into()),
+        }
     }
 
     #[test]
     fn contacts_keep_their_order_and_are_removed_with_the_customer() {
         let conn = crate::db::open_in_memory().unwrap();
-        conn.execute("INSERT INTO customers (id, name) VALUES ('c', 'Acme GmbH')", []).unwrap();
-        store_contacts(&conn, "c", &[contact("Anna", "anna@acme.de", "030 1"), contact("Ben", "", " 030 2 ")]).unwrap();
+        conn.execute(
+            "INSERT INTO customers (id, name) VALUES ('c', 'Acme GmbH')",
+            [],
+        )
+        .unwrap();
+        store_contacts(
+            &conn,
+            "c",
+            &[
+                contact("Anna", "anna@acme.de", "030 1"),
+                contact("Ben", "", " 030 2 "),
+            ],
+        )
+        .unwrap();
 
         let c = get_customer(&conn, "c").unwrap();
         let contacts = c.contacts.unwrap();
-        assert_eq!(contacts.iter().map(|k| k.name.as_deref().unwrap()).collect::<Vec<_>>(), ["Anna", "Ben"]);
+        assert_eq!(
+            contacts
+                .iter()
+                .map(|k| k.name.as_deref().unwrap())
+                .collect::<Vec<_>>(),
+            ["Anna", "Ben"]
+        );
         assert_eq!(contacts[1].email, None);
         assert_eq!(contacts[1].phone.as_deref(), Some("030 2"));
 
-        conn.execute("DELETE FROM customers WHERE id = 'c'", []).unwrap();
-        let left: i64 = conn.query_row("SELECT COUNT(*) FROM customer_contacts", [], |r| r.get(0)).unwrap();
+        conn.execute("DELETE FROM customers WHERE id = 'c'", [])
+            .unwrap();
+        let left: i64 = conn
+            .query_row("SELECT COUNT(*) FROM customer_contacts", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(left, 0);
     }
 }

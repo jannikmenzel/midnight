@@ -1,13 +1,13 @@
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
-use crate::i18n::tr;
+use crate::activities;
 use crate::db::AppState;
 use crate::error::{msg, AppResult, Context};
 use crate::extract::extract;
 use crate::files::{extract_text, remove_file_quietly, store_file};
+use crate::i18n::tr;
 use crate::util::{content_type_for, fts_query, new_id, safe_file_name};
-use crate::activities;
 
 #[derive(Debug, Serialize)]
 pub struct Document {
@@ -52,7 +52,9 @@ fn map_row(r: &rusqlite::Row, snippet: Option<String>) -> rusqlite::Result<Docum
         customer_id: r.get(10)?,
         customer_name: r.get(11)?,
         doc_type: r.get(12)?,
-        tags: tags.map(|s| s.split('\u{1f}').map(String::from).collect()).unwrap_or_default(),
+        tags: tags
+            .map(|s| s.split('\u{1f}').map(String::from).collect())
+            .unwrap_or_default(),
         snippet,
         has_text: r.get(9)?,
         invoice_id: r.get(13)?,
@@ -76,11 +78,25 @@ pub async fn vault_upload(state: &AppState, paths: Vec<String>) -> AppResult<usi
             params![new_id(), f.name, f.path, f.content_type, f.size, content, date],
         )?;
     }
-    activities::log(&conn, "document_uploaded", &tr!("{} document(s) added to the vault", "{} Dokument(e) im Vault abgelegt", stored.len()), None)?;
+    activities::log(
+        &conn,
+        "document_uploaded",
+        &tr!(
+            "{} document(s) added to the vault",
+            "{} Dokument(e) im Vault abgelegt",
+            stored.len()
+        ),
+        None,
+    )?;
     Ok(stored.len())
 }
 
-pub fn search_documents(conn: &Connection, search: Option<&str>, tag: Option<&str>, limit: i64) -> AppResult<Vec<Document>> {
+pub fn search_documents(
+    conn: &Connection,
+    search: Option<&str>,
+    tag: Option<&str>,
+    limit: i64,
+) -> AppResult<Vec<Document>> {
     let tag = tag.filter(|t| !t.is_empty());
     let tag_clause = "(?2 IS NULL OR d.id IN (SELECT dt.document_id FROM document_tags dt JOIN tags t ON t.id = dt.tag_id WHERE t.name = ?2))";
     match search.and_then(fts_query) {
@@ -102,13 +118,19 @@ pub fn search_documents(conn: &Connection, search: Option<&str>, tag: Option<&st
                 "SELECT {COLUMNS} FROM documents d WHERE (?1 IS NULL OR 1) AND {tag_clause}
                  ORDER BY d.created_at DESC LIMIT ?3"
             ))?;
-            let rows = stmt.query_map(params![Option::<String>::None, tag, limit], |r| map_row(r, None))?;
+            let rows = stmt.query_map(params![Option::<String>::None, tag, limit], |r| {
+                map_row(r, None)
+            })?;
             Ok(rows.collect::<Result<_, _>>()?)
         }
     }
 }
 
-pub async fn list_documents(state: &AppState, search: Option<String>, tag: Option<String>) -> AppResult<Vec<Document>> {
+pub async fn list_documents(
+    state: &AppState,
+    search: Option<String>,
+    tag: Option<String>,
+) -> AppResult<Vec<Document>> {
     let conn = state.conn()?;
     search_documents(&conn, search.as_deref(), tag.as_deref(), 500)
 }
@@ -133,11 +155,22 @@ pub async fn update_document(state: &AppState, update: DocumentUpdate) -> AppRes
             update.title.filter(|t| !t.trim().is_empty()),
             update.date.filter(|d| !d.is_empty()),
             update.customer_id.filter(|c| !c.is_empty()),
-            update.doc_type.map(|t| t.trim().to_string()).filter(|t| !t.is_empty()),
+            update
+                .doc_type
+                .map(|t| t.trim().to_string())
+                .filter(|t| !t.is_empty()),
         ],
     )?;
-    tx.execute("DELETE FROM document_tags WHERE document_id = ?1", params![update.id])?;
-    for tag in update.tags.iter().map(|t| t.trim()).filter(|t| !t.is_empty()) {
+    tx.execute(
+        "DELETE FROM document_tags WHERE document_id = ?1",
+        params![update.id],
+    )?;
+    for tag in update
+        .tags
+        .iter()
+        .map(|t| t.trim())
+        .filter(|t| !t.is_empty())
+    {
         let tag_id = upsert_tag(&tx, tag)?;
         tx.execute(
             "INSERT OR IGNORE INTO document_tags (document_id, tag_id) VALUES (?1, ?2)",
@@ -150,7 +183,9 @@ pub async fn update_document(state: &AppState, update: DocumentUpdate) -> AppRes
 }
 
 fn with_extension(name: &str, old_name: &str) -> String {
-    let ext = std::path::Path::new(old_name).extension().map(|e| e.to_string_lossy().to_string());
+    let ext = std::path::Path::new(old_name)
+        .extension()
+        .map(|e| e.to_string_lossy().to_string());
     match ext {
         Some(ext) if std::path::Path::new(name).extension().is_none() => format!("{name}.{ext}"),
         _ => name.to_string(),
@@ -159,8 +194,14 @@ fn with_extension(name: &str, old_name: &str) -> String {
 
 fn free_path(dir: &std::path::Path, name: &str, current: &std::path::Path) -> std::path::PathBuf {
     let p = std::path::Path::new(name);
-    let stem = p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| name.to_string());
-    let ext = p.extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
+    let stem = p
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| name.to_string());
+    let ext = p
+        .extension()
+        .map(|e| format!(".{}", e.to_string_lossy()))
+        .unwrap_or_default();
     let current = std::fs::canonicalize(current).ok();
     let is_free = |c: &std::path::Path| !c.exists() || std::fs::canonicalize(c).ok() == current;
     let first = dir.join(name);
@@ -202,7 +243,9 @@ struct Linked {
 }
 
 fn upsert_linked(conn: &Connection, column: &str, source_id: &str, l: Linked) -> AppResult<()> {
-    let size = std::fs::metadata(&l.path).map(|m| m.len() as i64).unwrap_or(0);
+    let size = std::fs::metadata(&l.path)
+        .map(|m| m.len() as i64)
+        .unwrap_or(0);
     let content = extract_text(&l.path);
     let content_type = content_type_for(&l.name);
     let updated = conn.execute(
@@ -226,7 +269,11 @@ fn upsert_linked(conn: &Connection, column: &str, source_id: &str, l: Linked) ->
 }
 
 pub fn has_invoice(conn: &Connection, invoice_id: &str) -> AppResult<bool> {
-    Ok(conn.query_row("SELECT EXISTS (SELECT 1 FROM documents WHERE invoice_id = ?1)", params![invoice_id], |r| r.get(0))?)
+    Ok(conn.query_row(
+        "SELECT EXISTS (SELECT 1 FROM documents WHERE invoice_id = ?1)",
+        params![invoice_id],
+        |r| r.get(0),
+    )?)
 }
 
 type InvoiceRow = (String, String, Option<String>, String, Option<String>);
@@ -239,7 +286,9 @@ pub fn sync_invoice(conn: &Connection, invoice_id: &str) -> AppResult<()> {
             |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
         )
         .optional()?;
-    let Some((number, status, file_path, issue_date, customer_id)) = row else { return Ok(()) };
+    let Some((number, status, file_path, issue_date, customer_id)) = row else {
+        return Ok(());
+    };
     match file_path.filter(|p| is_issued(&status) && std::path::Path::new(p).exists()) {
         Some(path) => {
             let name = std::path::Path::new(&path)
@@ -261,7 +310,10 @@ pub fn sync_invoice(conn: &Connection, invoice_id: &str) -> AppResult<()> {
             )
         }
         None => {
-            conn.execute("DELETE FROM documents WHERE invoice_id = ?1", params![invoice_id])?;
+            conn.execute(
+                "DELETE FROM documents WHERE invoice_id = ?1",
+                params![invoice_id],
+            )?;
             prune_tags(conn)
         }
     }
@@ -277,7 +329,14 @@ pub fn sync_receipt(conn: &Connection, receipt_id: &str) -> AppResult<()> {
         conn,
         "receipt_id",
         receipt_id,
-        Linked { name, path, title, doc_type: tr!("Receipt", "Beleg"), date: Some(date), customer_id: None },
+        Linked {
+            name,
+            path,
+            title,
+            doc_type: tr!("Receipt", "Beleg"),
+            date: Some(date),
+            customer_id: None,
+        },
     )
 }
 
@@ -304,21 +363,32 @@ pub fn backfill(conn: &Connection, files_dir: &std::path::Path) -> AppResult<()>
 pub async fn rename_document(state: &AppState, id: String, name: String) -> AppResult<String> {
     let conn = state.conn()?;
     ensure_unlinked(&conn, &id)?;
-    let (old_name, old_path): (String, String) =
-        conn.query_row("SELECT name, path FROM documents WHERE id = ?1", params![id], |r| Ok((r.get(0)?, r.get(1)?)))?;
+    let (old_name, old_path): (String, String) = conn.query_row(
+        "SELECT name, path FROM documents WHERE id = ?1",
+        params![id],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )?;
     let trimmed = name.trim();
     if trimmed.is_empty() {
-        return Err(msg(tr!("File name must not be empty", "Dateiname darf nicht leer sein")));
+        return Err(msg(tr!(
+            "File name must not be empty",
+            "Dateiname darf nicht leer sein"
+        )));
     }
     let new_name = with_extension(&safe_file_name(trimmed), &old_name);
     if new_name == old_name {
         return Ok(old_name);
     }
     let old = std::path::PathBuf::from(&old_path);
-    let dir = old.parent().ok_or_else(|| msg(tr!("Invalid file path", "Ungültiger Dateipfad")))?;
+    let dir = old
+        .parent()
+        .ok_or_else(|| msg(tr!("Invalid file path", "Ungültiger Dateipfad")))?;
     let new = free_path(dir, &new_name, &old);
     std::fs::rename(&old, &new).ctx(&tr!("Renaming file", "Datei umbenennen"))?;
-    let final_name = new.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or(new_name);
+    let final_name = new
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or(new_name);
     let new_path = new.to_string_lossy().to_string();
     if let Err(e) = conn.execute(
         "UPDATE documents SET name = ?2, path = ?3, content_type = ?4 WHERE id = ?1",
@@ -333,7 +403,11 @@ pub async fn rename_document(state: &AppState, id: String, name: String) -> AppR
 pub async fn delete_document(state: &AppState, id: String) -> AppResult<()> {
     let conn = state.conn()?;
     ensure_unlinked(&conn, &id)?;
-    let path: String = conn.query_row("SELECT path FROM documents WHERE id = ?1", params![id], |r| r.get(0))?;
+    let path: String = conn.query_row(
+        "SELECT path FROM documents WHERE id = ?1",
+        params![id],
+        |r| r.get(0),
+    )?;
     conn.execute("DELETE FROM documents WHERE id = ?1", params![id])?;
     prune_tags(&conn)?;
     remove_file_quietly(&path);
@@ -341,12 +415,22 @@ pub async fn delete_document(state: &AppState, id: String) -> AppResult<()> {
 }
 
 pub fn upsert_tag(conn: &Connection, name: &str) -> AppResult<String> {
-    conn.execute("INSERT OR IGNORE INTO tags (id, name) VALUES (?1, ?2)", params![new_id(), name.trim()])?;
-    Ok(conn.query_row("SELECT id FROM tags WHERE name = ?1", params![name.trim()], |r| r.get(0))?)
+    conn.execute(
+        "INSERT OR IGNORE INTO tags (id, name) VALUES (?1, ?2)",
+        params![new_id(), name.trim()],
+    )?;
+    Ok(conn.query_row(
+        "SELECT id FROM tags WHERE name = ?1",
+        params![name.trim()],
+        |r| r.get(0),
+    )?)
 }
 
 pub fn prune_tags(conn: &Connection) -> AppResult<()> {
-    conn.execute("DELETE FROM tags WHERE id NOT IN (SELECT tag_id FROM document_tags)", [])?;
+    conn.execute(
+        "DELETE FROM tags WHERE id NOT IN (SELECT tag_id FROM document_tags)",
+        [],
+    )?;
     Ok(())
 }
 
@@ -362,7 +446,13 @@ pub async fn list_tags(state: &AppState) -> AppResult<Vec<TagInfo>> {
     let mut stmt = conn.prepare(
         "SELECT t.id, t.name, (SELECT COUNT(*) FROM document_tags WHERE tag_id = t.id) FROM tags t ORDER BY t.name COLLATE NOCASE",
     )?;
-    let rows = stmt.query_map([], |r| Ok(TagInfo { id: r.get(0)?, name: r.get(1)?, usage: r.get(2)? }))?;
+    let rows = stmt.query_map([], |r| {
+        Ok(TagInfo {
+            id: r.get(0)?,
+            name: r.get(1)?,
+            usage: r.get(2)?,
+        })
+    })?;
     Ok(rows.collect::<Result<_, _>>()?)
 }
 
@@ -373,13 +463,19 @@ mod tests {
     #[test]
     fn rename_keeps_extension_and_avoids_collisions() {
         assert_eq!(with_extension("Mietvertrag", "a.pdf"), "Mietvertrag.pdf");
-        assert_eq!(with_extension("Mietvertrag.pdf", "a.pdf"), "Mietvertrag.pdf");
+        assert_eq!(
+            with_extension("Mietvertrag.pdf", "a.pdf"),
+            "Mietvertrag.pdf"
+        );
         let dir = std::env::temp_dir().join(format!("midnight-rename-{}", new_id()));
         std::fs::create_dir_all(&dir).unwrap();
         let current = dir.join("x.pdf");
         std::fs::write(&current, b"x").unwrap();
         std::fs::write(dir.join("Vertrag.pdf"), b"y").unwrap();
-        assert_eq!(free_path(&dir, "Vertrag.pdf", &current), dir.join("Vertrag (2).pdf"));
+        assert_eq!(
+            free_path(&dir, "Vertrag.pdf", &current),
+            dir.join("Vertrag (2).pdf")
+        );
         assert_eq!(free_path(&dir, "x.pdf", &current), dir.join("x.pdf"));
         std::fs::remove_dir_all(&dir).unwrap();
     }
@@ -428,19 +524,35 @@ mod tests {
         assert_eq!(inv.date.as_deref(), Some("2026-10-01"));
         let rec = docs.iter().find(|d| d.expense_id.is_some()).unwrap();
         assert_eq!(rec.expense_name.as_deref(), Some("Figma"));
-        assert_eq!(search_documents(&conn, Some("Figma"), None, 10).unwrap().len(), 1, "receipt text is indexed");
+        assert_eq!(
+            search_documents(&conn, Some("Figma"), None, 10)
+                .unwrap()
+                .len(),
+            1,
+            "receipt text is indexed"
+        );
         assert!(ensure_unlinked(&conn, &rec.id).is_err());
 
-        conn.execute("UPDATE invoices SET status = 'draft' WHERE id = 'i1'", []).unwrap();
+        conn.execute("UPDATE invoices SET status = 'draft' WHERE id = 'i1'", [])
+            .unwrap();
         sync_invoice(&conn, "i1").unwrap();
-        assert!(!has_invoice(&conn, "i1").unwrap(), "drafts are not in the vault");
-        conn.execute("UPDATE invoices SET status = 'paid' WHERE id = 'i1'", []).unwrap();
+        assert!(
+            !has_invoice(&conn, "i1").unwrap(),
+            "drafts are not in the vault"
+        );
+        conn.execute("UPDATE invoices SET status = 'paid' WHERE id = 'i1'", [])
+            .unwrap();
         sync_invoice(&conn, "i1").unwrap();
         assert!(has_invoice(&conn, "i1").unwrap());
 
-        conn.execute("DELETE FROM invoices WHERE id = 'i1'", []).unwrap();
-        conn.execute("DELETE FROM expenses WHERE id = 'e1'", []).unwrap();
-        assert!(search_documents(&conn, None, None, 10).unwrap().is_empty(), "deleting the source removes the vault entry");
+        conn.execute("DELETE FROM invoices WHERE id = 'i1'", [])
+            .unwrap();
+        conn.execute("DELETE FROM expenses WHERE id = 'e1'", [])
+            .unwrap();
+        assert!(
+            search_documents(&conn, None, None, 10).unwrap().is_empty(),
+            "deleting the source removes the vault entry"
+        );
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }

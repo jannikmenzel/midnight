@@ -1,9 +1,9 @@
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 
-use crate::i18n::tr;
 use crate::db::AppState;
 use crate::error::{msg, AppResult};
+use crate::i18n::tr;
 use crate::util::new_id;
 
 #[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]
@@ -58,11 +58,16 @@ pub async fn save_product(state: &AppState, product: Product) -> AppResult<Strin
 }
 
 pub async fn touch_product(state: &AppState, id: String) -> AppResult<()> {
-    state.conn()?.execute("UPDATE invoice_products SET usage_count = usage_count + 1 WHERE id = ?1", params![id])?;
+    state.conn()?.execute(
+        "UPDATE invoice_products SET usage_count = usage_count + 1 WHERE id = ?1",
+        params![id],
+    )?;
     Ok(())
 }
 
 pub async fn delete_product(state: &AppState, id: String) -> AppResult<()> {
-    state.conn()?.execute("DELETE FROM invoice_products WHERE id = ?1", params![id])?;
+    state
+        .conn()?
+        .execute("DELETE FROM invoice_products WHERE id = ?1", params![id])?;
     Ok(())
 }

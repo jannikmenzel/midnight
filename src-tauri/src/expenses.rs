@@ -1,13 +1,13 @@
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
-use crate::i18n::tr;
-use crate::{activities, vault};
 use crate::db::{load_settings, AppState};
 use crate::error::{msg, AppResult};
 use crate::extract::extract;
 use crate::files::{extract_text, remove_file_quietly, store_file};
+use crate::i18n::tr;
 use crate::util::{fmt_money, new_id, now_ts, parse_date};
+use crate::{activities, vault};
 
 #[derive(Debug, Serialize)]
 pub struct Expense {
@@ -71,36 +71,67 @@ pub struct ExpenseInput {
     pub currency: Option<String>,
     pub category_slug: Option<String>,
     pub note: Option<String>,
-    #[schemars(description = "Deductible share in percent, 0 to 100. Without it, a new expense gets the suggestion of its category (business meals: the value from the settings, otherwise 100) and an existing expense keeps its share.")]
+    #[schemars(
+        description = "Deductible share in percent, 0 to 100. Without it, a new expense gets the suggestion of its category (business meals: the value from the settings, otherwise 100) and an existing expense keeps its share."
+    )]
     pub deductible_percent: Option<i64>,
 }
 
 fn suggested_deductible_percent(conn: &Connection, category: Option<&str>) -> AppResult<i64> {
-    Ok(if category == Some("meals") { load_settings(conn)?.limits.meals_deductible_percent.clamp(0, 100) } else { 100 })
+    Ok(if category == Some("meals") {
+        load_settings(conn)?
+            .limits
+            .meals_deductible_percent
+            .clamp(0, 100)
+    } else {
+        100
+    })
 }
 
 pub fn upsert_expense(conn: &Connection, input: &ExpenseInput) -> AppResult<String> {
     let name = input.name.trim();
     if name.is_empty() {
-        return Err(msg(tr!("Please describe what the expense was for", "Bitte gib an, wofür die Ausgabe war")));
+        return Err(msg(tr!(
+            "Please describe what the expense was for",
+            "Bitte gib an, wofür die Ausgabe war"
+        )));
     }
     if parse_date(&input.date).is_none() {
         return Err(msg(tr!("Invalid date", "Ungültiges Datum")));
     }
     if input.amount_cents <= 0 {
-        return Err(msg(tr!("The amount must be greater than 0", "Der Betrag muss größer als 0 sein")));
+        return Err(msg(tr!(
+            "The amount must be greater than 0",
+            "Der Betrag muss größer als 0 sein"
+        )));
     }
-    if input.deductible_percent.is_some_and(|p| !(0..=100).contains(&p)) {
-        return Err(msg(tr!("The deductible share must be between 0 and 100", "Der abziehbare Anteil muss zwischen 0 und 100 liegen")));
+    if input
+        .deductible_percent
+        .is_some_and(|p| !(0..=100).contains(&p))
+    {
+        return Err(msg(tr!(
+            "The deductible share must be between 0 and 100",
+            "Der abziehbare Anteil muss zwischen 0 und 100 liegen"
+        )));
     }
     let id = input.id.clone().unwrap_or_else(new_id);
-    let currency = input.currency.clone().filter(|c| c.len() == 3).unwrap_or_else(|| "EUR".into());
+    let currency = input
+        .currency
+        .clone()
+        .filter(|c| c.len() == 3)
+        .unwrap_or_else(|| "EUR".into());
     let category = input.category_slug.clone().filter(|s| !s.is_empty());
     let blank = |v: &Option<String>| v.clone().filter(|s| !s.trim().is_empty());
     let percent = match input.deductible_percent {
         Some(percent) => percent,
         None => {
-            let stored: Option<i64> = conn.query_row("SELECT deductible_percent FROM expenses WHERE id = ?1", params![id], |r| r.get(0)).optional()?;
+            let stored: Option<i64> = conn
+                .query_row(
+                    "SELECT deductible_percent FROM expenses WHERE id = ?1",
+                    params![id],
+                    |r| r.get(0),
+                )
+                .optional()?;
             match stored {
                 Some(percent) => percent,
                 None => suggested_deductible_percent(conn, category.as_deref())?,
@@ -132,7 +163,12 @@ pub async fn save_expense(state: &AppState, input: ExpenseInput) -> AppResult<Ex
         activities::log(
             &conn,
             "expense_created",
-            &tr!("Expense \"{}\" recorded ({})", "Ausgabe „{}“ erfasst ({})", expense.name, fmt_money(expense.amount_cents, &expense.currency)),
+            &tr!(
+                "Expense \"{}\" recorded ({})",
+                "Ausgabe „{}“ erfasst ({})",
+                expense.name,
+                fmt_money(expense.amount_cents, &expense.currency)
+            ),
             None,
         )?;
     }
@@ -182,7 +218,11 @@ pub async fn list_receipts(state: &AppState, expense_id: String) -> AppResult<Ve
     Ok(rows.collect::<Result<_, _>>()?)
 }
 
-pub async fn add_receipts(state: &AppState, expense_id: String, paths: Vec<String>) -> AppResult<usize> {
+pub async fn add_receipts(
+    state: &AppState,
+    expense_id: String,
+    paths: Vec<String>,
+) -> AppResult<usize> {
     let stored = paths
         .iter()
         .map(|p| store_file(&state.files_dir, "receipts", p))
@@ -201,7 +241,11 @@ pub async fn add_receipts(state: &AppState, expense_id: String, paths: Vec<Strin
 
 pub async fn delete_receipt(state: &AppState, id: String) -> AppResult<()> {
     let conn = state.conn()?;
-    let path: String = conn.query_row("SELECT path FROM receipts WHERE id = ?1", params![id], |r| r.get(0))?;
+    let path: String = conn.query_row(
+        "SELECT path FROM receipts WHERE id = ?1",
+        params![id],
+        |r| r.get(0),
+    )?;
     conn.execute("DELETE FROM receipts WHERE id = ?1", params![id])?;
     vault::prune_tags(&conn)?;
     remove_file_quietly(&path);
@@ -217,9 +261,16 @@ pub struct ReceiptDraft {
 }
 
 pub async fn extract_receipt(path: String) -> AppResult<ReceiptDraft> {
-    let Some(text) = extract_text(&path) else { return Ok(ReceiptDraft::default()) };
+    let Some(text) = extract_text(&path) else {
+        return Ok(ReceiptDraft::default());
+    };
     let found = extract(&text);
-    Ok(ReceiptDraft { name: found.vendor, amount_cents: found.amount_cents, currency: found.currency, date: found.date })
+    Ok(ReceiptDraft {
+        name: found.vendor,
+        amount_cents: found.amount_cents,
+        currency: found.currency,
+        date: found.date,
+    })
 }
 
 #[cfg(test)]
@@ -256,11 +307,28 @@ mod tests {
     fn stores_the_given_deductible_share() {
         let conn = crate::db::open_in_memory().unwrap();
         for percent in [0, 50, 100] {
-            let id = upsert_expense(&conn, &ExpenseInput { deductible_percent: Some(percent), ..input(1000) }).unwrap();
-            assert_eq!(load_expense(&conn, &id).unwrap().deductible_percent, percent);
+            let id = upsert_expense(
+                &conn,
+                &ExpenseInput {
+                    deductible_percent: Some(percent),
+                    ..input(1000)
+                },
+            )
+            .unwrap();
+            assert_eq!(
+                load_expense(&conn, &id).unwrap().deductible_percent,
+                percent
+            );
         }
         for percent in [-1, 101] {
-            assert!(upsert_expense(&conn, &ExpenseInput { deductible_percent: Some(percent), ..input(1000) }).is_err());
+            assert!(upsert_expense(
+                &conn,
+                &ExpenseInput {
+                    deductible_percent: Some(percent),
+                    ..input(1000)
+                }
+            )
+            .is_err());
         }
     }
 
@@ -272,16 +340,41 @@ mod tests {
         crate::db::store_settings(&conn, &settings).unwrap();
 
         let software = upsert_expense(&conn, &input(1000)).unwrap();
-        assert_eq!(load_expense(&conn, &software).unwrap().deductible_percent, 100);
-        let meals = upsert_expense(&conn, &ExpenseInput { category_slug: Some("meals".into()), ..input(1000) }).unwrap();
+        assert_eq!(
+            load_expense(&conn, &software).unwrap().deductible_percent,
+            100
+        );
+        let meals = upsert_expense(
+            &conn,
+            &ExpenseInput {
+                category_slug: Some("meals".into()),
+                ..input(1000)
+            },
+        )
+        .unwrap();
         assert_eq!(load_expense(&conn, &meals).unwrap().deductible_percent, 60);
     }
 
     #[test]
     fn updating_without_a_share_keeps_the_stored_one() {
         let conn = crate::db::open_in_memory().unwrap();
-        let id = upsert_expense(&conn, &ExpenseInput { deductible_percent: Some(25), ..input(1000) }).unwrap();
-        upsert_expense(&conn, &ExpenseInput { id: Some(id.clone()), category_slug: Some("meals".into()), ..input(2000) }).unwrap();
+        let id = upsert_expense(
+            &conn,
+            &ExpenseInput {
+                deductible_percent: Some(25),
+                ..input(1000)
+            },
+        )
+        .unwrap();
+        upsert_expense(
+            &conn,
+            &ExpenseInput {
+                id: Some(id.clone()),
+                category_slug: Some("meals".into()),
+                ..input(2000)
+            },
+        )
+        .unwrap();
         let e = load_expense(&conn, &id).unwrap();
         assert_eq!((e.amount_cents, e.deductible_percent), (2000, 25));
     }

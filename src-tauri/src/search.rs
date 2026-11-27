@@ -62,15 +62,19 @@ pub async fn global_search(state: &AppState, query: String) -> AppResult<Vec<Sea
         hits.extend(query_hits(&conn, kind, sql, &like)?);
     }
 
-    hits.extend(search_documents(&conn, Some(q), None, 6)?.into_iter().map(|d| SearchHit {
-        kind: "document".into(),
-        id: d.id,
-        title: d.title.unwrap_or(d.name),
-        subtitle: d.snippet,
-        amount_cents: None,
-        currency: None,
-        date: d.date,
-    }));
+    hits.extend(
+        search_documents(&conn, Some(q), None, 6)?
+            .into_iter()
+            .map(|d| SearchHit {
+                kind: "document".into(),
+                id: d.id,
+                title: d.title.unwrap_or(d.name),
+                subtitle: d.snippet,
+                amount_cents: None,
+                currency: None,
+                date: d.date,
+            }),
+    );
 
     Ok(hits)
 }
@@ -112,7 +116,10 @@ mod tests {
         let found = hits(&conn, "expense", "%telek%");
         assert_eq!(found.len(), 1);
         let h = &found[0];
-        assert_eq!((h.kind.as_str(), h.id.as_str(), h.title.as_str()), ("expense", "e1", "Telekom"));
+        assert_eq!(
+            (h.kind.as_str(), h.id.as_str(), h.title.as_str()),
+            ("expense", "e1", "Telekom")
+        );
         assert_eq!(h.subtitle.as_deref(), Some("Other"));
         assert_eq!(h.amount_cents, Some(-4999));
         assert_eq!(h.currency.as_deref(), Some("EUR"));
@@ -127,18 +134,31 @@ mod tests {
             [],
         )
         .unwrap();
-        assert_eq!(hits(&conn, "expense", "%mobil%")[0].amount_cents, Some(-244));
+        assert_eq!(
+            hits(&conn, "expense", "%mobil%")[0].amount_cents,
+            Some(-244)
+        );
     }
 
     #[test]
     fn customer_hits_have_no_amount_currency_or_date() {
         let conn = open_in_memory().unwrap();
-        conn.execute("INSERT INTO customers (id, name, city) VALUES ('c1', 'Acme GmbH', 'Berlin')", []).unwrap();
+        conn.execute(
+            "INSERT INTO customers (id, name, city) VALUES ('c1', 'Acme GmbH', 'Berlin')",
+            [],
+        )
+        .unwrap();
         let found = hits(&conn, "customer", "%acme%");
         assert_eq!(found.len(), 1);
         let h = &found[0];
-        assert_eq!((h.kind.as_str(), h.title.as_str()), ("customer", "Acme GmbH"));
+        assert_eq!(
+            (h.kind.as_str(), h.title.as_str()),
+            ("customer", "Acme GmbH")
+        );
         assert_eq!(h.subtitle.as_deref(), Some("Berlin"));
-        assert_eq!((h.amount_cents, h.currency.as_deref(), h.date.as_deref()), (None, None, None));
+        assert_eq!(
+            (h.amount_cents, h.currency.as_deref(), h.date.as_deref()),
+            (None, None, None)
+        );
     }
 }

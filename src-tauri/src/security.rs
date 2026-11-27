@@ -16,7 +16,9 @@ const ROUNDS: u32 = 100_000;
 const MAX_ATTEMPTS: u32 = 5;
 const COOLDOWN: Duration = Duration::from_secs(30);
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema,
+)]
 #[serde(default)]
 pub struct McpAccess {
     pub read_only: bool,
@@ -45,7 +47,9 @@ struct Throttle {
 
 impl Throttle {
     fn wait(&self, now: Instant) -> Option<u64> {
-        self.until.filter(|until| *until > now).map(|until| (until - now).as_secs().max(1))
+        self.until
+            .filter(|until| *until > now)
+            .map(|until| (until - now).as_secs().max(1))
     }
 
     fn record(&mut self, now: Instant, correct: bool) {
@@ -61,10 +65,19 @@ impl Throttle {
     }
 }
 
-static THROTTLE: Mutex<Throttle> = Mutex::new(Throttle { failures: 0, until: None });
+static THROTTLE: Mutex<Throttle> = Mutex::new(Throttle {
+    failures: 0,
+    until: None,
+});
 
 fn read_key<T: serde::de::DeserializeOwned>(conn: &Connection, key: &str) -> AppResult<Option<T>> {
-    let raw: Option<String> = conn.query_row("SELECT value FROM settings WHERE key = ?1", params![key], |r| r.get(0)).optional()?;
+    let raw: Option<String> = conn
+        .query_row(
+            "SELECT value FROM settings WHERE key = ?1",
+            params![key],
+            |r| r.get(0),
+        )
+        .optional()?;
     Ok(raw.and_then(|json| serde_json::from_str(&json).ok()))
 }
 
@@ -77,10 +90,19 @@ fn write_key<T: Serialize>(conn: &Connection, key: &str, value: &T) -> AppResult
 }
 
 pub fn load_mcp_access(conn: &Connection) -> AppResult<McpAccess> {
-    let raw: Option<String> = conn.query_row("SELECT value FROM settings WHERE key = ?1", params![MCP_KEY], |r| r.get(0)).optional()?;
+    let raw: Option<String> = conn
+        .query_row(
+            "SELECT value FROM settings WHERE key = ?1",
+            params![MCP_KEY],
+            |r| r.get(0),
+        )
+        .optional()?;
     Ok(match raw {
         None => McpAccess::default(),
-        Some(json) => serde_json::from_str(&json).unwrap_or(McpAccess { read_only: true, private: true }),
+        Some(json) => serde_json::from_str(&json).unwrap_or(McpAccess {
+            read_only: true,
+            private: true,
+        }),
     })
 }
 
@@ -117,7 +139,10 @@ fn attempt(stored: &StoredPin, pin: &str) -> AppResult<bool> {
     let now = Instant::now();
     let mut throttle = THROTTLE.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(seconds) = throttle.wait(now) {
-        return Err(msg(tr!("Too many attempts. Try again in {seconds} s.", "Zu viele Versuche. In {seconds} s erneut versuchen.")));
+        return Err(msg(tr!(
+            "Too many attempts. Try again in {seconds} s.",
+            "Zu viele Versuche. In {seconds} s erneut versuchen."
+        )));
     }
     let correct = matches(stored, pin);
     throttle.record(now, correct);
@@ -128,31 +153,54 @@ pub async fn pin_enabled(state: &AppState) -> AppResult<bool> {
     Ok(stored_pin(&*state.conn()?)?.is_some())
 }
 
-pub async fn set_pin(state: &AppState, current: Option<String>, pin: Option<String>) -> AppResult<bool> {
+pub async fn set_pin(
+    state: &AppState,
+    current: Option<String>,
+    pin: Option<String>,
+) -> AppResult<bool> {
     let conn = state.conn()?;
     if let Some(stored) = stored_pin(&conn)? {
         if !attempt(&stored, current.as_deref().unwrap_or_default())? {
-            return Err(msg(tr!("The current PIN is wrong.", "Die aktuelle PIN ist falsch.")));
+            return Err(msg(tr!(
+                "The current PIN is wrong.",
+                "Die aktuelle PIN ist falsch."
+            )));
         }
     }
     match pin {
         Some(pin) => {
             if !valid_pin(&pin) {
-                return Err(msg(tr!("The PIN must have exactly 5 digits.", "Die PIN muss genau 5 Ziffern haben.")));
+                return Err(msg(tr!(
+                    "The PIN must have exactly 5 digits.",
+                    "Die PIN muss genau 5 Ziffern haben."
+                )));
             }
             let salt = uuid::Uuid::new_v4().simple().to_string();
-            write_key(&conn, PIN_KEY, &StoredPin { hash: hash_pin(&salt, &pin), salt })?;
+            write_key(
+                &conn,
+                PIN_KEY,
+                &StoredPin {
+                    hash: hash_pin(&salt, &pin),
+                    salt,
+                },
+            )?;
             Ok(true)
         }
         None => {
-            conn.execute("DELETE FROM settings WHERE key IN (?1, ?2)", params![PIN_KEY, TOUCH_ID_KEY])?;
+            conn.execute(
+                "DELETE FROM settings WHERE key IN (?1, ?2)",
+                params![PIN_KEY, TOUCH_ID_KEY],
+            )?;
             Ok(false)
         }
     }
 }
 
 pub async fn pin_cooldown() -> AppResult<Option<u64>> {
-    Ok(THROTTLE.lock().unwrap_or_else(|e| e.into_inner()).wait(Instant::now()))
+    Ok(THROTTLE
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .wait(Instant::now()))
 }
 
 pub async fn unlock(state: &AppState, pin: String) -> AppResult<bool> {
@@ -169,12 +217,17 @@ fn touch_id_on(conn: &Connection) -> AppResult<bool> {
 
 async fn confirm(verify: Verify) -> bool {
     let reason = tr!("unlock Midnight", "Midnight entsperren");
-    tauri::async_runtime::spawn_blocking(move || verify(&reason)).await.unwrap_or(false)
+    tauri::async_runtime::spawn_blocking(move || verify(&reason))
+        .await
+        .unwrap_or(false)
 }
 
 pub async fn touch_id_status(state: &AppState) -> AppResult<TouchId> {
     let enabled = touch_id_on(&*state.conn()?)?;
-    Ok(TouchId { available: touch_id::available(), enabled })
+    Ok(TouchId {
+        available: touch_id::available(),
+        enabled,
+    })
 }
 
 pub async fn set_touch_id(state: &AppState, enabled: bool) -> AppResult<bool> {
@@ -183,7 +236,9 @@ pub async fn set_touch_id(state: &AppState, enabled: bool) -> AppResult<bool> {
 
 async fn switch_touch_id(state: &AppState, enabled: bool, verify: Verify) -> AppResult<bool> {
     if !enabled {
-        state.conn()?.execute("DELETE FROM settings WHERE key = ?1", params![TOUCH_ID_KEY])?;
+        state
+            .conn()?
+            .execute("DELETE FROM settings WHERE key = ?1", params![TOUCH_ID_KEY])?;
         return Ok(false);
     }
     if stored_pin(&*state.conn()?)?.is_none() {
@@ -227,7 +282,13 @@ mod touch_id {
         let reply = RcBlock::new(move |success: Bool, _: *mut NSError| {
             let _ = tx.send(success.as_bool());
         });
-        unsafe { context.evaluatePolicy_localizedReason_reply(POLICY, &NSString::from_str(reason), &reply) };
+        unsafe {
+            context.evaluatePolicy_localizedReason_reply(
+                POLICY,
+                &NSString::from_str(reason),
+                &reply,
+            )
+        };
         rx.recv().unwrap_or(false)
     }
 }
@@ -260,16 +321,36 @@ mod tests {
     fn pin_is_stored_hashed_and_needs_the_current_one_to_change() {
         let s = state();
         assert!(!run(pin_enabled(&s)).unwrap());
-        assert!(run(unlock(&s, String::new())).unwrap(), "no PIN, nothing to unlock");
+        assert!(
+            run(unlock(&s, String::new())).unwrap(),
+            "no PIN, nothing to unlock"
+        );
 
-        assert!(run(set_pin(&s, None, Some("1234".into()))).is_err(), "four digits");
-        assert!(run(set_pin(&s, None, Some("12a45".into()))).is_err(), "digits only");
+        assert!(
+            run(set_pin(&s, None, Some("1234".into()))).is_err(),
+            "four digits"
+        );
+        assert!(
+            run(set_pin(&s, None, Some("12a45".into()))).is_err(),
+            "digits only"
+        );
         assert!(run(set_pin(&s, None, Some("04711".into()))).unwrap());
-        let raw: String = s.conn().unwrap().query_row("SELECT value FROM settings WHERE key = 'app_pin'", [], |r| r.get(0)).unwrap();
+        let raw: String = s
+            .conn()
+            .unwrap()
+            .query_row(
+                "SELECT value FROM settings WHERE key = 'app_pin'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
         assert!(!raw.contains("04711"), "never in plain text");
 
         assert!(run(unlock(&s, "04711".into())).unwrap());
-        assert!(run(set_pin(&s, Some("11111".into()), None)).is_err(), "wrong current PIN");
+        assert!(
+            run(set_pin(&s, Some("11111".into()), None)).is_err(),
+            "wrong current PIN"
+        );
         assert!(run(set_pin(&s, Some("04711".into()), Some("99999".into()))).unwrap());
         assert!(run(unlock(&s, "99999".into())).unwrap());
         assert!(!run(set_pin(&s, Some("99999".into()), None)).unwrap());
@@ -284,7 +365,10 @@ mod tests {
         assert!(run(switch_touch_id(&s, true, yes)).is_err(), "no PIN yet");
         run(set_pin(&s, None, Some("04711".into()))).unwrap();
         assert!(!run(unlock_with(&s, yes)).unwrap(), "off until turned on");
-        assert!(!run(switch_touch_id(&s, true, no)).unwrap(), "cancelled prompt");
+        assert!(
+            !run(switch_touch_id(&s, true, no)).unwrap(),
+            "cancelled prompt"
+        );
         assert!(!run(touch_id_status(&s)).unwrap().enabled);
 
         assert!(run(switch_touch_id(&s, true, yes)).unwrap());
@@ -297,9 +381,15 @@ mod tests {
 
         run(switch_touch_id(&s, true, yes)).unwrap();
         run(set_pin(&s, Some("04711".into()), None)).unwrap();
-        assert!(!run(touch_id_status(&s)).unwrap().enabled, "removing the PIN turns it off");
+        assert!(
+            !run(touch_id_status(&s)).unwrap().enabled,
+            "removing the PIN turns it off"
+        );
         run(set_pin(&s, None, Some("12345".into()))).unwrap();
-        assert!(!run(unlock_with(&s, yes)).unwrap(), "stays off with a new PIN");
+        assert!(
+            !run(unlock_with(&s, yes)).unwrap(),
+            "stays off with a new PIN"
+        );
     }
 
     #[test]
@@ -321,10 +411,26 @@ mod tests {
     fn mcp_access_defaults_to_full_and_round_trips() {
         let s = state();
         assert_eq!(run(get_mcp_access(&s)).unwrap(), McpAccess::default());
-        let access = McpAccess { read_only: true, private: true };
+        let access = McpAccess {
+            read_only: true,
+            private: true,
+        };
         run(save_mcp_access(&s, access)).unwrap();
         assert_eq!(run(get_mcp_access(&s)).unwrap(), access);
-        s.conn().unwrap().execute("UPDATE settings SET value = 'broken' WHERE key = 'mcp_access'", []).unwrap();
-        assert_eq!(run(get_mcp_access(&s)).unwrap(), McpAccess { read_only: true, private: true }, "a broken entry locks down");
+        s.conn()
+            .unwrap()
+            .execute(
+                "UPDATE settings SET value = 'broken' WHERE key = 'mcp_access'",
+                [],
+            )
+            .unwrap();
+        assert_eq!(
+            run(get_mcp_access(&s)).unwrap(),
+            McpAccess {
+                read_only: true,
+                private: true
+            },
+            "a broken entry locks down"
+        );
     }
 }

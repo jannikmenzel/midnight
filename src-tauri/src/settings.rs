@@ -1,4 +1,3 @@
-
 use crate::db::{self, load_settings, store_settings, AppState, Settings};
 use crate::error::AppResult;
 
@@ -19,7 +18,8 @@ pub async fn get_settings(state: &AppState) -> AppResult<Settings> {
 }
 
 pub async fn save_settings(state: &AppState, mut settings: Settings) -> AppResult<Settings> {
-    settings.company_country = crate::places::parse_country(Some(&settings.company_country))?.unwrap_or_else(|| crate::places::HOME_COUNTRY.into());
+    settings.company_country = crate::places::parse_country(Some(&settings.company_country))?
+        .unwrap_or_else(|| crate::places::HOME_COUNTRY.into());
     let conn = state.conn()?;
     store_settings(&conn, &settings)?;
     crate::i18n::set_language(&settings.language);
@@ -29,5 +29,10 @@ pub async fn save_settings(state: &AppState, mut settings: Settings) -> AppResul
 }
 
 pub async fn data_location(state: &AppState) -> AppResult<String> {
-    Ok(state.files_dir.parent().unwrap_or(&state.files_dir).to_string_lossy().to_string())
+    Ok(state
+        .files_dir
+        .parent()
+        .unwrap_or(&state.files_dir)
+        .to_string_lossy()
+        .to_string())
 }

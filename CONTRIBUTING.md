@@ -18,6 +18,8 @@ npm install
 npm run tauri dev
 ```
 
+`npm install` also sets up the Git hooks. Before each commit they run the checks below.
+
 To keep your real bookkeeping data separate while developing, the MCP server honours `MIDNIGHT_DATA_DIR`.
 
 ## Checks
@@ -28,6 +30,7 @@ Please make sure these pass before opening a pull request. CI runs the same chec
 npm run build
 npm test
 cd src-tauri
+cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cargo test
 ```

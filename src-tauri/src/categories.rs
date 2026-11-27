@@ -1,9 +1,9 @@
 use rusqlite::{params, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
-use crate::i18n::tr;
 use crate::db::AppState;
 use crate::error::{msg, AppResult};
+use crate::i18n::tr;
 
 #[derive(Debug, Serialize)]
 pub struct Category {
@@ -21,7 +21,13 @@ pub async fn list_categories(state: &AppState) -> AppResult<Vec<Category>> {
          FROM categories c ORDER BY c.sort, c.name",
     )?;
     let rows = stmt.query_map([], |r| {
-        Ok(Category { slug: r.get(0)?, name: r.get(1)?, color: r.get(2)?, description: r.get(3)?, expense_count: r.get(4)? })
+        Ok(Category {
+            slug: r.get(0)?,
+            name: r.get(1)?,
+            color: r.get(2)?,
+            description: r.get(3)?,
+            expense_count: r.get(4)?,
+        })
     })?;
     Ok(rows.collect::<Result<_, _>>()?)
 }
@@ -67,10 +73,20 @@ pub async fn save_category(state: &AppState, input: CategoryInput) -> AppResult<
         )?;
         return Ok(slug);
     }
-    let base = Some(slugify(name)).filter(|s| !s.is_empty()).unwrap_or_else(|| "kategorie".into());
+    let base = Some(slugify(name))
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "kategorie".into());
     let mut slug = base.clone();
     let mut n = 2;
-    while conn.query_row("SELECT 1 FROM categories WHERE slug = ?1", params![slug], |_| Ok(())).optional()?.is_some() {
+    while conn
+        .query_row(
+            "SELECT 1 FROM categories WHERE slug = ?1",
+            params![slug],
+            |_| Ok(()),
+        )
+        .optional()?
+        .is_some()
+    {
         slug = format!("{base}-{n}");
         n += 1;
     }

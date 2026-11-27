@@ -35,7 +35,11 @@ pub enum TrayAction {
 pub fn tray_model(conn: &Connection) -> AppResult<TrayModel> {
     let projects = query_projects(conn, false)?
         .into_iter()
-        .map(|p| TrayProject { id: p.id, name: p.name, customer_name: p.customer_name })
+        .map(|p| TrayProject {
+            id: p.id,
+            name: p.name,
+            customer_name: p.customer_name,
+        })
         .collect();
     let running = conn
         .query_row(
@@ -43,14 +47,22 @@ pub fn tray_model(conn: &Connection) -> AppResult<TrayModel> {
              JOIN tracker_projects p ON p.id = e.project_id
              WHERE e.stop IS NULL ORDER BY e.start DESC LIMIT 1",
             [],
-            |r| Ok(TrayRunning { project_id: r.get(0)?, project_name: r.get(1)?, start: r.get(2)? }),
+            |r| {
+                Ok(TrayRunning {
+                    project_id: r.get(0)?,
+                    project_name: r.get(1)?,
+                    start: r.get(2)?,
+                })
+            },
         )
         .optional()?;
     Ok(TrayModel { projects, running })
 }
 
 pub fn elapsed_secs(start: &str, now: DateTime<Utc>) -> i64 {
-    DateTime::parse_from_rfc3339(start).map(|s| (now - s.with_timezone(&Utc)).num_seconds().max(0)).unwrap_or(0)
+    DateTime::parse_from_rfc3339(start)
+        .map(|s| (now - s.with_timezone(&Utc)).num_seconds().max(0))
+        .unwrap_or(0)
 }
 
 pub fn fmt_elapsed(secs: i64) -> String {
@@ -59,7 +71,10 @@ pub fn fmt_elapsed(secs: i64) -> String {
 }
 
 pub fn tray_title(model: &TrayModel, now: DateTime<Utc>) -> Option<String> {
-    model.running.as_ref().map(|r| fmt_elapsed(elapsed_secs(&r.start, now)))
+    model
+        .running
+        .as_ref()
+        .map(|r| fmt_elapsed(elapsed_secs(&r.start, now)))
 }
 
 pub fn action_id(action: &TrayAction) -> String {
@@ -76,7 +91,10 @@ pub fn parse_action(id: &str) -> Option<TrayAction> {
         "stop" => Some(TrayAction::Stop),
         "open" => Some(TrayAction::Open),
         "quit" => Some(TrayAction::Quit),
-        _ => id.strip_prefix("start:").filter(|p| !p.is_empty()).map(|p| TrayAction::Start(p.to_string())),
+        _ => id
+            .strip_prefix("start:")
+            .filter(|p| !p.is_empty())
+            .map(|p| TrayAction::Start(p.to_string())),
     }
 }
 
@@ -86,7 +104,10 @@ mod menu_bar {
 
     use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
     use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
-    use tauri::{ActivationPolicy, AppHandle, Emitter, Manager, PhysicalPosition, Rect, WebviewUrl, WebviewWindowBuilder, Wry};
+    use tauri::{
+        ActivationPolicy, AppHandle, Emitter, Manager, PhysicalPosition, Rect, WebviewUrl,
+        WebviewWindowBuilder, Wry,
+    };
 
     use super::*;
     use crate::db::{lock, AppState, Db};
@@ -98,7 +119,8 @@ mod menu_bar {
     const PANEL: &str = "menubar";
     const PANEL_SIZE: (f64, f64) = (340.0, 460.0);
 
-    static PANEL_BLUR_HIDDEN_AT: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
+    static PANEL_BLUR_HIDDEN_AT: std::sync::Mutex<Option<std::time::Instant>> =
+        std::sync::Mutex::new(None);
 
     fn mark_blur_hide(at: Option<std::time::Instant>) {
         if let Ok(mut last) = PANEL_BLUR_HIDDEN_AT.lock() {
@@ -110,13 +132,29 @@ mod menu_bar {
         let menu = Menu::new(app)?;
         if let Some(r) = &model.running {
             let label = tr!("Stop – {}", "Stoppen – {}", r.project_name);
-            menu.append(&MenuItem::with_id(app, action_id(&TrayAction::Stop), label, true, None::<&str>)?)?;
+            menu.append(&MenuItem::with_id(
+                app,
+                action_id(&TrayAction::Stop),
+                label,
+                true,
+                None::<&str>,
+            )?)?;
             menu.append(&PredefinedMenuItem::separator(app)?)?;
         }
         if model.projects.is_empty() {
-            menu.append(&MenuItem::new(app, pick("No active projects", "Keine aktiven Projekte"), false, None::<&str>)?)?;
+            menu.append(&MenuItem::new(
+                app,
+                pick("No active projects", "Keine aktiven Projekte"),
+                false,
+                None::<&str>,
+            )?)?;
         } else {
-            menu.append(&MenuItem::new(app, pick("Start timer", "Zeiterfassung starten"), false, None::<&str>)?)?;
+            menu.append(&MenuItem::new(
+                app,
+                pick("Start timer", "Zeiterfassung starten"),
+                false,
+                None::<&str>,
+            )?)?;
             for p in &model.projects {
                 let label = match &p.customer_name {
                     Some(c) => format!("{} · {c}", p.name),
@@ -124,12 +162,31 @@ mod menu_bar {
                 };
                 let running = model.running.as_ref().is_some_and(|r| r.project_id == p.id);
                 let id = action_id(&TrayAction::Start(p.id.clone()));
-                menu.append(&CheckMenuItem::with_id(app, id, label, !running, running, None::<&str>)?)?;
+                menu.append(&CheckMenuItem::with_id(
+                    app,
+                    id,
+                    label,
+                    !running,
+                    running,
+                    None::<&str>,
+                )?)?;
             }
         }
         menu.append(&PredefinedMenuItem::separator(app)?)?;
-        menu.append(&MenuItem::with_id(app, action_id(&TrayAction::Open), pick("Open Midnight", "Midnight öffnen"), true, None::<&str>)?)?;
-        menu.append(&MenuItem::with_id(app, action_id(&TrayAction::Quit), pick("Quit Midnight", "Midnight beenden"), true, None::<&str>)?)?;
+        menu.append(&MenuItem::with_id(
+            app,
+            action_id(&TrayAction::Open),
+            pick("Open Midnight", "Midnight öffnen"),
+            true,
+            None::<&str>,
+        )?)?;
+        menu.append(&MenuItem::with_id(
+            app,
+            action_id(&TrayAction::Quit),
+            pick("Quit Midnight", "Midnight beenden"),
+            true,
+            None::<&str>,
+        )?)?;
         Ok(menu)
     }
 
@@ -167,12 +224,19 @@ mod menu_bar {
                 Err(e) => eprintln!("[tray] {e}"),
             }
         }
-        let title = if view.show_time { tray_title(&view.model, Utc::now()) } else { None };
+        let title = if view.show_time {
+            tray_title(&view.model, Utc::now())
+        } else {
+            None
+        };
         let _ = tray.set_title(title);
     }
 
     pub fn refresh(app: &AppHandle) {
-        let (Some(tray), Some(state)) = (app.tray_by_id(TRAY_ID), app.try_state::<AppState>()) else { return };
+        let (Some(tray), Some(state)) = (app.tray_by_id(TRAY_ID), app.try_state::<AppState>())
+        else {
+            return;
+        };
         if let Some(view) = current_view(&state.db) {
             render(app, &tray, &view, None);
         }
@@ -230,12 +294,18 @@ mod menu_bar {
     }
 
     fn toggle_panel(app: &AppHandle, icon: Rect) {
-        let Some(panel) = app.get_webview_window(PANEL) else { return };
+        let Some(panel) = app.get_webview_window(PANEL) else {
+            return;
+        };
         if panel.is_visible().unwrap_or(false) {
             let _ = panel.hide();
             return;
         }
-        let since_blur_hide = PANEL_BLUR_HIDDEN_AT.lock().ok().and_then(|mut last| last.take()).map(|at| at.elapsed());
+        let since_blur_hide = PANEL_BLUR_HIDDEN_AT
+            .lock()
+            .ok()
+            .and_then(|mut last| last.take())
+            .map(|at| at.elapsed());
         if !crate::desktop::panel_may_open(since_blur_hide) {
             return;
         }
@@ -249,7 +319,12 @@ mod menu_bar {
             .flatten()
             .map(|m| (m.position().x as f64, m.size().width as f64))
             .unwrap_or((0.0, f64::MAX));
-        let (x, y) = crate::desktop::panel_position((pos.x, pos.y, size.width, size.height), width, screen, 6.0 * scale);
+        let (x, y) = crate::desktop::panel_position(
+            (pos.x, pos.y, size.width, size.height),
+            width,
+            screen,
+            6.0 * scale,
+        );
         let _ = panel.set_position(PhysicalPosition::new(x, y));
         let _ = panel.show();
         let _ = panel.set_focus();
@@ -267,7 +342,9 @@ mod menu_bar {
         tauri::async_runtime::spawn(async move {
             let state = app.state::<AppState>();
             let result = match timer_action {
-                Some(project_id) => crate::tracker::start_timer(&state, project_id, None).await.map(|_| ()),
+                Some(project_id) => crate::tracker::start_timer(&state, project_id, None)
+                    .await
+                    .map(|_| ()),
                 None => crate::tracker::stop_timer(&state).await.map(|_| ()),
             };
             if let Err(e) = result {
@@ -291,7 +368,13 @@ mod menu_bar {
                 }
             })
             .on_tray_icon_event(|tray, event| {
-                if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, rect, .. } = event {
+                if let TrayIconEvent::Click {
+                    button: MouseButton::Left,
+                    button_state: MouseButtonState::Up,
+                    rect,
+                    ..
+                } = event
+                {
                     toggle_panel(tray.app_handle(), rect);
                 }
             })
@@ -305,8 +388,12 @@ mod menu_bar {
         let app = app.clone();
         std::thread::spawn(move || loop {
             std::thread::sleep(POLL);
-            let Some(tray) = app.tray_by_id(TRAY_ID) else { return };
-            let Some(view) = current_view(&db) else { continue };
+            let Some(tray) = app.tray_by_id(TRAY_ID) else {
+                return;
+            };
+            let Some(view) = current_view(&db) else {
+                continue;
+            };
             render(&app, &tray, &view, last.as_ref());
             last = Some(view);
         });
@@ -322,7 +409,9 @@ mod tests {
     use super::*;
 
     fn at(ts: &str) -> DateTime<Utc> {
-        DateTime::parse_from_rfc3339(ts).unwrap().with_timezone(&Utc)
+        DateTime::parse_from_rfc3339(ts)
+            .unwrap()
+            .with_timezone(&Utc)
     }
 
     #[test]
@@ -338,13 +427,28 @@ mod tests {
         )
         .unwrap();
         let m = tray_model(&conn).unwrap();
-        let names: Vec<_> = m.projects.iter().map(|p| (p.name.as_str(), p.customer_name.as_deref())).collect();
-        assert_eq!(names, [("Website", Some("Climbing Park")), ("App", None)], "completed projects are hidden");
+        let names: Vec<_> = m
+            .projects
+            .iter()
+            .map(|p| (p.name.as_str(), p.customer_name.as_deref()))
+            .collect();
+        assert_eq!(
+            names,
+            [("Website", Some("Climbing Park")), ("App", None)],
+            "completed projects are hidden"
+        );
         assert_eq!(
             m.running,
-            Some(TrayRunning { project_id: "web".into(), project_name: "Website".into(), start: "2026-10-06T08:00:00Z".into() })
+            Some(TrayRunning {
+                project_id: "web".into(),
+                project_name: "Website".into(),
+                start: "2026-10-06T08:00:00Z".into()
+            })
         );
-        assert_eq!(tray_title(&m, at("2026-10-06T09:42:30Z")).as_deref(), Some("1:42"));
+        assert_eq!(
+            tray_title(&m, at("2026-10-06T09:42:30Z")).as_deref(),
+            Some("1:42")
+        );
     }
 
     #[test]
@@ -362,14 +466,26 @@ mod tests {
         assert_eq!(fmt_elapsed(61 * 60), "1:01");
         assert_eq!(fmt_elapsed(10 * 3600 + 5 * 60), "10:05");
         assert_eq!(fmt_elapsed(-5), "0:00");
-        assert_eq!(elapsed_secs("2026-10-06T10:00:00+02:00", at("2026-10-06T08:30:00Z")), 1800);
+        assert_eq!(
+            elapsed_secs("2026-10-06T10:00:00+02:00", at("2026-10-06T08:30:00Z")),
+            1800
+        );
         assert_eq!(elapsed_secs("garbage", Utc::now()), 0);
-        assert_eq!(elapsed_secs("2026-10-06T10:00:00Z", at("2026-10-06T09:00:00Z")), 0, "clock skew never goes negative");
+        assert_eq!(
+            elapsed_secs("2026-10-06T10:00:00Z", at("2026-10-06T09:00:00Z")),
+            0,
+            "clock skew never goes negative"
+        );
     }
 
     #[test]
     fn menu_ids_round_trip() {
-        for action in [TrayAction::Start("abc-123".into()), TrayAction::Stop, TrayAction::Open, TrayAction::Quit] {
+        for action in [
+            TrayAction::Start("abc-123".into()),
+            TrayAction::Stop,
+            TrayAction::Open,
+            TrayAction::Quit,
+        ] {
             assert_eq!(parse_action(&action_id(&action)), Some(action));
         }
         assert_eq!(parse_action("start:"), None);

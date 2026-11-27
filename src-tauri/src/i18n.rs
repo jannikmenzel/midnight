@@ -21,7 +21,11 @@ macro_rules! tr {
 pub(crate) use tr;
 
 pub fn pick(en: &'static str, de: &'static str) -> &'static str {
-    if is_de() { de } else { en }
+    if is_de() {
+        de
+    } else {
+        en
+    }
 }
 
 pub fn fmt_date(iso_date: &str) -> String {

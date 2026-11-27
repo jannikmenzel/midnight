@@ -25,7 +25,10 @@ pub struct UpdateState {
 
 impl UpdateState {
     fn available(&self) -> Option<Release> {
-        self.available.lock().unwrap_or_else(|e| e.into_inner()).clone()
+        self.available
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 
     fn set_available(&self, release: Option<Release>) {
@@ -57,15 +60,23 @@ pub fn parse_notes(markdown: &str) -> Vec<NoteSection> {
         let trimmed = line.trim();
         if trimmed.starts_with('#') {
             let title = trimmed.trim_start_matches('#').trim().to_string();
-            sections.push(NoteSection { title, items: Vec::new() });
+            sections.push(NoteSection {
+                title,
+                items: Vec::new(),
+            });
             continue;
         }
-        let item = trimmed.strip_prefix("- ").or_else(|| trimmed.strip_prefix("* "));
+        let item = trimmed
+            .strip_prefix("- ")
+            .or_else(|| trimmed.strip_prefix("* "));
         if item.is_none() && trimmed.is_empty() {
             continue;
         }
         if sections.is_empty() {
-            sections.push(NoteSection { title: String::new(), items: Vec::new() });
+            sections.push(NoteSection {
+                title: String::new(),
+                items: Vec::new(),
+            });
         }
         let items = &mut sections.last_mut().expect("pushed above").items;
         if let Some(item) = item {
@@ -95,7 +106,9 @@ fn is_new(announced: Option<&Release>, version: &str) -> bool {
 
 #[cfg(debug_assertions)]
 fn fake_version() -> Option<String> {
-    std::env::var(FAKE_UPDATE).ok().filter(|_| std::env::var_os(FAKE_INSTALLED).is_none())
+    std::env::var(FAKE_UPDATE)
+        .ok()
+        .filter(|_| std::env::var_os(FAKE_INSTALLED).is_none())
 }
 
 #[cfg(debug_assertions)]
@@ -110,7 +123,9 @@ fn current_version(app: &AppHandle) -> String {
 
 #[cfg(debug_assertions)]
 async fn pause() -> AppResult<()> {
-    tauri::async_runtime::spawn_blocking(|| std::thread::sleep(Duration::from_secs(2))).await.ctx("Update")
+    tauri::async_runtime::spawn_blocking(|| std::thread::sleep(Duration::from_secs(2)))
+        .await
+        .ctx("Update")
 }
 
 #[cfg(debug_assertions)]
@@ -119,14 +134,22 @@ async fn fetch(_app: &AppHandle) -> AppResult<Option<Release>> {
         return Ok(None);
     };
     pause().await?;
-    let changelog = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../CHANGELOG.md")).unwrap_or_default();
-    Ok(Some(Release { version, notes: parse_notes(latest_changelog_notes(&changelog)) }))
+    let changelog =
+        std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../CHANGELOG.md"))
+            .unwrap_or_default();
+    Ok(Some(Release {
+        version,
+        notes: parse_notes(latest_changelog_notes(&changelog)),
+    }))
 }
 
 #[cfg(debug_assertions)]
 async fn download_and_install(_app: &AppHandle) -> AppResult<()> {
     let Some(version) = fake_version() else {
-        return Err(crate::error::msg(tr!("No update available", "Kein Update verfügbar")));
+        return Err(crate::error::msg(tr!(
+            "No update available",
+            "Kein Update verfügbar"
+        )));
     };
     pause().await?;
     std::env::set_var(FAKE_INSTALLED, version);
@@ -137,17 +160,30 @@ async fn download_and_install(_app: &AppHandle) -> AppResult<()> {
 async fn fetch(app: &AppHandle) -> AppResult<Option<Release>> {
     use tauri_plugin_updater::UpdaterExt;
     let update = app.updater().ctx("Update")?.check().await.ctx("Update")?;
-    Ok(update.map(|u| Release { notes: parse_notes(u.body.as_deref().unwrap_or_default()), version: u.version }))
+    Ok(update.map(|u| Release {
+        notes: parse_notes(u.body.as_deref().unwrap_or_default()),
+        version: u.version,
+    }))
 }
 
 #[cfg(not(debug_assertions))]
 async fn download_and_install(app: &AppHandle) -> AppResult<()> {
     use tauri_plugin_updater::UpdaterExt;
-    let updater = app.updater_builder().timeout(DOWNLOAD_TIMEOUT).build().ctx("Update")?;
+    let updater = app
+        .updater_builder()
+        .timeout(DOWNLOAD_TIMEOUT)
+        .build()
+        .ctx("Update")?;
     let Some(update) = updater.check().await.ctx("Update")? else {
-        return Err(crate::error::msg(tr!("No update available", "Kein Update verfügbar")));
+        return Err(crate::error::msg(tr!(
+            "No update available",
+            "Kein Update verfügbar"
+        )));
     };
-    update.download_and_install(|_, _| {}, || {}).await.ctx("Update")
+    update
+        .download_and_install(|_, _| {}, || {})
+        .await
+        .ctx("Update")
 }
 
 #[cfg(debug_assertions)]
@@ -203,7 +239,10 @@ pub fn spawn(app: AppHandle) {
 
 #[tauri::command]
 pub fn update_status(app: AppHandle) -> UpdateStatus {
-    UpdateStatus { current: current_version(&app), available: app.state::<UpdateState>().available() }
+    UpdateStatus {
+        current: current_version(&app),
+        available: app.state::<UpdateState>().available(),
+    }
 }
 
 #[tauri::command]
@@ -225,7 +264,10 @@ mod tests {
     use super::*;
 
     fn section(title: &str, items: &[&str]) -> NoteSection {
-        NoteSection { title: title.into(), items: items.iter().map(|s| s.to_string()).collect() }
+        NoteSection {
+            title: title.into(),
+            items: items.iter().map(|s| s.to_string()).collect(),
+        }
     }
 
     #[test]
@@ -233,29 +275,57 @@ mod tests {
         let notes = "### Added\n\n- List view in time tracking\n- Automatic updates\n\n### Changed\n\n- Forecast restructured\n";
         assert_eq!(
             parse_notes(notes),
-            vec![section("Added", &["List view in time tracking", "Automatic updates"]), section("Changed", &["Forecast restructured"])]
+            vec![
+                section(
+                    "Added",
+                    &["List view in time tracking", "Automatic updates"]
+                ),
+                section("Changed", &["Forecast restructured"])
+            ]
         );
     }
 
     #[test]
     fn wrapped_lines_continue_the_previous_item() {
         let notes = "### Fixed\n- A long entry that\n  wraps onto the next line\n* Star bullet";
-        assert_eq!(parse_notes(notes), vec![section("Fixed", &["A long entry that wraps onto the next line", "Star bullet"])]);
+        assert_eq!(
+            parse_notes(notes),
+            vec![section(
+                "Fixed",
+                &["A long entry that wraps onto the next line", "Star bullet"]
+            )]
+        );
     }
 
     #[test]
     fn notes_without_headings_or_items_stay_usable() {
-        assert_eq!(parse_notes("- Only an item"), vec![section("", &["Only an item"])]);
-        assert_eq!(parse_notes("### Added\n\n### Changed\n- Something"), vec![section("Changed", &["Something"])], "empty sections are dropped");
+        assert_eq!(
+            parse_notes("- Only an item"),
+            vec![section("", &["Only an item"])]
+        );
+        assert_eq!(
+            parse_notes("### Added\n\n### Changed\n- Something"),
+            vec![section("Changed", &["Something"])],
+            "empty sections are dropped"
+        );
         assert!(parse_notes("").is_empty());
-        assert!(parse_notes("See CHANGELOG.md for details.").is_empty(), "plain text without items shows no notes");
+        assert!(
+            parse_notes("See CHANGELOG.md for details.").is_empty(),
+            "plain text without items shows no notes"
+        );
     }
 
     #[test]
     fn fake_update_uses_the_first_filled_changelog_section() {
         let changelog = "# Changelog\n\nIntro\n\n## [Unreleased]\n\n## [0.1.2] - 2026-10-18\n\n### Added\n\n- List view\n\n## [0.1.1]\n\n- Older\n";
-        assert_eq!(latest_changelog_notes(changelog), "### Added\n\n- List view");
-        assert_eq!(latest_changelog_notes("# Changelog\n\n## [Unreleased]\n"), "");
+        assert_eq!(
+            latest_changelog_notes(changelog),
+            "### Added\n\n- List view"
+        );
+        assert_eq!(
+            latest_changelog_notes("# Changelog\n\n## [Unreleased]\n"),
+            ""
+        );
     }
 
     #[test]
@@ -268,9 +338,15 @@ mod tests {
 
     #[test]
     fn each_version_is_announced_only_once() {
-        let announced = Release { version: "0.2.0".into(), notes: Vec::new() };
+        let announced = Release {
+            version: "0.2.0".into(),
+            notes: Vec::new(),
+        };
         assert!(is_new(None, "0.2.0"));
         assert!(!is_new(Some(&announced), "0.2.0"));
-        assert!(is_new(Some(&announced), "0.2.1"), "a newer release is announced again");
+        assert!(
+            is_new(Some(&announced), "0.2.1"),
+            "a newer release is announced again"
+        );
     }
 }

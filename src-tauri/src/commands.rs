@@ -1,28 +1,30 @@
 use serde_json::{json, Value};
 
-use crate::i18n::tr;
 use crate::activities::Activity;
 use crate::categories::{Category, CategoryInput};
 use crate::customers::Customer;
 use crate::db::{AppState, Settings};
 use crate::error::AppResult;
+use crate::expense_recurring::{
+    ExpenseRecurring, ExpenseRecurringInput, ExpenseRecurringSaved, ExpenseRecurringUpdate,
+};
 use crate::expenses::{Expense, ExpenseInput, Receipt, ReceiptDraft};
+use crate::forecast::Forecast;
+use crate::i18n::tr;
 use crate::invoices::{Invoice, InvoiceFilter, InvoiceInput, InvoiceList, RenderedPdf};
-use crate::units::Unit;
 use crate::jobs::JobReport;
 use crate::ledger::{LedgerFilter, LedgerPage};
+use crate::mcp_setup::McpSetup;
+use crate::places::Place;
 use crate::products::Product;
-use crate::expense_recurring::{ExpenseRecurring, ExpenseRecurringInput, ExpenseRecurringSaved, ExpenseRecurringUpdate};
 use crate::reports::{Analysis, MonthRow, ShareRow, Summary};
 use crate::search::SearchHit;
 use crate::tax::{Params, TaxInput, TaxReport};
 use crate::tax_export::TaxExport;
 use crate::templates::LatexFolder;
 use crate::tracker::{Entry, EntryInput, Project, ProjectInput, TrackerInvoiceDraft, WeeklyHours};
+use crate::units::Unit;
 use crate::vault::{Document, DocumentUpdate, TagInfo};
-use crate::forecast::Forecast;
-use crate::places::Place;
-use crate::mcp_setup::McpSetup;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Access {
@@ -75,7 +77,9 @@ pub fn unstring_json_args(input: Value) -> Value {
             map.into_iter()
                 .map(|(k, v)| {
                     let v = match &v {
-                        Value::String(s) if s.trim_start().starts_with(['{', '[']) => serde_json::from_str(s).unwrap_or(v),
+                        Value::String(s) if s.trim_start().starts_with(['{', '[']) => {
+                            serde_json::from_str(s).unwrap_or(v)
+                        }
                         _ => v,
                     };
                     (k, v)

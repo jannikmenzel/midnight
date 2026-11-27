@@ -25,7 +25,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "dmg:background": "src-tauri/dmg/render.sh",
-    "sky:render": "node scripts/render-sky.mjs"
+    "sky:render": "node scripts/render-sky.mjs",
+    "prepare": "husky"
   },
   "dependencies": {
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
@@ -45,6 +46,7 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "generate-license-file": "^4.2.5",
+    "husky": "^9.1.7",
     "jsdom": "^30.1.3",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.6.3",

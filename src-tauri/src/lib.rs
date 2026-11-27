@@ -10,6 +10,7 @@ mod expense_recurring;
 mod expenses;
 mod extract;
 mod files;
+mod forecast;
 mod i18n;
 mod invoices;
 mod jobs;
@@ -18,6 +19,7 @@ mod ledger;
 mod mcp;
 mod mcp_setup;
 mod migrations;
+mod places;
 mod products;
 mod reports;
 mod schedule;
@@ -35,8 +37,6 @@ mod updater;
 mod util;
 mod vat;
 mod vault;
-mod forecast;
-mod places;
 
 use tauri::Manager;
 
@@ -51,7 +51,11 @@ pub fn run_mcp() {
 fn app_menu(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
     use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem as P, Submenu};
     let info = app.package_info();
-    let about = AboutMetadata { name: Some(info.name.clone()), version: Some(info.version.to_string()), ..Default::default() };
+    let about = AboutMetadata {
+        name: Some(info.name.clone()),
+        version: Some(info.version.to_string()),
+        ..Default::default()
+    };
     Menu::with_items(
         app,
         &[
@@ -67,23 +71,58 @@ fn app_menu(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wr
                     &P::hide(app, None)?,
                     &P::hide_others(app, None)?,
                     &P::separator(app)?,
-                    &MenuItem::with_id(app, APP_QUIT, i18n::pick("Quit Midnight", "Midnight beenden"), true, Some("CmdOrCtrl+Q"))?,
-                    &MenuItem::with_id(app, APP_QUIT_ALL, i18n::pick("Quit Completely", "Vollständig beenden"), true, Some("Alt+CmdOrCtrl+Q"))?,
+                    &MenuItem::with_id(
+                        app,
+                        APP_QUIT,
+                        i18n::pick("Quit Midnight", "Midnight beenden"),
+                        true,
+                        Some("CmdOrCtrl+Q"),
+                    )?,
+                    &MenuItem::with_id(
+                        app,
+                        APP_QUIT_ALL,
+                        i18n::pick("Quit Completely", "Vollständig beenden"),
+                        true,
+                        Some("Alt+CmdOrCtrl+Q"),
+                    )?,
                 ],
             )?,
-            &Submenu::with_items(app, i18n::pick("File", "Ablage"), true, &[&P::close_window(app, None)?])?,
+            &Submenu::with_items(
+                app,
+                i18n::pick("File", "Ablage"),
+                true,
+                &[&P::close_window(app, None)?],
+            )?,
             &Submenu::with_items(
                 app,
                 i18n::pick("Edit", "Bearbeiten"),
                 true,
-                &[&P::undo(app, None)?, &P::redo(app, None)?, &P::separator(app)?, &P::cut(app, None)?, &P::copy(app, None)?, &P::paste(app, None)?, &P::select_all(app, None)?],
+                &[
+                    &P::undo(app, None)?,
+                    &P::redo(app, None)?,
+                    &P::separator(app)?,
+                    &P::cut(app, None)?,
+                    &P::copy(app, None)?,
+                    &P::paste(app, None)?,
+                    &P::select_all(app, None)?,
+                ],
             )?,
-            &Submenu::with_items(app, i18n::pick("View", "Darstellung"), true, &[&P::fullscreen(app, None)?])?,
+            &Submenu::with_items(
+                app,
+                i18n::pick("View", "Darstellung"),
+                true,
+                &[&P::fullscreen(app, None)?],
+            )?,
             &Submenu::with_items(
                 app,
                 i18n::pick("Window", "Fenster"),
                 true,
-                &[&P::minimize(app, None)?, &P::maximize(app, None)?, &P::separator(app)?, &P::close_window(app, None)?],
+                &[
+                    &P::minimize(app, None)?,
+                    &P::maximize(app, None)?,
+                    &P::separator(app)?,
+                    &P::close_window(app, None)?,
+                ],
             )?,
         ],
     )
@@ -121,7 +160,9 @@ fn reveal_main(app: &tauri::AppHandle, loaded: bool, requested: bool) {
 pub fn run() {
     let builder = tauri::Builder::default();
     #[cfg(not(debug_assertions))]
-    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _, _| desktop::open_main_window(app.clone())));
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _, _| {
+        desktop::open_main_window(app.clone())
+    }));
     builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
@@ -163,7 +204,9 @@ pub fn run() {
             Ok(())
         })
         .on_page_load(|webview, payload| {
-            if webview.label() == "main" && payload.event() == tauri::webview::PageLoadEvent::Finished {
+            if webview.label() == "main"
+                && payload.event() == tauri::webview::PageLoadEvent::Finished
+            {
                 reveal_main(webview.app_handle(), true, false);
             }
         })

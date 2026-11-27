@@ -9,7 +9,12 @@ pub fn clean(v: &Option<String>) -> Option<String> {
 }
 
 pub fn amount(cents: i64) -> String {
-    format!("{}{}.{:02}", if cents < 0 { "-" } else { "" }, cents.abs() / 100, cents.abs() % 100)
+    format!(
+        "{}{}.{:02}",
+        if cents < 0 { "-" } else { "" },
+        cents.abs() / 100,
+        cents.abs() % 100
+    )
 }
 
 pub fn new_id() -> String {
@@ -75,9 +80,17 @@ pub fn fmt_money(cents: i64, currency: &str) -> String {
     }
     let sign = if neg { "-" } else { "" };
     if de {
-        format!("{sign}{grouped},{:02} {}", abs % 100, currency_symbol(currency))
+        format!(
+            "{sign}{grouped},{:02} {}",
+            abs % 100,
+            currency_symbol(currency)
+        )
     } else {
-        format!("{sign}{}{grouped}.{:02}", currency_symbol(currency), abs % 100)
+        format!(
+            "{sign}{}{grouped}.{:02}",
+            currency_symbol(currency),
+            abs % 100
+        )
     }
 }
 
@@ -121,18 +134,31 @@ pub fn last_day_of_month(d: NaiveDate) -> NaiveDate {
 }
 
 pub fn add_months_anchored(d: NaiveDate, months: u32, anchor_day: u32) -> NaiveDate {
-    let first = NaiveDate::from_ymd_opt(d.year(), d.month(), 1).expect("valid month") + Months::new(months);
+    let first =
+        NaiveDate::from_ymd_opt(d.year(), d.month(), 1).expect("valid month") + Months::new(months);
     let last = last_day_of_month(first).day();
-    first.with_day(anchor_day.clamp(1, last)).expect("clamped day")
+    first
+        .with_day(anchor_day.clamp(1, last))
+        .expect("clamped day")
 }
 
 pub fn safe_file_name(name: &str) -> String {
     let cleaned: String = name
         .chars()
-        .map(|c| if c.is_alphanumeric() || matches!(c, '.' | '-' | '_' | ' ') { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || matches!(c, '.' | '-' | '_' | ' ') {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect();
     let cleaned = cleaned.trim().to_string();
-    if cleaned.is_empty() { "datei".into() } else { cleaned }
+    if cleaned.is_empty() {
+        "datei".into()
+    } else {
+        cleaned
+    }
 }
 
 pub fn content_type_for(path: &str) -> &'static str {
@@ -157,11 +183,19 @@ pub fn content_type_for(path: &str) -> &'static str {
 pub fn fts_query(input: &str) -> Option<String> {
     let terms: Vec<String> = input
         .split_whitespace()
-        .map(|t| t.chars().filter(|c| c.is_alphanumeric()).collect::<String>())
+        .map(|t| {
+            t.chars()
+                .filter(|c| c.is_alphanumeric())
+                .collect::<String>()
+        })
         .filter(|t| !t.is_empty())
         .map(|t| format!("\"{t}\"*"))
         .collect();
-    if terms.is_empty() { None } else { Some(terms.join(" ")) }
+    if terms.is_empty() {
+        None
+    } else {
+        Some(terms.join(" "))
+    }
 }
 
 #[cfg(test)]
@@ -191,6 +225,9 @@ mod tests {
         let jan31 = NaiveDate::from_ymd_opt(2026, 1, 31).unwrap();
         let feb = add_months_anchored(jan31, 1, 31);
         assert_eq!(feb, NaiveDate::from_ymd_opt(2026, 2, 28).unwrap());
-        assert_eq!(add_months_anchored(feb, 1, 31), NaiveDate::from_ymd_opt(2026, 3, 31).unwrap());
+        assert_eq!(
+            add_months_anchored(feb, 1, 31),
+            NaiveDate::from_ymd_opt(2026, 3, 31).unwrap()
+        );
     }
 }

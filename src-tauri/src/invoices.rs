@@ -4,13 +4,13 @@ use chrono::Datelike;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
-use crate::i18n::tr;
 use crate::customers::{address_block, get_customer, Customer};
 use crate::db::{load_settings, AppState, Settings};
+use crate::einvoice::{self, Profile};
 use crate::error::{msg, AppResult};
 use crate::files::remove_file_quietly;
+use crate::i18n::tr;
 use crate::util::{fmt_money, iso, new_id, now_ts, parse_date, safe_file_name, today};
-use crate::einvoice::{self, Profile};
 use crate::{activities, latex, units, vault};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
@@ -34,7 +34,12 @@ impl LineItem {
 
 pub fn fmt_hours(quantity: f64) -> String {
     let minutes = (quantity * 60.0).round() as i64;
-    format!("{}{}:{:02}", if minutes < 0 { "-" } else { "" }, minutes.abs() / 60, minutes.abs() % 60)
+    format!(
+        "{}{}:{:02}",
+        if minutes < 0 { "-" } else { "" },
+        minutes.abs() / 60,
+        minutes.abs() % 60
+    )
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
@@ -48,7 +53,11 @@ pub fn compute_totals(lines: &[LineItem], vat_rate: f64, discount_cents: i64) ->
     let subtotal_cents: i64 = lines.iter().map(LineItem::total_cents).sum();
     let net = subtotal_cents - discount_cents;
     let vat_cents = (net as f64 * vat_rate / 100.0).round() as i64;
-    Totals { subtotal_cents, vat_cents, amount_cents: net + vat_cents }
+    Totals {
+        subtotal_cents,
+        vat_cents,
+        amount_cents: net + vat_cents,
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -122,11 +131,15 @@ pub fn load_invoice(conn: &Connection, id: &str) -> AppResult<Invoice> {
 
 pub fn next_number(conn: &Connection, settings: &Settings, year: i32) -> AppResult<String> {
     let prefix = settings.invoice_prefix.replace("{YYYY}", &year.to_string());
-    let mut stmt = conn.prepare("SELECT invoice_number FROM invoices WHERE invoice_number LIKE ?1 || '%'")?;
+    let mut stmt =
+        conn.prepare("SELECT invoice_number FROM invoices WHERE invoice_number LIKE ?1 || '%'")?;
     let max = stmt
         .query_map(params![prefix], |r| r.get::<_, String>(0))?
         .filter_map(Result::ok)
-        .filter_map(|n| n.strip_prefix(&prefix).and_then(|rest| rest.parse::<u64>().ok()))
+        .filter_map(|n| {
+            n.strip_prefix(&prefix)
+                .and_then(|rest| rest.parse::<u64>().ok())
+        })
         .max()
         .unwrap_or(0);
     let digits = settings.invoice_number_digits.clamp(1, 10) as usize;
@@ -152,19 +165,37 @@ pub struct InvoiceInput {
     pub order_number: Option<String>,
 }
 
-pub fn upsert_invoice(conn: &Connection, settings: &Settings, input: &InvoiceInput) -> AppResult<String> {
-    let issue = parse_date(&input.issue_date).ok_or_else(|| msg(tr!("Invalid invoice date", "Ungültiges Rechnungsdatum")))?;
-    let due = parse_date(&input.due_date).ok_or_else(|| msg(tr!("Invalid due date", "Ungültiges Fälligkeitsdatum")))?;
+pub fn upsert_invoice(
+    conn: &Connection,
+    settings: &Settings,
+    input: &InvoiceInput,
+) -> AppResult<String> {
+    let issue = parse_date(&input.issue_date)
+        .ok_or_else(|| msg(tr!("Invalid invoice date", "Ungültiges Rechnungsdatum")))?;
+    let due = parse_date(&input.due_date)
+        .ok_or_else(|| msg(tr!("Invalid due date", "Ungültiges Fälligkeitsdatum")))?;
     if input.line_items.is_empty() {
-        return Err(msg(tr!("The invoice needs at least one line item", "Die Rechnung braucht mindestens eine Position")));
+        return Err(msg(tr!(
+            "The invoice needs at least one line item",
+            "Die Rechnung braucht mindestens eine Position"
+        )));
     }
     let line_items = input
         .line_items
         .iter()
-        .map(|li| Ok(LineItem { unit: units::parse(li.unit.as_deref())?, ..li.clone() }))
+        .map(|li| {
+            Ok(LineItem {
+                unit: units::parse(li.unit.as_deref())?,
+                ..li.clone()
+            })
+        })
         .collect::<AppResult<Vec<_>>>()?;
     let totals = compute_totals(&line_items, input.vat_rate, input.discount_cents);
-    let currency = if input.currency.is_empty() { settings.base_currency.clone() } else { input.currency.clone() };
+    let currency = if input.currency.is_empty() {
+        settings.base_currency.clone()
+    } else {
+        input.currency.clone()
+    };
     let customer_id = input.customer_id.clone().filter(|s| !s.is_empty());
     let (customer_name, customer_details) = match &customer_id {
         Some(cid) => {
@@ -173,14 +204,27 @@ pub fn upsert_invoice(conn: &Connection, settings: &Settings, input: &InvoiceInp
         }
         None => (None, None),
     };
-    let order_number = input.order_number.as_deref().map(str::trim).filter(|o| !o.is_empty()).map(String::from);
+    let order_number = input
+        .order_number
+        .as_deref()
+        .map(str::trim)
+        .filter(|o| !o.is_empty())
+        .map(String::from);
     let existing: Option<(String, String, Option<String>)> = match &input.id {
         Some(id) => conn
-            .query_row("SELECT invoice_number, status, paid_at FROM invoices WHERE id = ?1", params![id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+            .query_row(
+                "SELECT invoice_number, status, paid_at FROM invoices WHERE id = ?1",
+                params![id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
             .optional()?,
         None => None,
     };
-    let number = match input.invoice_number.clone().filter(|n| !n.trim().is_empty()) {
+    let number = match input
+        .invoice_number
+        .clone()
+        .filter(|n| !n.trim().is_empty())
+    {
         Some(n) => n.trim().to_string(),
         None => match &existing {
             Some((number, _, _)) => number.clone(),
@@ -195,13 +239,17 @@ pub fn upsert_invoice(conn: &Connection, settings: &Settings, input: &InvoiceInp
         )
         .optional()?;
     if taken.is_some() {
-        return Err(msg(tr!("Invoice number {number} is already taken", "Die Rechnungsnummer {number} ist bereits vergeben")));
+        return Err(msg(tr!(
+            "Invoice number {number} is already taken",
+            "Die Rechnungsnummer {number} ist bereits vergeben"
+        )));
     }
     let lines_json = serde_json::to_string(&line_items)?;
     let id = input.id.clone().unwrap_or_else(new_id);
     let (status, paid_at) = match (input.status.clone(), existing) {
         (Some(status), existing) => {
-            let paid_at = (status == "paid").then(|| existing.and_then(|e| e.2).unwrap_or_else(today));
+            let paid_at =
+                (status == "paid").then(|| existing.and_then(|e| e.2).unwrap_or_else(today));
             (status, paid_at)
         }
         (None, Some((_, status, paid_at))) => (status, paid_at),
@@ -293,10 +341,17 @@ pub async fn get_invoice(state: &AppState, id: String) -> AppResult<Invoice> {
     load_invoice(&conn, &id)
 }
 
-pub async fn next_invoice_number(state: &AppState, issue_date: Option<String>) -> AppResult<String> {
+pub async fn next_invoice_number(
+    state: &AppState,
+    issue_date: Option<String>,
+) -> AppResult<String> {
     let conn = state.conn()?;
     let settings = load_settings(&conn)?;
-    let year = issue_date.as_deref().and_then(parse_date).unwrap_or_else(crate::util::today_date).year();
+    let year = issue_date
+        .as_deref()
+        .and_then(parse_date)
+        .unwrap_or_else(crate::util::today_date)
+        .year();
     next_number(&conn, &settings, year)
 }
 
@@ -314,14 +369,24 @@ pub async fn save_invoice(state: &AppState, input: InvoiceInput) -> AppResult<In
         activities::log(
             &conn,
             "invoice_created",
-            &tr!("Invoice {} created ({})", "Rechnung {} erstellt ({})", invoice.invoice_number, fmt_money(invoice.amount_cents, &invoice.currency)),
+            &tr!(
+                "Invoice {} created ({})",
+                "Rechnung {} erstellt ({})",
+                invoice.invoice_number,
+                fmt_money(invoice.amount_cents, &invoice.currency)
+            ),
             Some(serde_json::json!({ "invoice_id": id })),
         )?;
     }
     Ok(invoice)
 }
 
-pub fn apply_status(conn: &Connection, id: &str, status: &str, paid_at: Option<&str>) -> AppResult<()> {
+pub fn apply_status(
+    conn: &Connection,
+    id: &str,
+    status: &str,
+    paid_at: Option<&str>,
+) -> AppResult<()> {
     match status {
         "paid" => conn.execute(
             "UPDATE invoices SET status = 'paid', paid_at = COALESCE(?2, ?3), updated_at = ?4 WHERE id = ?1",
@@ -335,14 +400,29 @@ pub fn apply_status(conn: &Connection, id: &str, status: &str, paid_at: Option<&
     Ok(())
 }
 
-const STATUSES: &[&str] = &["draft", "unpaid", "overdue", "paid", "canceled", "scheduled", "refunded"];
+const STATUSES: &[&str] = &[
+    "draft",
+    "unpaid",
+    "overdue",
+    "paid",
+    "canceled",
+    "scheduled",
+    "refunded",
+];
 
-pub async fn set_invoice_status(state: &AppState, id: String, status: String, paid_at: Option<String>) -> AppResult<Invoice> {
+pub async fn set_invoice_status(
+    state: &AppState,
+    id: String,
+    status: String,
+    paid_at: Option<String>,
+) -> AppResult<Invoice> {
     if !STATUSES.contains(&status.as_str()) {
         return Err(msg(tr!("Invalid status", "Ungültiger Status")));
     }
     let paid_at = match paid_at.filter(|d| !d.is_empty()) {
-        Some(d) => Some(iso(parse_date(&d).ok_or_else(|| msg(tr!("Invalid payment date", "Ungültiges Zahlungsdatum")))?)),
+        Some(d) => Some(iso(parse_date(&d).ok_or_else(|| {
+            msg(tr!("Invalid payment date", "Ungültiges Zahlungsdatum"))
+        })?)),
         None => None,
     };
     let conn = state.conn()?;
@@ -352,10 +432,19 @@ pub async fn set_invoice_status(state: &AppState, id: String, status: String, pa
     let invoice = load_invoice(&conn, &id)?;
     let number = &invoice.invoice_number;
     let message = match status.as_str() {
-        "paid" => tr!("Invoice {number} marked as paid", "Rechnung {number} als bezahlt markiert"),
+        "paid" => tr!(
+            "Invoice {number} marked as paid",
+            "Rechnung {number} als bezahlt markiert"
+        ),
         "canceled" => tr!("Invoice {number} canceled", "Rechnung {number} storniert"),
-        "unpaid" => tr!("Invoice {number} marked as open", "Rechnung {number} als offen markiert"),
-        "draft" => tr!("Invoice {number} set back to draft", "Rechnung {number} zurück auf Entwurf gesetzt"),
+        "unpaid" => tr!(
+            "Invoice {number} marked as open",
+            "Rechnung {number} als offen markiert"
+        ),
+        "draft" => tr!(
+            "Invoice {number} set back to draft",
+            "Rechnung {number} zurück auf Entwurf gesetzt"
+        ),
         _ => tr!("Invoice {number} updated", "Rechnung {number} aktualisiert"),
     };
     activities::log(&conn, &format!("invoice_{status}"), &message, None)?;
@@ -365,15 +454,27 @@ pub async fn set_invoice_status(state: &AppState, id: String, status: String, pa
 pub async fn delete_invoice(state: &AppState, id: String) -> AppResult<()> {
     let conn = state.conn()?;
     let invoice = load_invoice(&conn, &id)?;
-    conn.execute("UPDATE tracker_entries SET billed = 0, invoice_id = NULL WHERE invoice_id = ?1", params![id])?;
+    conn.execute(
+        "UPDATE tracker_entries SET billed = 0, invoice_id = NULL WHERE invoice_id = ?1",
+        params![id],
+    )?;
     conn.execute("DELETE FROM invoices WHERE id = ?1", params![id])?;
     vault::prune_tags(&conn)?;
     if let Some(path) = invoice.file_path {
         remove_file_quietly(&path);
     }
     let number = safe_file_name(&invoice.invoice_number);
-    for name in [format!("{number}-Timesheet.pdf"), format!("{number}-Zeiterfassung.pdf")] {
-        remove_file_quietly(&state.files_dir.join("invoices").join(name).to_string_lossy());
+    for name in [
+        format!("{number}-Timesheet.pdf"),
+        format!("{number}-Zeiterfassung.pdf"),
+    ] {
+        remove_file_quietly(
+            &state
+                .files_dir
+                .join("invoices")
+                .join(name)
+                .to_string_lossy(),
+        );
     }
     Ok(())
 }
@@ -405,38 +506,75 @@ pub struct RenderedPdf {
     pub e_invoice_warning: Option<String>,
 }
 
-fn invoice_context(conn: &Connection, id: &str) -> AppResult<(Settings, Invoice, Option<Customer>)> {
+fn invoice_context(
+    conn: &Connection,
+    id: &str,
+) -> AppResult<(Settings, Invoice, Option<Customer>)> {
     let settings = load_settings(conn)?;
     let invoice = load_invoice(conn, id)?;
-    let customer = invoice.customer_id.as_deref().map(|customer_id| get_customer(conn, customer_id)).transpose()?;
+    let customer = invoice
+        .customer_id
+        .as_deref()
+        .map(|customer_id| get_customer(conn, customer_id))
+        .transpose()?;
     Ok((settings, invoice, customer))
 }
 
-pub fn render_pdf_for(conn: &Connection, files_dir: &std::path::Path, id: &str) -> AppResult<RenderedPdf> {
+pub fn render_pdf_for(
+    conn: &Connection,
+    files_dir: &std::path::Path,
+    id: &str,
+) -> AppResult<RenderedPdf> {
     let (settings, invoice, customer) = invoice_context(conn, id)?;
-    let path = files_dir.join("invoices").join(format!("{}.pdf", safe_file_name(&invoice.invoice_number)));
+    let path = files_dir
+        .join("invoices")
+        .join(format!("{}.pdf", safe_file_name(&invoice.invoice_number)));
     let tc = latex::toolchain(files_dir).map_err(msg)?;
-    let xml = settings.e_invoice.then(|| einvoice::cii(&invoice, customer.as_ref(), &settings, Profile::Zugferd));
+    let xml = settings
+        .e_invoice
+        .then(|| einvoice::cii(&invoice, customer.as_ref(), &settings, Profile::Zugferd));
     latex::render_invoice(&tc, &invoice, customer.as_ref(), &settings, &path)?;
     let title = tr!("Invoice {}", "Rechnung {}", invoice.invoice_number);
     let e_invoice_warning = xml
-        .and_then(|xml| xml.and_then(|xml| einvoice::embed(&path, &xml, &title, &einvoice::seller_name(&settings))).err())
-        .map(|e| tr!("The PDF was created without an e-invoice. {e}", "Die PDF wurde ohne E-Rechnung erstellt. {e}"));
+        .and_then(|xml| {
+            xml.and_then(|xml| {
+                einvoice::embed(&path, &xml, &title, &einvoice::seller_name(&settings))
+            })
+            .err()
+        })
+        .map(|e| {
+            tr!(
+                "The PDF was created without an e-invoice. {e}",
+                "Die PDF wurde ohne E-Rechnung erstellt. {e}"
+            )
+        });
     let new_path = path.to_string_lossy().to_string();
-    conn.execute("UPDATE invoices SET file_path = ?2 WHERE id = ?1", params![id, new_path])?;
+    conn.execute(
+        "UPDATE invoices SET file_path = ?2 WHERE id = ?1",
+        params![id, new_path],
+    )?;
     if let Some(old) = invoice.file_path.filter(|old| *old != new_path) {
         remove_file_quietly(&old);
     }
     vault::sync_invoice(conn, id)?;
-    Ok(RenderedPdf { path: new_path, e_invoice_warning })
+    Ok(RenderedPdf {
+        path: new_path,
+        e_invoice_warning,
+    })
 }
 
 pub fn sync_vault(conn: &Connection, files_dir: &std::path::Path, id: &str, rerender: bool) {
     let result = (|| -> AppResult<()> {
         let row: Option<(String, Option<String>)> = conn
-            .query_row("SELECT status, file_path FROM invoices WHERE id = ?1", params![id], |r| Ok((r.get(0)?, r.get(1)?)))
+            .query_row(
+                "SELECT status, file_path FROM invoices WHERE id = ?1",
+                params![id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
             .optional()?;
-        let Some((status, file_path)) = row else { return Ok(()) };
+        let Some((status, file_path)) = row else {
+            return Ok(());
+        };
         let has_pdf = file_path.is_some_and(|p| std::path::Path::new(&p).is_file());
         if vault::is_issued(&status) && (rerender || (!has_pdf && !vault::has_invoice(conn, id)?)) {
             render_pdf_for(conn, files_dir, id).map(|_| ())
@@ -449,14 +587,35 @@ pub fn sync_vault(conn: &Connection, files_dir: &std::path::Path, id: &str, rere
     }
 }
 
-pub fn render_timesheet_for(conn: &Connection, files_dir: &std::path::Path, id: &str) -> AppResult<Option<PathBuf>> {
+pub fn render_timesheet_for(
+    conn: &Connection,
+    files_dir: &std::path::Path,
+    id: &str,
+) -> AppResult<Option<PathBuf>> {
     let entries = crate::tracker::timesheet_of_invoice(conn, id)?;
-    let Some(first) = entries.iter().filter_map(|e| parse_date(&e.date)).min() else { return Ok(None) };
+    let Some(first) = entries.iter().filter_map(|e| parse_date(&e.date)).min() else {
+        return Ok(None);
+    };
     let settings = load_settings(conn)?;
     let invoice = load_invoice(conn, id)?;
     let tc = latex::toolchain(files_dir).map_err(msg)?;
-    let path = files_dir.join("invoices").join(tr!("{}-Timesheet.pdf", "{}-Zeiterfassung.pdf", safe_file_name(&invoice.invoice_number)));
-    latex::render_timesheet(&tc, &entries, &tr!("Attachment to invoice {}", "Anlage zu Rechnung {}", invoice.invoice_number), first, &settings, &path)?;
+    let path = files_dir.join("invoices").join(tr!(
+        "{}-Timesheet.pdf",
+        "{}-Zeiterfassung.pdf",
+        safe_file_name(&invoice.invoice_number)
+    ));
+    latex::render_timesheet(
+        &tc,
+        &entries,
+        &tr!(
+            "Attachment to invoice {}",
+            "Anlage zu Rechnung {}",
+            invoice.invoice_number
+        ),
+        first,
+        &settings,
+        &path,
+    )?;
     Ok(Some(path))
 }
 
@@ -468,7 +627,10 @@ pub fn timesheet_after_create(conn: &Connection, files_dir: &std::path::Path, id
 
 pub async fn render_invoice_timesheet(state: &AppState, id: String) -> AppResult<Option<String>> {
     let conn = state.conn()?;
-    Ok(render_timesheet_for(&conn, &state.files_dir, &id)?.map(|p| p.to_string_lossy().to_string()))
+    Ok(
+        render_timesheet_for(&conn, &state.files_dir, &id)?
+            .map(|p| p.to_string_lossy().to_string()),
+    )
 }
 
 pub async fn render_invoice_pdf(state: &AppState, id: String) -> AppResult<RenderedPdf> {
@@ -476,14 +638,22 @@ pub async fn render_invoice_pdf(state: &AppState, id: String) -> AppResult<Rende
     render_pdf_for(&conn, &state.files_dir, &id)
 }
 
-pub async fn export_invoice_pdf(state: &AppState, id: String, target: String) -> AppResult<Option<String>> {
+pub async fn export_invoice_pdf(
+    state: &AppState,
+    id: String,
+    target: String,
+) -> AppResult<Option<String>> {
     let conn = state.conn()?;
     let rendered = render_pdf_for(&conn, &state.files_dir, &id)?;
     std::fs::copy(&rendered.path, target)?;
     Ok(rendered.e_invoice_warning)
 }
 
-pub async fn export_invoice_xrechnung(state: &AppState, id: String, target: String) -> AppResult<()> {
+pub async fn export_invoice_xrechnung(
+    state: &AppState,
+    id: String,
+    target: String,
+) -> AppResult<()> {
     let conn = state.conn()?;
     let (settings, invoice, customer) = invoice_context(&conn, &id)?;
     let xml = einvoice::cii(&invoice, customer.as_ref(), &settings, Profile::XRechnung)?;
@@ -492,9 +662,15 @@ pub async fn export_invoice_xrechnung(state: &AppState, id: String, target: Stri
 }
 
 pub fn mark_overdue(conn: &Connection) -> AppResult<Vec<String>> {
-    let mut stmt = conn.prepare("SELECT invoice_number FROM invoices WHERE status = 'unpaid' AND due_date < ?1")?;
-    let numbers: Vec<String> = stmt.query_map(params![today()], |r| r.get(0))?.collect::<Result<_, _>>()?;
-    conn.execute("UPDATE invoices SET status = 'overdue' WHERE status = 'unpaid' AND due_date < ?1", params![today()])?;
+    let mut stmt = conn
+        .prepare("SELECT invoice_number FROM invoices WHERE status = 'unpaid' AND due_date < ?1")?;
+    let numbers: Vec<String> = stmt
+        .query_map(params![today()], |r| r.get(0))?
+        .collect::<Result<_, _>>()?;
+    conn.execute(
+        "UPDATE invoices SET status = 'overdue' WHERE status = 'unpaid' AND due_date < ?1",
+        params![today()],
+    )?;
     Ok(numbers)
 }
 
@@ -503,7 +679,12 @@ mod tests {
     use super::*;
 
     fn line(q: f64, p: i64) -> LineItem {
-        LineItem { name: "x".into(), quantity: q, price_cents: p, unit: None }
+        LineItem {
+            name: "x".into(),
+            quantity: q,
+            price_cents: p,
+            unit: None,
+        }
     }
 
     #[test]
@@ -516,19 +697,32 @@ mod tests {
 
     #[test]
     fn tracked_hours_stay_exact_and_print_as_clock_time() {
-        let tracked = LineItem { name: "x".into(), quantity: 38100.0 / 3600.0, price_cents: 7000, unit: Some(units::HOURS.into()) };
+        let tracked = LineItem {
+            name: "x".into(),
+            quantity: 38100.0 / 3600.0,
+            price_cents: 7000,
+            unit: Some(units::HOURS.into()),
+        };
         assert!(tracked.is_hours());
         assert_eq!(fmt_hours(tracked.quantity), "10:35");
         assert_eq!(tracked.total_cents(), 74083);
         assert_eq!(fmt_hours(16.5), "16:30");
-        assert!(!LineItem { unit: Some(units::PIECES.into()), ..tracked }.is_hours());
+        assert!(!LineItem {
+            unit: Some(units::PIECES.into()),
+            ..tracked
+        }
+        .is_hours());
     }
 
     #[test]
     fn numbering_and_payment_date() {
         let conn = crate::db::open_in_memory().unwrap();
         let settings = Settings::default();
-        conn.execute("INSERT INTO customers (id, name) VALUES ('c1', 'Acme Software GmbH')", []).unwrap();
+        conn.execute(
+            "INSERT INTO customers (id, name) VALUES ('c1', 'Acme Software GmbH')",
+            [],
+        )
+        .unwrap();
         let input = InvoiceInput {
             customer_id: Some("c1".into()),
             issue_date: "2026-09-01".into(),
@@ -543,13 +737,23 @@ mod tests {
         let inv = load_invoice(&conn, &id).unwrap();
         assert_eq!(inv.invoice_number, "INV-2026-0001");
         assert_eq!(inv.amount_cents, 119000);
-        assert_eq!(next_number(&conn, &settings, 2026).unwrap(), "INV-2026-0002");
+        assert_eq!(
+            next_number(&conn, &settings, 2026).unwrap(),
+            "INV-2026-0002"
+        );
 
         apply_status(&conn, &id, "paid", Some("2026-09-10")).unwrap();
         let inv = load_invoice(&conn, &id).unwrap();
-        assert_eq!((inv.status.as_str(), inv.paid_at.as_deref()), ("paid", Some("2026-09-10")));
+        assert_eq!(
+            (inv.status.as_str(), inv.paid_at.as_deref()),
+            ("paid", Some("2026-09-10"))
+        );
         apply_status(&conn, &id, "paid", Some("2026-09-12")).unwrap();
-        assert_eq!(load_invoice(&conn, &id).unwrap().paid_at.as_deref(), Some("2026-09-12"), "a corrected date replaces the old one");
+        assert_eq!(
+            load_invoice(&conn, &id).unwrap().paid_at.as_deref(),
+            Some("2026-09-12"),
+            "a corrected date replaces the old one"
+        );
         apply_status(&conn, &id, "unpaid", None).unwrap();
         assert_eq!(load_invoice(&conn, &id).unwrap().paid_at, None);
     }
@@ -557,7 +761,15 @@ mod tests {
     #[test]
     fn saving_rejects_unknown_units() {
         let conn = crate::db::open_in_memory().unwrap();
-        let input = InvoiceInput { issue_date: "2026-09-01".into(), due_date: "2026-09-15".into(), line_items: vec![LineItem { unit: Some("Seiten".into()), ..line(1.0, 100) }], ..Default::default() };
+        let input = InvoiceInput {
+            issue_date: "2026-09-01".into(),
+            due_date: "2026-09-15".into(),
+            line_items: vec![LineItem {
+                unit: Some("Seiten".into()),
+                ..line(1.0, 100)
+            }],
+            ..Default::default()
+        };
         assert!(upsert_invoice(&conn, &Settings::default(), &input).is_err());
     }
 
@@ -575,12 +787,41 @@ mod tests {
         let id = upsert_invoice(&conn, &settings, &input).unwrap();
         apply_status(&conn, &id, "paid", Some("2026-09-10")).unwrap();
 
-        upsert_invoice(&conn, &settings, &InvoiceInput { id: Some(id.clone()), note: Some("edited".into()), ..input.clone() }).unwrap();
+        upsert_invoice(
+            &conn,
+            &settings,
+            &InvoiceInput {
+                id: Some(id.clone()),
+                note: Some("edited".into()),
+                ..input.clone()
+            },
+        )
+        .unwrap();
         let inv = load_invoice(&conn, &id).unwrap();
-        assert_eq!((inv.status.as_str(), inv.paid_at.as_deref(), inv.note.as_deref()), ("paid", Some("2026-09-10"), Some("edited")));
+        assert_eq!(
+            (
+                inv.status.as_str(),
+                inv.paid_at.as_deref(),
+                inv.note.as_deref()
+            ),
+            ("paid", Some("2026-09-10"), Some("edited"))
+        );
 
-        upsert_invoice(&conn, &settings, &InvoiceInput { id: Some(id.clone()), status: Some("unpaid".into()), ..input }).unwrap();
+        upsert_invoice(
+            &conn,
+            &settings,
+            &InvoiceInput {
+                id: Some(id.clone()),
+                status: Some("unpaid".into()),
+                ..input
+            },
+        )
+        .unwrap();
         let inv = load_invoice(&conn, &id).unwrap();
-        assert_eq!((inv.status.as_str(), inv.paid_at), ("unpaid", None), "leaving paid clears the payment date");
+        assert_eq!(
+            (inv.status.as_str(), inv.paid_at),
+            ("unpaid", None),
+            "leaving paid clears the payment date"
+        );
     }
 }

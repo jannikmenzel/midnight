@@ -34,11 +34,16 @@ pub enum Profile {
 
 fn line_period(name: &str) -> Option<Period> {
     static DAY: OnceLock<Regex> = OnceLock::new();
-    let day = DAY.get_or_init(|| Regex::new(r"^(\d{1,2})[./](\d{1,2})(?:[./](\d{4}|\d{2})?)?$").expect("valid regex"));
+    let day = DAY.get_or_init(|| {
+        Regex::new(r"^(\d{1,2})[./](\d{1,2})(?:[./](\d{4}|\d{2})?)?$").expect("valid regex")
+    });
     let inner = name.trim().strip_suffix(')')?.rsplit_once('(')?.1;
     let parse = |part: &str| -> Option<(u32, u32, Option<i32>)> {
         let caps = day.captures(part.trim())?;
-        let year = caps.get(3).and_then(|y| y.as_str().parse::<i32>().ok()).map(|y| if y < 100 { 2000 + y } else { y });
+        let year = caps
+            .get(3)
+            .and_then(|y| y.as_str().parse::<i32>().ok())
+            .map(|y| if y < 100 { 2000 + y } else { y });
         Some((caps[1].parse().ok()?, caps[2].parse().ok()?, year))
     };
     let parts: Vec<&str> = inner.split('–').collect();
@@ -48,7 +53,11 @@ fn line_period(name: &str) -> Option<Period> {
         [_] => end,
         [first, _] => {
             let (d, m, y) = parse(first)?;
-            let year = y.unwrap_or(if (m, d) > (end_month, end_day) { end.year() - 1 } else { end.year() });
+            let year = y.unwrap_or(if (m, d) > (end_month, end_day) {
+                end.year() - 1
+            } else {
+                end.year()
+            });
             NaiveDate::from_ymd_opt(year, m, d)?
         }
         _ => return None,
@@ -59,11 +68,17 @@ fn line_period(name: &str) -> Option<Period> {
 fn decimal(value: f64) -> String {
     let s = format!("{value:.4}");
     let s = s.trim_end_matches('0').trim_end_matches('.');
-    if s == "-0" { "0".into() } else { s.into() }
+    if s == "-0" {
+        "0".into()
+    } else {
+        s.into()
+    }
 }
 
 fn xml_text(s: &str) -> String {
-    s.chars().filter(|c| !c.is_control() || matches!(c, '\n' | '\r' | '\t')).collect()
+    s.chars()
+        .filter(|c| !c.is_control() || matches!(c, '\n' | '\r' | '\t'))
+        .collect()
 }
 
 struct Xml(Writer<Vec<u8>>);
@@ -74,7 +89,9 @@ impl Xml {
     }
 
     fn event(&mut self, event: Event) -> &mut Self {
-        self.0.write_event(event).expect("writing XML to memory cannot fail");
+        self.0
+            .write_event(event)
+            .expect("writing XML to memory cannot fail");
         self
     }
 
@@ -105,15 +122,26 @@ impl Xml {
     }
 
     fn date(&mut self, tag: &str, d: NaiveDate) -> &mut Self {
-        self.open(tag).leaf_with("udt:DateTimeString", &[("format", "102")], &d.format("%Y%m%d").to_string()).close(tag)
+        self.open(tag)
+            .leaf_with(
+                "udt:DateTimeString",
+                &[("format", "102")],
+                &d.format("%Y%m%d").to_string(),
+            )
+            .close(tag)
     }
 
     fn period(&mut self, (start, end): Period) -> &mut Self {
-        self.open("ram:BillingSpecifiedPeriod").date("ram:StartDateTime", start).date("ram:EndDateTime", end).close("ram:BillingSpecifiedPeriod")
+        self.open("ram:BillingSpecifiedPeriod")
+            .date("ram:StartDateTime", start)
+            .date("ram:EndDateTime", end)
+            .close("ram:BillingSpecifiedPeriod")
     }
 
     fn tax(&mut self, tag: &str, case: TaxCase, rate: f64) -> &mut Self {
-        self.open(tag).leaf("ram:TypeCode", "VAT").leaf("ram:CategoryCode", case.category_code());
+        self.open(tag)
+            .leaf("ram:TypeCode", "VAT")
+            .leaf("ram:CategoryCode", case.category_code());
         if case != TaxCase::NotTaxable {
             self.leaf("ram:RateApplicablePercent", &format!("{rate:.2}"));
         }
@@ -131,15 +159,20 @@ impl Xml {
         if !city.is_empty() {
             self.leaf("ram:CityName", city);
         }
-        self.leaf("ram:CountryID", country).close("ram:PostalTradeAddress")
+        self.leaf("ram:CountryID", country)
+            .close("ram:PostalTradeAddress")
     }
 
     fn uri(&mut self, scheme: &str, value: &str) -> &mut Self {
-        self.open("ram:URIUniversalCommunication").leaf_with("ram:URIID", &[("schemeID", scheme)], value).close("ram:URIUniversalCommunication")
+        self.open("ram:URIUniversalCommunication")
+            .leaf_with("ram:URIID", &[("schemeID", scheme)], value)
+            .close("ram:URIUniversalCommunication")
     }
 
     fn tax_registration(&mut self, scheme: &str, id: &str) -> &mut Self {
-        self.open("ram:SpecifiedTaxRegistration").leaf_with("ram:ID", &[("schemeID", scheme)], id).close("ram:SpecifiedTaxRegistration")
+        self.open("ram:SpecifiedTaxRegistration")
+            .leaf_with("ram:ID", &[("schemeID", scheme)], id)
+            .close("ram:SpecifiedTaxRegistration")
     }
 
     fn finish(self) -> String {
@@ -148,7 +181,9 @@ impl Xml {
 }
 
 pub fn seller_name(s: &Settings) -> String {
-    trimmed(&s.company_name).or_else(|| trimmed(&s.company_owner)).unwrap_or_default()
+    trimmed(&s.company_name)
+        .or_else(|| trimmed(&s.company_owner))
+        .unwrap_or_default()
 }
 
 struct Doc<'a> {
@@ -173,7 +208,12 @@ struct Doc<'a> {
     order_number: Option<String>,
 }
 
-pub fn cii(inv: &Invoice, customer: Option<&Customer>, s: &Settings, profile: Profile) -> AppResult<String> {
+pub fn cii(
+    inv: &Invoice,
+    customer: Option<&Customer>,
+    s: &Settings,
+    profile: Profile,
+) -> AppResult<String> {
     let doc = Doc::new(inv, customer, s, profile)?;
     let mut x = Xml::new();
     x.event(Event::Decl(BytesDecl::new("1.0", Some("UTF-8"), None)));
@@ -187,14 +227,22 @@ pub fn cii(inv: &Invoice, customer: Option<&Customer>, s: &Settings, profile: Pr
     x.open("rsm:SupplyChainTradeTransaction");
     doc.lines(&mut x);
     doc.agreement(&mut x);
-    x.event(Event::Empty(BytesStart::new("ram:ApplicableHeaderTradeDelivery")));
+    x.event(Event::Empty(BytesStart::new(
+        "ram:ApplicableHeaderTradeDelivery",
+    )));
     doc.settlement(&mut x);
-    x.close("rsm:SupplyChainTradeTransaction").close("rsm:CrossIndustryInvoice");
+    x.close("rsm:SupplyChainTradeTransaction")
+        .close("rsm:CrossIndustryInvoice");
     Ok(x.finish())
 }
 
 impl<'a> Doc<'a> {
-    fn new(inv: &'a Invoice, customer: Option<&'a Customer>, s: &'a Settings, profile: Profile) -> AppResult<Self> {
+    fn new(
+        inv: &'a Invoice,
+        customer: Option<&'a Customer>,
+        s: &'a Settings,
+        profile: Profile,
+    ) -> AppResult<Self> {
         let xr = profile == Profile::XRechnung;
         let case = TaxCase::of(inv, customer, s);
         let seller = seller_name(s);
@@ -211,10 +259,16 @@ impl<'a> Doc<'a> {
 
         let mut missing = Vec::new();
         if seller.is_empty() {
-            missing.push(pick("company name (Settings → Company)", "Firmenname (Einstellungen → Firma)"));
+            missing.push(pick(
+                "company name (Settings → Company)",
+                "Firmenname (Einstellungen → Firma)",
+            ));
         }
         if vat_id.is_none() && tax_number.is_none() {
-            missing.push(pick("tax number or VAT ID (Settings → Company)", "Steuernummer oder USt-IdNr. (Einstellungen → Firma)"));
+            missing.push(pick(
+                "tax number or VAT ID (Settings → Company)",
+                "Steuernummer oder USt-IdNr. (Einstellungen → Firma)",
+            ));
         }
         if case == TaxCase::Exempt {
             missing.push(pick(
@@ -223,10 +277,16 @@ impl<'a> Doc<'a> {
             ));
         }
         if case == TaxCase::ReverseCharge && vat_id.is_none() {
-            missing.push(pick("your VAT ID, required for reverse charge (Settings → Company)", "eigene USt-IdNr., für Reverse Charge nötig (Einstellungen → Firma)"));
+            missing.push(pick(
+                "your VAT ID, required for reverse charge (Settings → Company)",
+                "eigene USt-IdNr., für Reverse Charge nötig (Einstellungen → Firma)",
+            ));
         }
         if !is_country(&s.company_country) {
-            missing.push(pick("country of the company address (Settings → Company)", "Land der Firmenadresse (Einstellungen → Firma)"));
+            missing.push(pick(
+                "country of the company address (Settings → Company)",
+                "Land der Firmenadresse (Einstellungen → Firma)",
+            ));
         }
         if issue.is_none() {
             missing.push(pick("a valid invoice date", "ein gültiges Rechnungsdatum"));
@@ -236,7 +296,10 @@ impl<'a> Doc<'a> {
         }
         if xr {
             if s.company_zip.trim().is_empty() || s.company_city.trim().is_empty() {
-                missing.push(pick("postcode and town of the company (Settings → Company)", "PLZ und Ort der Firma (Einstellungen → Firma)"));
+                missing.push(pick(
+                    "postcode and town of the company (Settings → Company)",
+                    "PLZ und Ort der Firma (Einstellungen → Firma)",
+                ));
             }
             if phone.is_none() {
                 missing.push(pick("company phone number", "Telefonnummer der Firma"));
@@ -249,21 +312,40 @@ impl<'a> Doc<'a> {
             }
             if let Some(c) = customer {
                 if clean(&c.zip).is_none() || clean(&c.city).is_none() {
-                    missing.push(pick("customer's postcode and town", "PLZ und Ort des Kunden"));
+                    missing.push(pick(
+                        "customer's postcode and town",
+                        "PLZ und Ort des Kunden",
+                    ));
                 }
                 if buyer_mail.is_none() && leitweg_id.is_none() {
-                    missing.push(pick("customer's email or Leitweg-ID", "E-Mail-Adresse oder Leitweg-ID des Kunden"));
+                    missing.push(pick(
+                        "customer's email or Leitweg-ID",
+                        "E-Mail-Adresse oder Leitweg-ID des Kunden",
+                    ));
                 }
             }
             if leitweg_id.is_none() && order_number.is_none() {
-                missing.push(pick("customer's Leitweg-ID or an order number as buyer reference", "Leitweg-ID des Kunden oder Auftragsnummer als Käuferreferenz"));
+                missing.push(pick(
+                    "customer's Leitweg-ID or an order number as buyer reference",
+                    "Leitweg-ID des Kunden oder Auftragsnummer als Käuferreferenz",
+                ));
             }
         }
-        let (Some(buyer), Some(buyer_country), Some(issue), true) = (customer, buyer_country, issue, missing.is_empty()) else {
-            return Err(msg(tr!("E-invoice incomplete, missing: {}.", "E-Rechnung unvollständig, es fehlt: {}.", missing.join(", "))));
+        let (Some(buyer), Some(buyer_country), Some(issue), true) =
+            (customer, buyer_country, issue, missing.is_empty())
+        else {
+            return Err(msg(tr!(
+                "E-invoice incomplete, missing: {}.",
+                "E-Rechnung unvollständig, es fehlt: {}.",
+                missing.join(", ")
+            )));
         };
 
-        let rate = if case == TaxCase::Standard { inv.vat_rate } else { 0.0 };
+        let rate = if case == TaxCase::Standard {
+            inv.vat_rate
+        } else {
+            0.0
+        };
         Ok(Self {
             inv,
             s,
@@ -273,7 +355,11 @@ impl<'a> Doc<'a> {
             rate,
             totals: compute_totals(&inv.line_items, rate, inv.discount_cents),
             issue,
-            periods: inv.line_items.iter().map(|li| line_period(&li.name)).collect(),
+            periods: inv
+                .line_items
+                .iter()
+                .map(|li| line_period(&li.name))
+                .collect(),
             seller,
             vat_id,
             tax_number,
@@ -293,15 +379,29 @@ impl<'a> Doc<'a> {
 
     fn invoice_period(&self) -> Option<Period> {
         let all = self.periods.iter().copied().collect::<Option<Vec<_>>>()?;
-        Some((all.iter().map(|p| p.0).min()?, all.iter().map(|p| p.1).max()?))
+        Some((
+            all.iter().map(|p| p.0).min()?,
+            all.iter().map(|p| p.1).max()?,
+        ))
     }
 
     fn header(&self, x: &mut Xml) {
         x.open("rsm:ExchangedDocumentContext")
-            .wrapped("ram:BusinessProcessSpecifiedDocumentContextParameter", "ram:ID", BUSINESS_PROCESS)
-            .wrapped("ram:GuidelineSpecifiedDocumentContextParameter", "ram:ID", if self.xr { XRECHNUNG } else { EN16931 })
+            .wrapped(
+                "ram:BusinessProcessSpecifiedDocumentContextParameter",
+                "ram:ID",
+                BUSINESS_PROCESS,
+            )
+            .wrapped(
+                "ram:GuidelineSpecifiedDocumentContextParameter",
+                "ram:ID",
+                if self.xr { XRECHNUNG } else { EN16931 },
+            )
             .close("rsm:ExchangedDocumentContext");
-        x.open("rsm:ExchangedDocument").leaf("ram:ID", &self.inv.invoice_number).leaf("ram:TypeCode", "380").date("ram:IssueDateTime", self.issue);
+        x.open("rsm:ExchangedDocument")
+            .leaf("ram:ID", &self.inv.invoice_number)
+            .leaf("ram:TypeCode", "380")
+            .date("ram:IssueDateTime", self.issue);
         if let Some(note) = clean(&self.inv.note) {
             x.wrapped("ram:IncludedNote", "ram:Content", &note);
         }
@@ -310,26 +410,47 @@ impl<'a> Doc<'a> {
 
     fn lines(&self, x: &mut Xml) {
         for (i, li) in self.inv.line_items.iter().enumerate() {
-            let (price, quantity) = if li.price_cents < 0 { (-li.price_cents, -li.quantity) } else { (li.price_cents, li.quantity) };
-            let name = trimmed(&li.name).unwrap_or_else(|| format!("{} {}", pick("Item", "Position"), i + 1));
+            let (price, quantity) = if li.price_cents < 0 {
+                (-li.price_cents, -li.quantity)
+            } else {
+                (li.price_cents, li.quantity)
+            };
+            let name = trimmed(&li.name)
+                .unwrap_or_else(|| format!("{} {}", pick("Item", "Position"), i + 1));
             let unit = li.unit.as_deref().unwrap_or(ANY_UNIT);
             x.open("ram:IncludedSupplyChainTradeLineItem")
-                .wrapped("ram:AssociatedDocumentLineDocument", "ram:LineID", &(i + 1).to_string())
+                .wrapped(
+                    "ram:AssociatedDocumentLineDocument",
+                    "ram:LineID",
+                    &(i + 1).to_string(),
+                )
                 .wrapped("ram:SpecifiedTradeProduct", "ram:Name", &name)
                 .open("ram:SpecifiedLineTradeAgreement")
-                .wrapped("ram:NetPriceProductTradePrice", "ram:ChargeAmount", &amount(price))
+                .wrapped(
+                    "ram:NetPriceProductTradePrice",
+                    "ram:ChargeAmount",
+                    &amount(price),
+                )
                 .close("ram:SpecifiedLineTradeAgreement")
                 .open("ram:SpecifiedLineTradeDelivery")
-                .leaf_with("ram:BilledQuantity", &[("unitCode", unit)], &decimal(quantity))
+                .leaf_with(
+                    "ram:BilledQuantity",
+                    &[("unitCode", unit)],
+                    &decimal(quantity),
+                )
                 .close("ram:SpecifiedLineTradeDelivery")
                 .open("ram:SpecifiedLineTradeSettlement")
                 .tax("ram:ApplicableTradeTax", self.case, self.rate);
             if let Some(period) = self.periods[i] {
                 x.period(period);
             }
-            x.wrapped("ram:SpecifiedTradeSettlementLineMonetarySummation", "ram:LineTotalAmount", &amount(li.total_cents()))
-                .close("ram:SpecifiedLineTradeSettlement")
-                .close("ram:IncludedSupplyChainTradeLineItem");
+            x.wrapped(
+                "ram:SpecifiedTradeSettlementLineMonetarySummation",
+                "ram:LineTotalAmount",
+                &amount(li.total_cents()),
+            )
+            .close("ram:SpecifiedLineTradeSettlement")
+            .close("ram:IncludedSupplyChainTradeLineItem");
         }
     }
 
@@ -341,7 +462,11 @@ impl<'a> Doc<'a> {
         self.seller_party(x);
         self.buyer_party(x);
         if let Some(order) = &self.order_number {
-            x.wrapped("ram:BuyerOrderReferencedDocument", "ram:IssuerAssignedID", order);
+            x.wrapped(
+                "ram:BuyerOrderReferencedDocument",
+                "ram:IssuerAssignedID",
+                order,
+            );
         }
         x.close("ram:ApplicableHeaderTradeAgreement");
     }
@@ -356,24 +481,43 @@ impl<'a> Doc<'a> {
         }
         x.leaf("ram:Name", &self.seller);
         if self.xr || self.phone.is_some() || self.email.is_some() {
-            x.open("ram:DefinedTradeContact").leaf("ram:PersonName", &trimmed(&s.company_owner).unwrap_or_else(|| self.seller.clone()));
+            x.open("ram:DefinedTradeContact").leaf(
+                "ram:PersonName",
+                &trimmed(&s.company_owner).unwrap_or_else(|| self.seller.clone()),
+            );
             if let Some(phone) = &self.phone {
-                x.wrapped("ram:TelephoneUniversalCommunication", "ram:CompleteNumber", phone);
+                x.wrapped(
+                    "ram:TelephoneUniversalCommunication",
+                    "ram:CompleteNumber",
+                    phone,
+                );
             }
             if let Some(email) = &self.email {
                 x.wrapped("ram:EmailURIUniversalCommunication", "ram:URIID", email);
             }
             x.close("ram:DefinedTradeContact");
         }
-        let lines: Vec<String> = [&s.company_address_line1, &s.company_address_line2].into_iter().filter_map(|l| trimmed(l)).collect();
-        x.address(s.company_zip.trim(), &lines, s.company_city.trim(), &s.company_country);
+        let lines: Vec<String> = [&s.company_address_line1, &s.company_address_line2]
+            .into_iter()
+            .filter_map(|l| trimmed(l))
+            .collect();
+        x.address(
+            s.company_zip.trim(),
+            &lines,
+            s.company_city.trim(),
+            &s.company_country,
+        );
         if let Some(email) = &self.email {
             x.uri("EM", email);
         }
         if let Some(number) = &self.tax_number {
             x.tax_registration("FC", number);
         }
-        if let Some(id) = self.vat_id.as_ref().filter(|_| self.case != TaxCase::NotTaxable) {
+        if let Some(id) = self
+            .vat_id
+            .as_ref()
+            .filter(|_| self.case != TaxCase::NotTaxable)
+        {
             x.tax_registration("VA", id);
         }
         x.close("ram:SellerTradeParty");
@@ -386,8 +530,16 @@ impl<'a> Doc<'a> {
             x.leaf("ram:ID", &number);
         }
         x.leaf("ram:Name", b.name.trim());
-        let lines: Vec<String> = [&b.address_line1, &b.address_line2].into_iter().filter_map(clean).collect();
-        x.address(&clean(&b.zip).unwrap_or_default(), &lines, &clean(&b.city).unwrap_or_default(), &self.buyer_country);
+        let lines: Vec<String> = [&b.address_line1, &b.address_line2]
+            .into_iter()
+            .filter_map(clean)
+            .collect();
+        x.address(
+            &clean(&b.zip).unwrap_or_default(),
+            &lines,
+            &clean(&b.city).unwrap_or_default(),
+            &self.buyer_country,
+        );
         match (&self.leitweg_id, &self.buyer_mail) {
             (Some(id), _) => {
                 x.uri("0204", id);
@@ -405,7 +557,9 @@ impl<'a> Doc<'a> {
 
     fn settlement(&self, x: &mut Xml) {
         let (inv, totals, net) = (self.inv, self.totals, self.net_cents());
-        x.open("ram:ApplicableHeaderTradeSettlement").leaf("ram:PaymentReference", &inv.invoice_number).leaf("ram:InvoiceCurrencyCode", &inv.currency);
+        x.open("ram:ApplicableHeaderTradeSettlement")
+            .leaf("ram:PaymentReference", &inv.invoice_number)
+            .leaf("ram:InvoiceCurrencyCode", &inv.currency);
         if let Some(iban) = &self.iban {
             x.open("ram:SpecifiedTradeSettlementPaymentMeans")
                 .leaf("ram:TypeCode", "58")
@@ -414,20 +568,28 @@ impl<'a> Doc<'a> {
                 .leaf("ram:AccountName", &self.seller)
                 .close("ram:PayeePartyCreditorFinancialAccount");
             if let Some(bic) = trimmed(&self.s.company_bic) {
-                x.wrapped("ram:PayeeSpecifiedCreditorFinancialInstitution", "ram:BICID", &bic);
+                x.wrapped(
+                    "ram:PayeeSpecifiedCreditorFinancialInstitution",
+                    "ram:BICID",
+                    &bic,
+                );
             }
             x.close("ram:SpecifiedTradeSettlementPaymentMeans");
         }
 
-        x.open("ram:ApplicableTradeTax").leaf("ram:CalculatedAmount", &amount(totals.vat_cents)).leaf("ram:TypeCode", "VAT");
+        x.open("ram:ApplicableTradeTax")
+            .leaf("ram:CalculatedAmount", &amount(totals.vat_cents))
+            .leaf("ram:TypeCode", "VAT");
         if let Some((reason, _)) = self.case.exemption() {
             x.leaf("ram:ExemptionReason", reason);
         }
-        x.leaf("ram:BasisAmount", &amount(net)).leaf("ram:CategoryCode", self.case.category_code());
+        x.leaf("ram:BasisAmount", &amount(net))
+            .leaf("ram:CategoryCode", self.case.category_code());
         if let Some((_, Some(code))) = self.case.exemption() {
             x.leaf("ram:ExemptionReasonCode", code);
         }
-        x.leaf("ram:RateApplicablePercent", &format!("{:.2}", self.rate)).close("ram:ApplicableTradeTax");
+        x.leaf("ram:RateApplicablePercent", &format!("{:.2}", self.rate))
+            .close("ram:ApplicableTradeTax");
         if let Some(period) = self.invoice_period() {
             x.period(period);
         }
@@ -435,20 +597,36 @@ impl<'a> Doc<'a> {
         if inv.discount_cents != 0 {
             let discount = inv.discount_cents > 0;
             x.open("ram:SpecifiedTradeAllowanceCharge")
-                .wrapped("ram:ChargeIndicator", "udt:Indicator", if discount { "false" } else { "true" })
+                .wrapped(
+                    "ram:ChargeIndicator",
+                    "udt:Indicator",
+                    if discount { "false" } else { "true" },
+                )
                 .leaf("ram:ActualAmount", &amount(inv.discount_cents.abs()))
-                .leaf("ram:Reason", if discount { pick("Discount", "Rabatt") } else { pick("Surcharge", "Zuschlag") })
+                .leaf(
+                    "ram:Reason",
+                    if discount {
+                        pick("Discount", "Rabatt")
+                    } else {
+                        pick("Surcharge", "Zuschlag")
+                    },
+                )
                 .tax("ram:CategoryTradeTax", self.case, self.rate)
                 .close("ram:SpecifiedTradeAllowanceCharge");
         }
 
         x.open("ram:SpecifiedTradePaymentTerms");
         if let Some(due) = parse_date(&inv.due_date) {
-            x.leaf("ram:Description", &tr!("Payable by {}", "Zahlbar bis {}", fmt_date(&inv.due_date))).date("ram:DueDateDateTime", due);
+            x.leaf(
+                "ram:Description",
+                &tr!("Payable by {}", "Zahlbar bis {}", fmt_date(&inv.due_date)),
+            )
+            .date("ram:DueDateDateTime", due);
         }
         x.close("ram:SpecifiedTradePaymentTerms");
 
-        x.open("ram:SpecifiedTradeSettlementHeaderMonetarySummation").leaf("ram:LineTotalAmount", &amount(totals.subtotal_cents));
+        x.open("ram:SpecifiedTradeSettlementHeaderMonetarySummation")
+            .leaf("ram:LineTotalAmount", &amount(totals.subtotal_cents));
         if inv.discount_cents < 0 {
             x.leaf("ram:ChargeTotalAmount", &amount(-inv.discount_cents));
         }
@@ -456,7 +634,11 @@ impl<'a> Doc<'a> {
             x.leaf("ram:AllowanceTotalAmount", &amount(inv.discount_cents));
         }
         x.leaf("ram:TaxBasisTotalAmount", &amount(net))
-            .leaf_with("ram:TaxTotalAmount", &[("currencyID", &inv.currency)], &amount(totals.vat_cents))
+            .leaf_with(
+                "ram:TaxTotalAmount",
+                &[("currencyID", &inv.currency)],
+                &amount(totals.vat_cents),
+            )
             .leaf("ram:GrandTotalAmount", &amount(totals.amount_cents))
             .leaf("ram:DuePayableAmount", &amount(totals.amount_cents))
             .close("ram:SpecifiedTradeSettlementHeaderMonetarySummation")
@@ -478,7 +660,12 @@ fn pdf_date(t: &DateTime<Local>) -> String {
     let offset = t.offset().fix().local_minus_utc();
     let sign = if offset < 0 { '-' } else { '+' };
     let offset = offset.abs();
-    format!("D:{}{sign}{:02}'{:02}'", t.format("%Y%m%d%H%M%S"), offset / 3600, offset % 3600 / 60)
+    format!(
+        "D:{}{sign}{:02}'{:02}'",
+        t.format("%Y%m%d%H%M%S"),
+        offset / 3600,
+        offset % 3600 / 60
+    )
 }
 
 fn xmp(title: &str, author: &str, date: &str) -> String {
@@ -555,7 +742,11 @@ fn xmp(title: &str, author: &str, date: &str) -> String {
     )
 }
 
-fn indirect_dictionary(doc: &mut Document, parent: ObjectId, key: &[u8]) -> lopdf::Result<ObjectId> {
+fn indirect_dictionary(
+    doc: &mut Document,
+    parent: ObjectId,
+    key: &[u8],
+) -> lopdf::Result<ObjectId> {
     let existing = doc.get_dictionary(parent)?.get(key).ok().cloned();
     let id = match existing {
         Some(Object::Reference(id)) => return Ok(id),
@@ -573,14 +764,21 @@ fn add_attachment(doc: &mut Document, spec_id: ObjectId) -> lopdf::Result<()> {
     let entry = vec![pdf_text(ATTACHMENT_NAME), Object::Reference(spec_id)];
     if doc.get_dictionary(files_id)?.has(b"Kids") {
         let leaf = doc.add_object(dictionary! { "Names" => entry, "Limits" => vec![pdf_text(ATTACHMENT_NAME), pdf_text(ATTACHMENT_NAME)] });
-        doc.get_dictionary_mut(files_id)?.get_mut(b"Kids")?.as_array_mut()?.push(leaf.into());
+        doc.get_dictionary_mut(files_id)?
+            .get_mut(b"Kids")?
+            .as_array_mut()?
+            .push(leaf.into());
     } else {
         let files = doc.get_dictionary_mut(files_id)?;
         match files.get_mut(b"Names") {
             Ok(Object::Array(names)) => {
                 let at = names
                     .chunks(2)
-                    .position(|pair| pair[0].as_str().is_ok_and(|key| key > ATTACHMENT_NAME.as_bytes()))
+                    .position(|pair| {
+                        pair[0]
+                            .as_str()
+                            .is_ok_and(|key| key > ATTACHMENT_NAME.as_bytes())
+                    })
                     .map_or(names.len(), |i| i * 2);
                 names.splice(at..at, entry);
             }
@@ -595,13 +793,20 @@ fn add_attachment(doc: &mut Document, spec_id: ObjectId) -> lopdf::Result<()> {
             list.push(spec_id.into());
             doc.get_dictionary_mut(catalog_id)?.set("AF", list);
         }
-        _ => doc.get_dictionary_mut(catalog_id)?.set("AF", vec![Object::Reference(spec_id)]),
+        _ => doc
+            .get_dictionary_mut(catalog_id)?
+            .set("AF", vec![Object::Reference(spec_id)]),
     }
     Ok(())
 }
 
 pub fn embed(pdf: &Path, xml: &str, title: &str, author: &str) -> AppResult<()> {
-    let pdf_err = |e: lopdf::Error| msg(tr!("E-invoice could not be embedded in the PDF: {e}", "E-Rechnung konnte nicht in die PDF eingebettet werden: {e}"));
+    let pdf_err = |e: lopdf::Error| {
+        msg(tr!(
+            "E-invoice could not be embedded in the PDF: {e}",
+            "E-Rechnung konnte nicht in die PDF eingebettet werden: {e}"
+        ))
+    };
     let mut doc = Document::load(pdf).map_err(pdf_err)?;
     let now = Local::now();
     let date = pdf_date(&now);
@@ -626,8 +831,16 @@ pub fn embed(pdf: &Path, xml: &str, title: &str, author: &str) -> AppResult<()> 
     });
     add_attachment(&mut doc, spec_id).map_err(pdf_err)?;
 
-    let metadata = Stream::new(dictionary! { "Type" => "Metadata", "Subtype" => "XML" }, xmp(title, author, &now.format("%Y-%m-%dT%H:%M:%S%:z").to_string()).into_bytes())
-        .with_compression(false);
+    let metadata = Stream::new(
+        dictionary! { "Type" => "Metadata", "Subtype" => "XML" },
+        xmp(
+            title,
+            author,
+            &now.format("%Y-%m-%dT%H:%M:%S%:z").to_string(),
+        )
+        .into_bytes(),
+    )
+    .with_compression(false);
     let metadata_id = doc.add_object(metadata);
     let mut profile = Stream::new(dictionary! { "N" => 3 }, SRGB_PROFILE.to_vec());
     profile.compress().map_err(pdf_err)?;
@@ -650,7 +863,10 @@ pub fn embed(pdf: &Path, xml: &str, title: &str, author: &str) -> AppResult<()> 
     });
     doc.trailer.set("Info", info_id);
     if !doc.trailer.has(b"ID") {
-        let id = Object::String(uuid::Uuid::new_v4().as_bytes().to_vec(), StringFormat::Hexadecimal);
+        let id = Object::String(
+            uuid::Uuid::new_v4().as_bytes().to_vec(),
+            StringFormat::Hexadecimal,
+        );
         doc.trailer.set("ID", vec![id.clone(), id]);
     }
     let catalog = doc.catalog_mut().map_err(pdf_err)?;
@@ -711,8 +927,18 @@ mod tests {
 
     fn invoice() -> Invoice {
         let line_items = vec![
-            LineItem { name: "Design (01.09.–15.09.26)".into(), quantity: 38100.0 / 3600.0, price_cents: 7000, unit: Some(HOURS.into()) },
-            LineItem { name: "Hosting".into(), quantity: 1.0, price_cents: 2500, unit: Some("LS".into()) },
+            LineItem {
+                name: "Design (01.09.–15.09.26)".into(),
+                quantity: 38100.0 / 3600.0,
+                price_cents: 7000,
+                unit: Some(HOURS.into()),
+            },
+            LineItem {
+                name: "Hosting".into(),
+                quantity: 1.0,
+                price_cents: 2500,
+                unit: Some("LS".into()),
+            },
         ];
         let totals = compute_totals(&line_items, 19.0, 1000);
         Invoice {
@@ -735,10 +961,18 @@ mod tests {
         let mut doc = Document::with_version("1.5");
         let pages_id = doc.new_object_id();
         let page_id = doc.add_object(dictionary! { "Type" => "Page", "Parent" => pages_id, "MediaBox" => vec![0.into(), 0.into(), 595.into(), 842.into()] });
-        doc.objects.insert(pages_id, Object::Dictionary(dictionary! { "Type" => "Pages", "Kids" => vec![page_id.into()], "Count" => 1 }));
+        doc.objects.insert(
+            pages_id,
+            Object::Dictionary(
+                dictionary! { "Type" => "Pages", "Kids" => vec![page_id.into()], "Count" => 1 },
+            ),
+        );
         let mut catalog = dictionary! { "Type" => "Catalog", "Pages" => pages_id };
         if extra_attachment {
-            let file_id = doc.add_object(Stream::new(dictionary! { "Type" => "EmbeddedFile" }, b"terms".to_vec()));
+            let file_id = doc.add_object(Stream::new(
+                dictionary! { "Type" => "EmbeddedFile" },
+                b"terms".to_vec(),
+            ));
             let spec_id = doc.add_object(dictionary! { "Type" => "Filespec", "F" => pdf_text("terms.txt"), "EF" => dictionary! { "F" => file_id } });
             catalog.set("Names", dictionary! { "EmbeddedFiles" => dictionary! { "Names" => vec![pdf_text("terms.txt"), spec_id.into()] } });
             catalog.set("AF", vec![Object::Reference(spec_id)]);
@@ -751,11 +985,26 @@ mod tests {
     #[test]
     fn reads_service_periods_from_line_names() {
         let d = |s: &str| parse_date(s).unwrap();
-        assert_eq!(line_period("Design (30.08.–09.09.26)"), Some((d("2026-08-30"), d("2026-09-09"))));
-        assert_eq!(line_period("Design (30/08–09/09/26)"), Some((d("2026-08-30"), d("2026-09-09"))));
-        assert_eq!(line_period("Support (29.12.25–05.01.26)"), Some((d("2025-12-29"), d("2026-01-05"))));
-        assert_eq!(line_period("Support (29.12.–05.01.26)"), Some((d("2025-12-29"), d("2026-01-05"))));
-        assert_eq!(line_period("Workshop (28.08.26)"), Some((d("2026-08-28"), d("2026-08-28"))));
+        assert_eq!(
+            line_period("Design (30.08.–09.09.26)"),
+            Some((d("2026-08-30"), d("2026-09-09")))
+        );
+        assert_eq!(
+            line_period("Design (30/08–09/09/26)"),
+            Some((d("2026-08-30"), d("2026-09-09")))
+        );
+        assert_eq!(
+            line_period("Support (29.12.25–05.01.26)"),
+            Some((d("2025-12-29"), d("2026-01-05")))
+        );
+        assert_eq!(
+            line_period("Support (29.12.–05.01.26)"),
+            Some((d("2025-12-29"), d("2026-01-05")))
+        );
+        assert_eq!(
+            line_period("Workshop (28.08.26)"),
+            Some((d("2026-08-28"), d("2026-08-28")))
+        );
         assert_eq!(line_period("Hosting (monthly)"), None);
         assert_eq!(line_period("Version (10.5)"), None);
     }
@@ -776,27 +1025,62 @@ mod tests {
         assert!(xml.contains("<ram:Name>Acme &amp; Söhne GmbH</ram:Name>"));
         assert!(xml.contains("<ram:LineOne>Musterstraße 1</ram:LineOne>"));
         assert!(xml.contains("<ram:IBANID>DE02120300000000202051</ram:IBANID>"));
-        assert!(!xml.contains("<ram:BuyerReference>"), "no buyer reference without Leitweg-ID or order number");
-        assert_eq!(xml.matches("<ram:BillingSpecifiedPeriod>").count(), 1, "only the first line names a period, so there is no invoice period");
+        assert!(
+            !xml.contains("<ram:BuyerReference>"),
+            "no buyer reference without Leitweg-ID or order number"
+        );
+        assert_eq!(
+            xml.matches("<ram:BillingSpecifiedPeriod>").count(),
+            1,
+            "only the first line names a period, so there is no invoice period"
+        );
     }
 
     #[test]
     fn xrechnung_needs_the_german_cius_fields() {
-        let err = cii(&invoice(), Some(&customer()), &settings(), Profile::XRechnung).unwrap_err().to_string();
+        let err = cii(
+            &invoice(),
+            Some(&customer()),
+            &settings(),
+            Profile::XRechnung,
+        )
+        .unwrap_err()
+        .to_string();
         assert!(err.contains("buyer reference"), "{err}");
-        let ordered = Invoice { order_number: Some("PO-4711".into()), ..invoice() };
+        let ordered = Invoice {
+            order_number: Some("PO-4711".into()),
+            ..invoice()
+        };
         let xml = cii(&ordered, Some(&customer()), &settings(), Profile::XRechnung).unwrap();
         assert!(xml.contains(XRECHNUNG));
         assert!(xml.contains("<ram:BuyerReference>PO-4711</ram:BuyerReference>"));
-        let with_leitweg = Customer { leitweg_id: Some("991-12345-67".into()), ..customer() };
-        let xml = cii(&invoice(), Some(&with_leitweg), &settings(), Profile::XRechnung).unwrap();
+        let with_leitweg = Customer {
+            leitweg_id: Some("991-12345-67".into()),
+            ..customer()
+        };
+        let xml = cii(
+            &invoice(),
+            Some(&with_leitweg),
+            &settings(),
+            Profile::XRechnung,
+        )
+        .unwrap();
         assert!(xml.contains("<ram:BuyerReference>991-12345-67</ram:BuyerReference>"));
         assert!(xml.contains("<ram:URIID schemeID=\"0204\">991-12345-67</ram:URIID>"));
 
-        let sparse = Settings { company_phone: String::new(), company_iban: String::new(), ..settings() };
-        let err = cii(&invoice(), Some(&customer()), &sparse, Profile::XRechnung).unwrap_err().to_string();
+        let sparse = Settings {
+            company_phone: String::new(),
+            company_iban: String::new(),
+            ..settings()
+        };
+        let err = cii(&invoice(), Some(&customer()), &sparse, Profile::XRechnung)
+            .unwrap_err()
+            .to_string();
         assert!(err.contains("phone") && err.contains("IBAN"), "{err}");
-        assert!(cii(&invoice(), Some(&customer()), &sparse, Profile::Zugferd).is_ok(), "ZUGFeRD EN 16931 does not need them");
+        assert!(
+            cii(&invoice(), Some(&customer()), &sparse, Profile::Zugferd).is_ok(),
+            "ZUGFeRD EN 16931 does not need them"
+        );
         assert!(cii(&invoice(), None, &settings(), Profile::Zugferd).is_err());
     }
 
@@ -804,23 +1088,50 @@ mod tests {
     fn rejects_unknown_countries_and_reverse_charge_without_vat_id() {
         let mut domestic_zero = invoice();
         domestic_zero.vat_rate = 0.0;
-        assert!(cii(&domestic_zero, Some(&customer()), &settings(), Profile::Zugferd).unwrap_err().to_string().contains("exemption reason"));
+        assert!(cii(
+            &domestic_zero,
+            Some(&customer()),
+            &settings(),
+            Profile::Zugferd
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("exemption reason"));
         let mut inv = invoice();
         inv.vat_rate = 0.0;
-        let french = Customer { country: Some("FR".into()), vat_number: Some("FR12345678901".into()), ..customer() };
-        let without_vat_id = Settings { company_vat_id: String::new(), ..settings() };
-        assert!(cii(&inv, Some(&french), &without_vat_id, Profile::Zugferd).unwrap_err().to_string().contains("reverse charge"));
+        let french = Customer {
+            country: Some("FR".into()),
+            vat_number: Some("FR12345678901".into()),
+            ..customer()
+        };
+        let without_vat_id = Settings {
+            company_vat_id: String::new(),
+            ..settings()
+        };
+        assert!(cii(&inv, Some(&french), &without_vat_id, Profile::Zugferd)
+            .unwrap_err()
+            .to_string()
+            .contains("reverse charge"));
     }
 
     #[test]
     fn small_business_invoices_are_exempt_with_reason() {
-        let s = Settings { small_business: true, company_vat_id: String::new(), ..settings() };
+        let s = Settings {
+            small_business: true,
+            company_vat_id: String::new(),
+            ..settings()
+        };
         let mut inv = invoice();
         inv.vat_rate = 0.0;
         let xml = cii(&inv, Some(&customer()), &s, Profile::Zugferd).unwrap();
         assert!(xml.contains("<ram:CategoryCode>E</ram:CategoryCode>"));
-        assert!(xml.contains("<ram:ExemptionReason>Small business according to § 19 UStG</ram:ExemptionReason>"));
-        assert!(xml.contains("<ram:ID>12/345/67890</ram:ID>"), "seller identifier when there is no VAT ID");
+        assert!(xml.contains(
+            "<ram:ExemptionReason>Small business according to § 19 UStG</ram:ExemptionReason>"
+        ));
+        assert!(
+            xml.contains("<ram:ID>12/345/67890</ram:ID>"),
+            "seller identifier when there is no VAT ID"
+        );
         assert!(xml.contains("<ram:TaxTotalAmount currencyID=\"EUR\">0.00</ram:TaxTotalAmount>"));
     }
 
@@ -828,11 +1139,19 @@ mod tests {
     fn not_taxable_invoices_drop_vat_ids_and_line_rates() {
         let mut inv = invoice();
         inv.vat_rate = 0.0;
-        let us = Customer { country: Some("US".into()), vat_number: Some("12-3456789".into()), ..customer() };
+        let us = Customer {
+            country: Some("US".into()),
+            vat_number: Some("12-3456789".into()),
+            ..customer()
+        };
         let xml = cii(&inv, Some(&us), &settings(), Profile::Zugferd).unwrap();
         assert!(xml.contains("<ram:CategoryCode>O</ram:CategoryCode>"));
         assert!(!xml.contains("schemeID=\"VA\""));
-        assert_eq!(xml.matches("<ram:RateApplicablePercent>").count(), 1, "only the VAT breakdown carries a rate (0 %), as XRechnung requires");
+        assert_eq!(
+            xml.matches("<ram:RateApplicablePercent>").count(),
+            1,
+            "only the VAT breakdown carries a rate (0 %), as XRechnung requires"
+        );
     }
 
     #[test]
@@ -844,46 +1163,149 @@ mod tests {
         embed(&path, "<xml/>", "Rechnung INV-1", "Jane Doe Design").unwrap();
 
         let bytes = std::fs::read(&path).unwrap();
-        assert!(bytes.starts_with(b"%PDF-1.7\n%") && bytes[10..14].iter().all(|b| *b > 127), "binary header comment");
+        assert!(
+            bytes.starts_with(b"%PDF-1.7\n%") && bytes[10..14].iter().all(|b| *b > 127),
+            "binary header comment"
+        );
         let doc = Document::load_mem(&bytes).unwrap();
         let catalog = doc.catalog().unwrap();
         assert!(catalog.has(b"Metadata") && catalog.has(b"OutputIntents"));
         assert_eq!(catalog.get(b"AF").unwrap().as_array().unwrap().len(), 2);
         let names_id = catalog.get(b"Names").unwrap().as_reference().unwrap();
-        let files_id = doc.get_dictionary(names_id).unwrap().get(b"EmbeddedFiles").unwrap().as_reference().unwrap();
-        let names = doc.get_dictionary(files_id).unwrap().get(b"Names").unwrap().as_array().unwrap();
-        let keys: Vec<&[u8]> = names.iter().step_by(2).map(|k| k.as_str().unwrap()).collect();
-        assert_eq!(keys, [b"factur-x.xml".as_slice(), b"terms.txt"], "name tree stays sorted");
-        let spec = doc.get_dictionary(names[1].as_reference().unwrap()).unwrap();
-        let file_id = spec.get(b"EF").unwrap().as_dict().unwrap().get(b"F").unwrap().as_reference().unwrap();
+        let files_id = doc
+            .get_dictionary(names_id)
+            .unwrap()
+            .get(b"EmbeddedFiles")
+            .unwrap()
+            .as_reference()
+            .unwrap();
+        let names = doc
+            .get_dictionary(files_id)
+            .unwrap()
+            .get(b"Names")
+            .unwrap()
+            .as_array()
+            .unwrap();
+        let keys: Vec<&[u8]> = names
+            .iter()
+            .step_by(2)
+            .map(|k| k.as_str().unwrap())
+            .collect();
+        assert_eq!(
+            keys,
+            [b"factur-x.xml".as_slice(), b"terms.txt"],
+            "name tree stays sorted"
+        );
+        let spec = doc
+            .get_dictionary(names[1].as_reference().unwrap())
+            .unwrap();
+        let file_id = spec
+            .get(b"EF")
+            .unwrap()
+            .as_dict()
+            .unwrap()
+            .get(b"F")
+            .unwrap()
+            .as_reference()
+            .unwrap();
         let file = doc.get_object(file_id).unwrap().as_stream().unwrap();
-        assert_eq!(file.decompressed_content().unwrap_or_else(|_| file.content.clone()), b"<xml/>");
+        assert_eq!(
+            file.decompressed_content()
+                .unwrap_or_else(|_| file.content.clone()),
+            b"<xml/>"
+        );
         assert!(doc.trailer.has(b"ID"));
     }
 
     #[test]
     #[ignore = "writes sample e-invoices for the external validators in CI"]
     fn writes_validation_samples() {
-        let out = std::path::PathBuf::from(std::env::var("EINVOICE_SAMPLES").expect("EINVOICE_SAMPLES"));
+        let out =
+            std::path::PathBuf::from(std::env::var("EINVOICE_SAMPLES").expect("EINVOICE_SAMPLES"));
         std::fs::create_dir_all(&out).unwrap();
         let periods = Invoice {
-            line_items: invoice().line_items.into_iter().map(|li| LineItem { name: format!("{} (01.09.–30.09.26)", li.name), ..li }).collect(),
+            line_items: invoice()
+                .line_items
+                .into_iter()
+                .map(|li| LineItem {
+                    name: format!("{} (01.09.–30.09.26)", li.name),
+                    ..li
+                })
+                .collect(),
             ..invoice()
         };
         let cases = [
             ("standard", invoice(), customer(), settings()),
             ("periods", periods, customer(), settings()),
-            ("small-business", Invoice { vat_rate: 0.0, ..invoice() }, customer(), Settings { small_business: true, company_vat_id: String::new(), ..settings() }),
-            ("reverse-charge", Invoice { vat_rate: 0.0, ..invoice() }, Customer { country: Some("FR".into()), vat_number: Some("FR12345678901".into()), ..customer() }, settings()),
-            ("not-taxable", Invoice { vat_rate: 0.0, ..invoice() }, Customer { country: Some("US".into()), zip: Some("10001".into()), city: Some("New York".into()), ..customer() }, settings()),
-            ("leitweg-id", invoice(), Customer { leitweg_id: Some("04011000-12345-67".into()), ..customer() }, settings()),
+            (
+                "small-business",
+                Invoice {
+                    vat_rate: 0.0,
+                    ..invoice()
+                },
+                customer(),
+                Settings {
+                    small_business: true,
+                    company_vat_id: String::new(),
+                    ..settings()
+                },
+            ),
+            (
+                "reverse-charge",
+                Invoice {
+                    vat_rate: 0.0,
+                    ..invoice()
+                },
+                Customer {
+                    country: Some("FR".into()),
+                    vat_number: Some("FR12345678901".into()),
+                    ..customer()
+                },
+                settings(),
+            ),
+            (
+                "not-taxable",
+                Invoice {
+                    vat_rate: 0.0,
+                    ..invoice()
+                },
+                Customer {
+                    country: Some("US".into()),
+                    zip: Some("10001".into()),
+                    city: Some("New York".into()),
+                    ..customer()
+                },
+                settings(),
+            ),
+            (
+                "leitweg-id",
+                invoice(),
+                Customer {
+                    leitweg_id: Some("04011000-12345-67".into()),
+                    ..customer()
+                },
+                settings(),
+            ),
         ];
         for (name, inv, c, s) in cases {
-            let inv = Invoice { order_number: Some("PO-4711".into()), ..inv };
-            std::fs::write(out.join(format!("{name}-xrechnung.xml")), cii(&inv, Some(&c), &s, Profile::XRechnung).unwrap()).unwrap();
+            let inv = Invoice {
+                order_number: Some("PO-4711".into()),
+                ..inv
+            };
+            std::fs::write(
+                out.join(format!("{name}-xrechnung.xml")),
+                cii(&inv, Some(&c), &s, Profile::XRechnung).unwrap(),
+            )
+            .unwrap();
             let pdf = out.join(format!("{name}-zugferd.pdf"));
             blank_pdf(&pdf, false);
-            embed(&pdf, &cii(&inv, Some(&c), &s, Profile::Zugferd).unwrap(), "Rechnung INV-2026-0001", &seller_name(&s)).unwrap();
+            embed(
+                &pdf,
+                &cii(&inv, Some(&c), &s, Profile::Zugferd).unwrap(),
+                "Rechnung INV-2026-0001",
+                &seller_name(&s),
+            )
+            .unwrap();
         }
     }
 }

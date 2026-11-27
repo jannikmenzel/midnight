@@ -84,7 +84,11 @@ const EPS: f64 = 1e-6;
 fn hrs(h: f64) -> String {
     let text = format!("{:.1}", (h * 10.0).round() / 10.0);
     let text = text.strip_suffix(".0").unwrap_or(&text).to_string();
-    if is_de() { text.replace('.', ",") } else { text }
+    if is_de() {
+        text.replace('.', ",")
+    } else {
+        text
+    }
 }
 
 struct Delays<'a> {
@@ -95,7 +99,11 @@ struct Delays<'a> {
 
 impl<'a> Delays<'a> {
     fn new(conn: &'a Connection, fallback: i64) -> Self {
-        Delays { conn, fallback: fallback.max(0), cache: HashMap::new() }
+        Delays {
+            conn,
+            fallback: fallback.max(0),
+            cache: HashMap::new(),
+        }
     }
 
     fn observed(&mut self, customer_id: Option<&str>) -> AppResult<Option<i64>> {
@@ -110,7 +118,9 @@ impl<'a> Delays<'a> {
                      WHERE customer_id = ?1 AND status = 'paid' AND paid_at IS NOT NULL
                      ORDER BY paid_at DESC LIMIT 6",
                 )?;
-                let mut days: Vec<i64> = stmt.query_map(params![id], |r| r.get(0))?.collect::<Result<_, _>>()?;
+                let mut days: Vec<i64> = stmt
+                    .query_map(params![id], |r| r.get(0))?
+                    .collect::<Result<_, _>>()?;
                 days.sort_unstable();
                 (days.len() >= 2).then(|| days[days.len() / 2].max(0))
             }
@@ -125,7 +135,15 @@ impl<'a> Delays<'a> {
             return Ok(days);
         }
         let terms: Option<i64> = match customer_id {
-            Some(id) => self.conn.query_row("SELECT default_payment_terms FROM customers WHERE id = ?1", params![id], |r| r.get(0)).optional()?.flatten(),
+            Some(id) => self
+                .conn
+                .query_row(
+                    "SELECT default_payment_terms FROM customers WHERE id = ?1",
+                    params![id],
+                    |r| r.get(0),
+                )
+                .optional()?
+                .flatten(),
             None => None,
         };
         Ok(terms.unwrap_or(self.fallback).max(0))
@@ -158,7 +176,13 @@ fn weeks_left(week: NaiveDate, from: NaiveDate, to: NaiveDate) -> usize {
     count
 }
 
-fn schedule(demands: &[Demand], limit: f64, tracked_all_week: f64, today: NaiveDate, week0: NaiveDate) -> Vec<BTreeMap<NaiveDate, f64>> {
+fn schedule(
+    demands: &[Demand],
+    limit: f64,
+    tracked_all_week: f64,
+    today: NaiveDate,
+    week0: NaiveDate,
+) -> Vec<BTreeMap<NaiveDate, f64>> {
     let mut remaining: Vec<f64> = demands.iter().map(|d| d.remaining).collect();
     let mut out = vec![BTreeMap::new(); demands.len()];
     let horizon = week0 + Duration::weeks(520);
@@ -170,7 +194,9 @@ fn schedule(demands: &[Demand], limit: f64, tracked_all_week: f64, today: NaiveD
         let capacity = if limit <= 0.0 {
             f64::INFINITY
         } else if first {
-            (limit - tracked_all_week).min(limit * open.len() as f64 / 5.0).max(0.0)
+            (limit - tracked_all_week)
+                .min(limit * open.len() as f64 / 5.0)
+                .max(0.0)
         } else {
             limit
         };
@@ -196,7 +222,11 @@ fn schedule(demands: &[Demand], limit: f64, tracked_all_week: f64, today: NaiveD
             wants.push((i, want, days));
         }
         let total: f64 = wants.iter().map(|w| w.1).sum();
-        let scale = if total > capacity { capacity / total } else { 1.0 };
+        let scale = if total > capacity {
+            capacity / total
+        } else {
+            1.0
+        };
         for (i, want, days) in wants {
             let hours = want * scale;
             if hours <= EPS {
@@ -217,7 +247,9 @@ fn tracked_this_week(conn: &Connection, week0: NaiveDate) -> AppResult<HashMap<S
         "SELECT project_id, SUM(duration) FROM tracker_entries
          WHERE stop IS NOT NULL AND date BETWEEN ?1 AND ?2 GROUP BY project_id",
     )?;
-    let rows = stmt.query_map(params![iso(week0), iso(week0 + Duration::days(6))], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?;
+    let rows = stmt.query_map(params![iso(week0), iso(week0 + Duration::days(6))], |r| {
+        Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?))
+    })?;
     let mut map = HashMap::new();
     for row in rows {
         let (id, seconds) = row?;
@@ -227,16 +259,31 @@ fn tracked_this_week(conn: &Connection, week0: NaiveDate) -> AppResult<HashMap<S
 }
 
 fn window(p: &Project, today: NaiveDate) -> (NaiveDate, NaiveDate, bool) {
-    let start = p.start_date.as_deref().and_then(parse_date).unwrap_or(today).max(today);
+    let start = p
+        .start_date
+        .as_deref()
+        .and_then(parse_date)
+        .unwrap_or(today)
+        .max(today);
     match p.end_date.as_deref().and_then(parse_date) {
         Some(end) => (start, end, true),
-        None => (start, NaiveDate::from_ymd_opt(today.year(), 12, 31).expect("valid date").max(start), false),
+        None => (
+            start,
+            NaiveDate::from_ymd_opt(today.year(), 12, 31)
+                .expect("valid date")
+                .max(start),
+            false,
+        ),
     }
 }
 
 pub fn collect_items(conn: &Connection, today: NaiveDate) -> AppResult<Collected> {
     let settings = load_settings(conn)?;
-    let vat_factor = if settings.small_business { 1.0 } else { 1.0 + settings.default_vat_rate / 100.0 };
+    let vat_factor = if settings.small_business {
+        1.0
+    } else {
+        1.0 + settings.default_vat_rate / 100.0
+    };
     let gross = |net: f64| (net * vat_factor).round() as i64;
     let no_customer = || tr!("No customer", "Ohne Kunde");
     let mut delays = Delays::new(conn, settings.default_payment_terms);
@@ -271,7 +318,11 @@ pub fn collect_items(conn: &Connection, today: NaiveDate) -> AppResult<Collected
         };
         out.items.push(ForecastItem {
             kind: if draft { "draft" } else { "open_invoice" },
-            label: if draft { tr!("Draft {number}", "Entwurf {number}") } else { tr!("Invoice {number}", "Rechnung {number}") },
+            label: if draft {
+                tr!("Draft {number}", "Entwurf {number}")
+            } else {
+                tr!("Invoice {number}", "Rechnung {number}")
+            },
             customer: customer.unwrap_or_else(no_customer),
             date: iso(date),
             amount_cents: amount,
@@ -290,7 +341,9 @@ pub fn collect_items(conn: &Connection, today: NaiveDate) -> AppResult<Collected
         if !has_end && (p.estimate_hours.is_some() || p.fixed_price_cents.is_some()) {
             out.without_end.push(p.name.clone());
         }
-        let Some(estimate) = p.estimate_hours else { continue };
+        let Some(estimate) = p.estimate_hours else {
+            continue;
+        };
         planned.push(i);
         demands.push(Demand {
             remaining: (estimate - p.total_seconds as f64 / 3600.0).max(0.0),
@@ -301,7 +354,8 @@ pub fn collect_items(conn: &Connection, today: NaiveDate) -> AppResult<Collected
     }
     let limit = settings.weekly_hours_limit.max(0.0);
     let days = schedule(&demands, limit, tracked_all_week, today, week0);
-    let schedule_of: HashMap<usize, &BTreeMap<NaiveDate, f64>> = planned.iter().copied().zip(days.iter()).collect();
+    let schedule_of: HashMap<usize, &BTreeMap<NaiveDate, f64>> =
+        planned.iter().copied().zip(days.iter()).collect();
 
     let current_month = last_day_of_month(today);
     let empty = BTreeMap::new();
@@ -313,14 +367,22 @@ pub fn collect_items(conn: &Connection, today: NaiveDate) -> AppResult<Collected
         let (_, end, has_end) = window(p, today);
 
         if p.estimate_hours.is_some() {
-            let weeks = plan.keys().map(|d| week_bounds(*d, settings.week_starts_on_monday).0).collect::<BTreeSet<_>>().len();
+            let weeks = plan
+                .keys()
+                .map(|d| week_bounds(*d, settings.week_starts_on_monday).0)
+                .collect::<BTreeSet<_>>()
+                .len();
             out.plans.push(ProjectPlan {
                 name: p.name.clone(),
                 customer: customer.clone(),
                 fixed_price: p.fixed_price_cents.is_some(),
                 billable: p.billable,
                 remaining_hours: scheduled,
-                weekly_hours: if weeks > 0 { scheduled / weeks as f64 } else { 0.0 },
+                weekly_hours: if weeks > 0 {
+                    scheduled / weeks as f64
+                } else {
+                    0.0
+                },
                 finish: finish.map(iso),
                 end: if has_end { Some(iso(end)) } else { None },
                 delayed: has_end && finish.is_some_and(|f| f > end),
@@ -343,7 +405,11 @@ pub fn collect_items(conn: &Connection, today: NaiveDate) -> AppResult<Collected
                 customer,
                 date: iso(invoice + Duration::days(delay)),
                 amount_cents: gross(remaining as f64),
-                detail: if remaining < price { tr!("Remaining amount", "Restbetrag") } else { String::new() },
+                detail: if remaining < price {
+                    tr!("Remaining amount", "Restbetrag")
+                } else {
+                    String::new()
+                },
             });
             continue;
         }
@@ -357,7 +423,11 @@ pub fn collect_items(conn: &Connection, today: NaiveDate) -> AppResult<Collected
             months.entry(current_month).or_insert(0.0);
         }
         for (month_end, hours) in months {
-            let (tracked_cents, tracked_hours) = if month_end == current_month { (p.unbilled_cents, p.unbilled_seconds as f64 / 3600.0) } else { (0, 0.0) };
+            let (tracked_cents, tracked_hours) = if month_end == current_month {
+                (p.unbilled_cents, p.unbilled_seconds as f64 / 3600.0)
+            } else {
+                (0, 0.0)
+            };
             let net = tracked_cents as f64 + hours * rate;
             if net < 1.0 {
                 continue;
@@ -368,7 +438,11 @@ pub fn collect_items(conn: &Connection, today: NaiveDate) -> AppResult<Collected
             };
             out.items.push(ForecastItem {
                 kind: if hours > EPS { "project" } else { "unbilled" },
-                label: if hours > EPS { tr!("Project: {}", "Projekt: {}", p.name) } else { tr!("Unbilled time: {}", "Nicht abgerechnete Zeit: {}", p.name) },
+                label: if hours > EPS {
+                    tr!("Project: {}", "Projekt: {}", p.name)
+                } else {
+                    tr!("Unbilled time: {}", "Nicht abgerechnete Zeit: {}", p.name)
+                },
                 customer: customer.clone(),
                 date: iso(invoice + Duration::days(delay)),
                 amount_cents: gross(net),
@@ -393,14 +467,28 @@ fn rows_for(items: &[ForecastItem]) -> Vec<IncomeRow> {
         .collect()
 }
 
-fn expected_expenses(conn: &Connection, year: i32, today: NaiveDate, horizon: NaiveDate) -> AppResult<(Vec<ForecastItem>, i64)> {
+fn expected_expenses(
+    conn: &Connection,
+    year: i32,
+    today: NaiveDate,
+    horizon: NaiveDate,
+) -> AppResult<(Vec<ForecastItem>, i64)> {
     let mut deductible = 0;
     let mut items = Vec::new();
-    for e in crate::expense_recurring::expected(conn, today, horizon)?.into_iter().filter(|e| e.date.year() == year) {
+    for e in crate::expense_recurring::expected(conn, today, horizon)?
+        .into_iter()
+        .filter(|e| e.date.year() == year)
+    {
         let share = crate::tax::deductible_cents(e.amount_cents, e.deductible_percent);
         deductible += share;
         let category: Option<String> = match &e.category_slug {
-            Some(slug) => conn.query_row("SELECT name FROM categories WHERE slug = ?1", params![slug], |r| r.get(0)).ok(),
+            Some(slug) => conn
+                .query_row(
+                    "SELECT name FROM categories WHERE slug = ?1",
+                    params![slug],
+                    |r| r.get(0),
+                )
+                .ok(),
             None => None,
         };
         items.push(ForecastItem {
@@ -409,7 +497,16 @@ fn expected_expenses(conn: &Connection, year: i32, today: NaiveDate, horizon: Na
             customer: category.unwrap_or_else(|| tr!("Uncategorised", "Ohne Kategorie")),
             date: iso(e.date),
             amount_cents: share,
-            detail: if e.deductible_percent < 100 { tr!("{} % of {}", "{} % von {}", e.deductible_percent, fmt_money(e.amount_cents, "EUR")) } else { String::new() },
+            detail: if e.deductible_percent < 100 {
+                tr!(
+                    "{} % of {}",
+                    "{} % von {}",
+                    e.deductible_percent,
+                    fmt_money(e.amount_cents, "EUR")
+                )
+            } else {
+                String::new()
+            },
         });
     }
     Ok((items, deductible))
@@ -419,12 +516,23 @@ fn year_end(year: i32) -> AppResult<NaiveDate> {
     NaiveDate::from_ymd_opt(year, 12, 31).ok_or_else(|| msg(tr!("Invalid year", "Ungültiges Jahr")))
 }
 
-pub fn business_tax_share(conn: &Connection, year: i32, today: NaiveDate) -> AppResult<Option<f64>> {
+pub fn business_tax_share(
+    conn: &Connection,
+    year: i32,
+    today: NaiveDate,
+) -> AppResult<Option<f64>> {
     let horizon = year_end(year)?;
-    let mut adj = Adjust { extra_income: Vec::new(), extra_expense_cents: 0 };
+    let mut adj = Adjust {
+        extra_income: Vec::new(),
+        extra_expense_cents: 0,
+    };
     if horizon >= today {
         let prefix = format!("{year}-");
-        let items: Vec<ForecastItem> = collect_items(conn, today)?.items.into_iter().filter(|i| i.date.starts_with(&prefix)).collect();
+        let items: Vec<ForecastItem> = collect_items(conn, today)?
+            .items
+            .into_iter()
+            .filter(|i| i.date.starts_with(&prefix))
+            .collect();
         adj.extra_income = rows_for(&items);
         adj.extra_expense_cents = expected_expenses(conn, year, today, horizon)?.1;
     }
@@ -432,13 +540,26 @@ pub fn business_tax_share(conn: &Connection, year: i32, today: NaiveDate) -> App
     if full.income_cents <= 0 {
         return Ok(None);
     }
-    let without = Adjust { extra_income: adj.extra_income.clone(), extra_expense_cents: adj.extra_expense_cents + full.profit_cents.max(0) };
-    let business_tax = (full.tax_total_cents - compute_with(conn, year, &without)?.tax_total_cents).max(0);
+    let without = Adjust {
+        extra_income: adj.extra_income.clone(),
+        extra_expense_cents: adj.extra_expense_cents + full.profit_cents.max(0),
+    };
+    let business_tax =
+        (full.tax_total_cents - compute_with(conn, year, &without)?.tax_total_cents).max(0);
     Ok(Some(business_tax as f64 / full.income_cents as f64))
 }
 
-fn tax_delta(conn: &Connection, year: i32, base: &Adjust, base_tax: i64, delta: i64) -> AppResult<i64> {
-    let adj = Adjust { extra_income: base.extra_income.clone(), extra_expense_cents: base.extra_expense_cents - delta };
+fn tax_delta(
+    conn: &Connection,
+    year: i32,
+    base: &Adjust,
+    base_tax: i64,
+    delta: i64,
+) -> AppResult<i64> {
+    let adj = Adjust {
+        extra_income: base.extra_income.clone(),
+        extra_expense_cents: base.extra_expense_cents - delta,
+    };
     Ok(compute_with(conn, year, &adj)?.tax_total_cents - base_tax)
 }
 
@@ -446,12 +567,27 @@ pub fn build(conn: &Connection, year: i32, today: NaiveDate) -> AppResult<Foreca
     let settings = load_settings(conn)?;
     let horizon = year_end(year)?;
     let active = horizon >= today;
-    let collected = if active { collect_items(conn, today)? } else { Collected::default() };
+    let collected = if active {
+        collect_items(conn, today)?
+    } else {
+        Collected::default()
+    };
     let prefix = format!("{year}-");
-    let items: Vec<ForecastItem> = collected.items.into_iter().filter(|i| i.date.starts_with(&prefix)).collect();
+    let items: Vec<ForecastItem> = collected
+        .items
+        .into_iter()
+        .filter(|i| i.date.starts_with(&prefix))
+        .collect();
 
-    let (expenses, expense_deductible) = if active { expected_expenses(conn, year, today, horizon)? } else { (Vec::new(), 0) };
-    let adj = Adjust { extra_income: rows_for(&items), extra_expense_cents: expense_deductible };
+    let (expenses, expense_deductible) = if active {
+        expected_expenses(conn, year, today, horizon)?
+    } else {
+        (Vec::new(), 0)
+    };
+    let adj = Adjust {
+        extra_income: rows_for(&items),
+        extra_expense_cents: expense_deductible,
+    };
     let real = compute_with(conn, year, &adj)?;
     let marginal = tax_delta(conn, year, &adj, real.tax_total_cents, 100_000)? as f64 / 100_000.0;
     let expected: i64 = items.iter().map(|i| i.amount_cents).sum();
@@ -468,7 +604,11 @@ pub fn build(conn: &Connection, year: i32, today: NaiveDate) -> AppResult<Foreca
         withheld_cents: real.withheld_cents,
         prepayments_cents: real.prepayments_cents,
         balance_cents: real.balance_cents,
-        set_aside_cents: if active && year == today.year() && real.balance_cents > 0 { real.balance_cents / (13 - today.month() as i64) } else { 0 },
+        set_aside_cents: if active && year == today.year() && real.balance_cents > 0 {
+            real.balance_cents / (13 - today.month() as i64)
+        } else {
+            0
+        },
         marginal_rate: marginal,
     };
     let eur = |c: i64| fmt_money(c, "EUR");
@@ -476,7 +616,11 @@ pub fn build(conn: &Connection, year: i32, today: NaiveDate) -> AppResult<Foreca
     let mut warnings = Vec::new();
     if active {
         let actual = compute(conn, year)?;
-        let mut flow: Vec<(String, i64)> = actual.income.iter().map(|i| (i.paid_at.clone(), i.amount_cents)).collect();
+        let mut flow: Vec<(String, i64)> = actual
+            .income
+            .iter()
+            .map(|i| (i.paid_at.clone(), i.amount_cents))
+            .collect();
         flow.extend(items.iter().map(|i| (i.date.clone(), i.amount_cents)));
         flow.sort();
         let crossing = |limit: i64| {
@@ -490,13 +634,25 @@ pub fn build(conn: &Connection, year: i32, today: NaiveDate) -> AppResult<Foreca
         };
         let limit = settings.weekly_hours_limit;
         for plan in collected.plans.iter().filter(|p| p.delayed) {
-            let (finish, end) = (fmt_date(plan.finish.as_deref().unwrap_or_default()), fmt_date(plan.end.as_deref().unwrap_or_default()));
+            let (finish, end) = (
+                fmt_date(plan.finish.as_deref().unwrap_or_default()),
+                fmt_date(plan.end.as_deref().unwrap_or_default()),
+            );
             let text = if limit > 0.0 {
                 tr!("{0} will probably only be finished on {1} instead of {2} at a maximum of {3} hrs/week.", "{0} wird bei maximal {3} Std./Woche voraussichtlich erst am {1} fertig statt am {2}.", plan.name, finish, end, hrs(limit))
             } else {
-                tr!("{0} will probably only be finished on {1} instead of {2}.", "{0} wird voraussichtlich erst am {1} fertig statt am {2}.", plan.name, finish, end)
+                tr!(
+                    "{0} will probably only be finished on {1} instead of {2}.",
+                    "{0} wird voraussichtlich erst am {1} fertig statt am {2}.",
+                    plan.name,
+                    finish,
+                    end
+                )
             };
-            warnings.push(ForecastWarning { level: "warn", text });
+            warnings.push(ForecastWarning {
+                level: "warn",
+                text,
+            });
         }
         if limit <= 0.0 && !collected.plans.is_empty() {
             warnings.push(ForecastWarning { level: "info", text: tr!("No weekly working time set. The forecast assumes unlimited capacity.", "Keine Wochenarbeitszeit hinterlegt. Die Prognose geht von unbegrenzter Kapazität aus.") });
@@ -508,11 +664,29 @@ pub fn build(conn: &Connection, year: i32, today: NaiveDate) -> AppResult<Foreca
             } else if let Some(d) = crossing(limits.small_business_cents) {
                 warnings.push(ForecastWarning { level: "warn", text: tr!("Revenue will probably pass {1} on {0}. The small business scheme ends in {2}.", "Der Umsatz überschreitet voraussichtlich am {0} die Grenze von {1}. Ab {2} gilt die Kleinunternehmerregelung nicht mehr.", d, eur(limits.small_business_cents), year + 1) });
             } else {
-                warnings.push(ForecastWarning { level: "info", text: tr!("Expected revenue of {} is below the small business limit of {}.", "Erwarteter Umsatz von {} liegt unter der Kleinunternehmergrenze von {}.", eur(real.income_cents), eur(limits.small_business_cents)) });
+                warnings.push(ForecastWarning {
+                    level: "info",
+                    text: tr!(
+                        "Expected revenue of {} is below the small business limit of {}.",
+                        "Erwarteter Umsatz von {} liegt unter der Kleinunternehmergrenze von {}.",
+                        eur(real.income_cents),
+                        eur(limits.small_business_cents)
+                    ),
+                });
             }
         }
-        if real.taxable_income_cents > params_for(year).basic_allowance && real.tax_total_cents >= 40_000 {
-            warnings.push(ForecastWarning { level: "info", text: tr!("Expect prepayments of about {0} per quarter for {1}.", "Für {1} sind Vorauszahlungen von etwa {0} pro Quartal zu erwarten.", eur(real.tax_total_cents / 4), year + 1) });
+        if real.taxable_income_cents > params_for(year).basic_allowance
+            && real.tax_total_cents >= 40_000
+        {
+            warnings.push(ForecastWarning {
+                level: "info",
+                text: tr!(
+                    "Expect prepayments of about {0} per quarter for {1}.",
+                    "Für {1} sind Vorauszahlungen von etwa {0} pro Quartal zu erwarten.",
+                    eur(real.tax_total_cents / 4),
+                    year + 1
+                ),
+            });
         }
     }
 
@@ -555,16 +729,31 @@ mod tests {
         let today = NaiveDate::from_ymd_opt(2026, 10, 5).unwrap();
         let f = build(&conn, 2026, today).unwrap();
         assert!(f.active);
-        assert!(f.items.iter().all(|i| i.date.starts_with("2026-")), "INV-4 is only paid in 2027");
-        let project: i64 = f.items.iter().filter(|i| i.kind == "project").map(|i| i.amount_cents).sum();
-        assert_eq!(project, 238_000, "20 h × 100 € plus 19 % VAT, billed end of October and November");
+        assert!(
+            f.items.iter().all(|i| i.date.starts_with("2026-")),
+            "INV-4 is only paid in 2027"
+        );
+        let project: i64 = f
+            .items
+            .iter()
+            .filter(|i| i.kind == "project")
+            .map(|i| i.amount_cents)
+            .sum();
+        assert_eq!(
+            project, 238_000,
+            "20 h × 100 € plus 19 % VAT, billed end of October and November"
+        );
         assert_eq!(f.outlook.booked_income_cents, 2_000_000);
         assert_eq!(f.outlook.expected_income_cents, 150_000 + 238_000);
         assert_eq!(f.outlook.income_cents, 2_388_000);
         assert!(f.outlook.tax_total_cents > compute(&conn, 2026).unwrap().tax_total_cents);
         assert!(f.projects_without_end.is_empty());
         assert!(f.outlook.balance_cents > 0);
-        assert_eq!(f.outlook.set_aside_cents, f.outlook.balance_cents / 3, "October to December");
+        assert_eq!(
+            f.outlook.set_aside_cents,
+            f.outlook.balance_cents / 3,
+            "October to December"
+        );
 
         let past = build(&conn, 2025, today).unwrap();
         assert!(!past.active && past.items.is_empty());
@@ -597,16 +786,50 @@ mod tests {
             crate::expense_recurring::create_series(&conn, &input).unwrap();
         }
         let f = build(&conn, 2026, today).unwrap();
-        let dates: Vec<_> = f.expenses.iter().map(|e| (e.date.as_str(), e.amount_cents)).collect();
-        assert_eq!(dates, [("2026-10-20", 7000), ("2026-11-01", 25000), ("2026-11-20", 7000), ("2026-12-01", 25000), ("2026-12-20", 7000)]);
-        assert_eq!(f.outlook.expected_expense_cents, 2 * 25_000 + 3 * 7_000, "the list shows the deductible share");
+        let dates: Vec<_> = f
+            .expenses
+            .iter()
+            .map(|e| (e.date.as_str(), e.amount_cents))
+            .collect();
+        assert_eq!(
+            dates,
+            [
+                ("2026-10-20", 7000),
+                ("2026-11-01", 25000),
+                ("2026-11-20", 7000),
+                ("2026-12-01", 25000),
+                ("2026-12-20", 7000)
+            ]
+        );
+        assert_eq!(
+            f.outlook.expected_expense_cents,
+            2 * 25_000 + 3 * 7_000,
+            "the list shows the deductible share"
+        );
         assert_eq!(f.expenses[0].detail, "70 % of €100.00");
         let o = &f.outlook;
-        assert_eq!(o.booked_income_cents + o.expected_income_cents - o.expenses_cents - o.home_office_cents, o.profit_cents, "breakdown adds up to the profit");
-        assert_eq!(o.tax_total_cents - o.withheld_cents - o.prepayments_cents, o.balance_cents, "breakdown adds up to the balance");
-        assert_eq!(before.outlook.profit_cents - f.outlook.profit_cents, 2 * 25_000 + 3 * 7_000, "each series counts at its own share");
+        assert_eq!(
+            o.booked_income_cents + o.expected_income_cents
+                - o.expenses_cents
+                - o.home_office_cents,
+            o.profit_cents,
+            "breakdown adds up to the profit"
+        );
+        assert_eq!(
+            o.tax_total_cents - o.withheld_cents - o.prepayments_cents,
+            o.balance_cents,
+            "breakdown adds up to the balance"
+        );
+        assert_eq!(
+            before.outlook.profit_cents - f.outlook.profit_cents,
+            2 * 25_000 + 3 * 7_000,
+            "each series counts at its own share"
+        );
         assert!(f.outlook.tax_total_cents < before.outlook.tax_total_cents);
-        assert_eq!(f.outlook.expected_income_cents, before.outlook.expected_income_cents, "income side is unchanged");
+        assert_eq!(
+            f.outlook.expected_income_cents, before.outlook.expected_income_cents,
+            "income side is unchanged"
+        );
     }
 
     fn by_date(items: &[ForecastItem]) -> BTreeMap<String, i64> {
@@ -641,13 +864,27 @@ mod tests {
         track(&conn, "1", "p", "2026-10-05", 6);
         track(&conn, "2", "p", "2026-10-06", 4);
         let after = collect_items(&conn, today).unwrap();
-        assert_eq!(by_date(&after.items), before, "10 h tracked this week were planned for this week anyway");
-        assert_eq!((after.items[0].detail.as_str(), after.items[0].kind), ("40 hrs", "project"));
+        assert_eq!(
+            by_date(&after.items),
+            before,
+            "10 h tracked this week were planned for this week anyway"
+        );
+        assert_eq!(
+            (after.items[0].detail.as_str(), after.items[0].kind),
+            ("40 hrs", "project")
+        );
 
         track(&conn, "3", "p", "2026-10-07", 8);
         let ahead = by_date(&collect_items(&conn, today).unwrap().items);
-        assert_eq!(ahead.values().sum::<i64>(), before.values().sum::<i64>(), "working ahead never changes the total");
-        assert!(ahead["2026-11-14"] > before["2026-11-14"] && ahead["2026-12-14"] < before["2026-12-14"]);
+        assert_eq!(
+            ahead.values().sum::<i64>(),
+            before.values().sum::<i64>(),
+            "working ahead never changes the total"
+        );
+        assert!(
+            ahead["2026-11-14"] > before["2026-11-14"]
+                && ahead["2026-12-14"] < before["2026-12-14"]
+        );
     }
 
     #[test]
@@ -665,7 +902,12 @@ mod tests {
         let today = NaiveDate::from_ymd_opt(2026, 10, 9).unwrap();
         let demands: Vec<Demand> = ["a", "b"]
             .iter()
-            .map(|_| Demand { remaining: 50.0, tracked_week: 0.0, start: NaiveDate::from_ymd_opt(2026, 10, 12).unwrap(), end: NaiveDate::from_ymd_opt(2026, 11, 20).unwrap() })
+            .map(|_| Demand {
+                remaining: 50.0,
+                tracked_week: 0.0,
+                start: NaiveDate::from_ymd_opt(2026, 10, 12).unwrap(),
+                end: NaiveDate::from_ymd_opt(2026, 11, 20).unwrap(),
+            })
             .collect();
         let week0 = NaiveDate::from_ymd_opt(2026, 10, 5).unwrap();
         let plan = schedule(&demands, 12.5, 0.0, today, week0);
@@ -674,11 +916,20 @@ mod tests {
             *weeks.entry(week_bounds(*day.0, true).0).or_insert(0.0) += day.1;
         }
         assert!(weeks.values().all(|h| *h <= 12.5 + 1e-6), "{weeks:?}");
-        assert!((plan.iter().flat_map(|p| p.values()).sum::<f64>() - 100.0).abs() < 1e-6, "nothing gets lost");
+        assert!(
+            (plan.iter().flat_map(|p| p.values()).sum::<f64>() - 100.0).abs() < 1e-6,
+            "nothing gets lost"
+        );
 
         let f = build(&conn, 2026, today).unwrap();
-        assert!(f.plans.iter().all(|p| p.delayed && p.finish.as_deref() > Some("2026-11-20")));
-        assert!(f.warnings.iter().any(|w| w.level == "warn" && w.text.contains("Shop")));
+        assert!(f
+            .plans
+            .iter()
+            .all(|p| p.delayed && p.finish.as_deref() > Some("2026-11-20")));
+        assert!(f
+            .warnings
+            .iter()
+            .any(|w| w.level == "warn" && w.text.contains("Shop")));
     }
 
     #[test]
@@ -697,7 +948,11 @@ mod tests {
         let today = NaiveDate::from_ymd_opt(2026, 10, 9).unwrap();
         let items = collect_items(&conn, today).unwrap().items;
         assert_eq!(items.len(), 1);
-        assert_eq!((items[0].date.as_str(), items[0].amount_cents), ("2026-12-27", 357_000), "finished 27 Nov, paid after the median of 20/30/40 days");
+        assert_eq!(
+            (items[0].date.as_str(), items[0].amount_cents),
+            ("2026-12-27", 357_000),
+            "finished 27 Nov, paid after the median of 20/30/40 days"
+        );
     }
 
     #[test]
@@ -711,12 +966,25 @@ mod tests {
         let today = NaiveDate::from_ymd_opt(2026, 10, 9).unwrap();
         let report = compute(&conn, 2025).unwrap();
         let share = business_tax_share(&conn, 2025, today).unwrap().unwrap();
-        assert!((share - report.tax_total_cents as f64 / 4_000_000.0).abs() < 1e-9, "no other income: all tax comes from the business");
+        assert!(
+            (share - report.tax_total_cents as f64 / 4_000_000.0).abs() < 1e-9,
+            "no other income: all tax comes from the business"
+        );
         assert_eq!(business_tax_share(&conn, 2024, today).unwrap(), None);
 
-        let input = crate::tax::TaxInput { prepayments_cents: 100_000, ..Default::default() };
-        conn.execute("INSERT INTO tax_years (year, data) VALUES (2025, ?1)", params![serde_json::to_string(&input).unwrap()]).unwrap();
-        assert_eq!(compute(&conn, 2025).unwrap().balance_cents, report.balance_cents - 100_000);
+        let input = crate::tax::TaxInput {
+            prepayments_cents: 100_000,
+            ..Default::default()
+        };
+        conn.execute(
+            "INSERT INTO tax_years (year, data) VALUES (2025, ?1)",
+            params![serde_json::to_string(&input).unwrap()],
+        )
+        .unwrap();
+        assert_eq!(
+            compute(&conn, 2025).unwrap().balance_cents,
+            report.balance_cents - 100_000
+        );
     }
 
     #[test]
