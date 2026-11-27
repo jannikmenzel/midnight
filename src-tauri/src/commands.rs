@@ -137,6 +137,24 @@ macro_rules! commands {
                 _ => Err(tr!("Unknown tool: {name}", "Unbekanntes Tool: {name}")),
             }
         }
+
+        pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
+            tauri::generate_handler![
+                $($name,)*
+                crate::desktop::refresh_menu_bar,
+                crate::desktop::open_main_window,
+                crate::desktop::hide_menu_bar_panel,
+                crate::desktop::quit_app,
+                crate::desktop::autostart_enabled,
+                crate::desktop::set_autostart,
+                crate::updater::update_status,
+                crate::updater::check_update,
+                crate::updater::install_update,
+                crate::files::open_path,
+                crate::files::reveal_data_dir,
+                crate::files::reveal_latex_dir
+            ]
+        }
     };
 }
 
