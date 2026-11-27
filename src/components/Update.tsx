@@ -110,7 +110,7 @@ export function UpdateHint({ update, onOpen }: { update: UpdateState; onOpen: ()
         <Download className="size-3.5 shrink-0 text-info" />
         <span className="min-w-0">
           <span className="block truncate text-xs">{t("Update available")}</span>
-          <span className="block text-[11px] text-muted">{t("Version {current}", { current: update.available.version })}</span>
+          <span className="block text-2xs text-muted">{t("Version {current}", { current: update.available.version })}</span>
         </span>
       </button>
       <IconButton label={t("Close")} onClick={update.dismiss}>
@@ -127,16 +127,16 @@ export function UpdateItem({ update }: { update: UpdateState }) {
     <li className="flex gap-3 border-b border-line bg-subtle px-4 py-3">
       <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-info" />
       <div className="flex min-w-0 flex-1 flex-col gap-3">
-        <span className="flex items-center gap-2 text-[13px] font-medium">
+        <span className="flex items-center gap-2 text-body font-medium">
           {t("Update available")}
           <Badge tone="info">{release.version}</Badge>
         </span>
         {release.notes.map((section, i) => (
           <section key={i} className="flex flex-col gap-1.5">
-            {section.title && <h3 className="text-[11px] font-semibold tracking-wide text-muted uppercase">{HEADINGS[section.title] ?? section.title}</h3>}
+            {section.title && <h3 className="text-2xs font-semibold tracking-wide text-muted uppercase">{HEADINGS[section.title] ?? section.title}</h3>}
             <ul className="flex flex-col gap-1">
               {section.items.map((item, j) => (
-                <li key={j} className="flex gap-2 text-[13px]" data-selectable>
+                <li key={j} className="flex gap-2 text-body" data-selectable>
                   <span className="mt-2 size-1 shrink-0 rounded-full bg-muted" />
                   <span>{item}</span>
                 </li>

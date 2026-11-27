@@ -33,7 +33,7 @@ export function WeeklyLimitBar({ week, running, now, className }: { week: Weekly
       >
         <div className={cx("grain-fill h-full rounded-full transition-[width] duration-500", over ? "bg-neg" : pct >= 80 ? "bg-warn" : "bg-pos")} style={{ width: `${Math.min(100, pct)}%` }} />
       </div>
-      <span className={cx("text-[11px]", over ? "font-medium text-neg" : "text-muted")}>
+      <span className={cx("text-2xs", over ? "font-medium text-neg" : "text-muted")}>
         {over ? t("{time} over the weekly limit", { time: duration(used - limit) }) : t("{time} left", { time: duration(limit - used) })}
       </span>
     </div>
@@ -63,10 +63,10 @@ export function PastWeeksBanner({ week, onOpenWeek, className }: { week: WeeklyH
       <AlertTriangle className="size-4 shrink-0" />
       <span className="min-w-0 flex-1 text-xs">
         <span className="block font-medium">{title}</span>
-        <span className="tabular-nums mt-0.5 block text-[11px] opacity-90">{detail}</span>
+        <span className="tabular-nums mt-0.5 block text-2xs opacity-90">{detail}</span>
       </span>
       {onOpenWeek && (
-        <span className="shrink-0 text-[11px] font-medium">{t("Show in calendar")}</span>
+        <span className="shrink-0 text-2xs font-medium">{t("Show in calendar")}</span>
       )}
     </>
   );
@@ -82,7 +82,7 @@ export function PastWeeksBanner({ week, onOpenWeek, className }: { week: WeeklyH
         )}
       </div>
       {onOpenWeek && open.length > 1 && (
-        <div className="tabular-nums flex flex-wrap gap-1.5 pl-6.5 text-[11px]">
+        <div className="tabular-nums flex flex-wrap gap-1.5 pl-6.5 text-2xs">
           {open.slice(0, 6).map((w) => (
             <button key={w.week_start} type="button" onClick={() => onOpenWeek(w.week_start)} className="rounded-full border border-neg/25 px-2 py-0.5 hover:bg-neg/10">
               {weekRange(w)} · +{hours(w.tracked_seconds - limit)}

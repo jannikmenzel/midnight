@@ -52,7 +52,7 @@ export function Toggle({ checked, onChange, label, hint }: { checked: boolean; o
   return (
     <label className="flex cursor-pointer items-start justify-between gap-4">
       <span className="flex flex-col">
-        <span className="text-[13px]">{label}</span>
+        <span className="text-body">{label}</span>
         {hint && <span className="text-xs text-muted">{hint}</span>}
       </span>
       <button
@@ -126,7 +126,7 @@ export function ActionMenu({
                 setOpen(false);
                 item.onClick();
               }}
-              className={cx("flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] hover:bg-subtle", item.danger ? "text-neg" : "text-fg")}
+              className={cx("flex w-full items-center gap-2 px-3 py-1.5 text-left text-body hover:bg-subtle", item.danger ? "text-neg" : "text-fg")}
             >
               <span className={cx("inline-flex size-3.5 shrink-0 items-center justify-center", !item.danger && "text-muted")}>{item.icon}</span>
               {item.label}
@@ -146,7 +146,7 @@ export function InfoDialog({ title, children, label = t("Info") }: { title: stri
         <Info className="size-3.5" />
       </IconButton>
       <Dialog open={open} onClose={() => setOpen(false)} title={title} wide>
-        <div className="flex flex-col gap-3 text-[13px] leading-relaxed text-muted">{children}</div>
+        <div className="flex flex-col gap-3 text-body leading-relaxed text-muted">{children}</div>
       </Dialog>
     </>
   );
@@ -192,12 +192,12 @@ export function MultiSelect({
           <ul role="listbox" aria-multiselectable className="max-h-72 overflow-y-auto py-1">
             {options.map((o) => (
               <li key={o.value}>
-                <label className="flex cursor-pointer items-center gap-2.5 px-3 py-1.5 text-[13px] hover:bg-subtle">
+                <label className="flex cursor-pointer items-center gap-2.5 px-3 py-1.5 text-body hover:bg-subtle">
                   <Checkbox checked={value.includes(o.value)} onChange={() => toggle(o.value)} />
                   <span className="min-w-0 flex-1 truncate" title={o.label}>
                     {o.label}
                   </span>
-                  {o.count !== undefined && <span className="tabular text-[11px] text-muted">{o.count}</span>}
+                  {o.count !== undefined && <span className="tabular text-2xs text-muted">{o.count}</span>}
                 </label>
               </li>
             ))}
@@ -226,7 +226,7 @@ const TONES: Record<Tone, string> = {
 };
 
 export function Badge({ tone = "neutral", children, className, style }: { tone?: Tone; children: ReactNode; className?: string; style?: CSSProperties }) {
-  return <span className={cx("inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap", TONES[tone], className)} style={style}>{children}</span>;
+  return <span className={cx("inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-2xs font-medium whitespace-nowrap", TONES[tone], className)} style={style}>{children}</span>;
 }
 
 export function CategoryBadge({ color, children, className }: { color: string | null | undefined; children: ReactNode; className?: string }) {
@@ -293,7 +293,7 @@ export function Card({ children, className, title, actions }: { children: ReactN
     <section className={cx("surface rounded-[10px] border border-line bg-panel", className)}>
       {(title || actions) && (
         <header className="flex h-11 items-center justify-between gap-2 border-b border-line px-4">
-          {title && <h2 className="text-[13px] font-medium">{title}</h2>}
+          {title && <h2 className="text-body font-medium">{title}</h2>}
           {actions}
         </header>
       )}
@@ -305,7 +305,7 @@ export function Card({ children, className, title, actions }: { children: ReactN
 export function CardBody({ title, children, className }: { title?: string; children: ReactNode; className?: string }) {
   return (
     <div className={cx("flex flex-col gap-4 p-4", className)}>
-      {title && <h3 className="text-[13px] font-medium">{title}</h3>}
+      {title && <h3 className="text-body font-medium">{title}</h3>}
       {children}
     </div>
   );
@@ -345,7 +345,7 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
     <div className="flex flex-wrap items-end justify-between gap-3 pb-4">
       <div>
         <h1 className="font-serif text-[28px] leading-tight font-normal tracking-tight">{title}</h1>
-        <p className="mt-0.5 text-[13px] text-fg/70">{subtitle}</p>
+        <p className="mt-0.5 text-body text-fg/70">{subtitle}</p>
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
@@ -356,8 +356,8 @@ export function Empty({ icon, title, text, action }: { icon?: ReactNode; title: 
   return (
     <div className="flex flex-col items-center justify-center gap-2 px-6 py-14 text-center">
       {icon && <div className="mb-1 text-muted">{icon}</div>}
-      <p className="text-[13px] font-medium">{title}</p>
-      {text && <p className="max-w-sm text-[13px] text-muted">{text}</p>}
+      <p className="text-body font-medium">{title}</p>
+      {text && <p className="max-w-sm text-body text-muted">{text}</p>}
       {action && <div className="mt-2">{action}</div>}
     </div>
   );
@@ -365,7 +365,7 @@ export function Empty({ icon, title, text, action }: { icon?: ReactNode; title: 
 
 export function ErrorNote({ message }: { message: string }) {
   return (
-    <div className="flex items-center gap-2 rounded-md border border-neg/30 bg-neg/8 px-3 py-2 text-[13px] text-neg">
+    <div className="flex items-center gap-2 rounded-md border border-neg/30 bg-neg/8 px-3 py-2 text-body text-neg">
       <AlertCircle className="size-4 shrink-0" />
       <span data-selectable>{message}</span>
     </div>
@@ -402,12 +402,12 @@ export function Tabs<T extends string>({
           type="button"
           onClick={() => onChange(it.value)}
           className={cx(
-            "-mb-px flex items-center gap-1.5 border-b-2 px-2.5 py-2 text-[13px]",
+            "-mb-px flex items-center gap-1.5 border-b-2 px-2.5 py-2 text-body",
             value === it.value ? "border-fg font-medium text-fg" : "border-transparent text-fg/70 hover:text-fg",
           )}
         >
           {it.label}
-          {it.count !== undefined && it.count > 0 && <span className="rounded bg-subtle px-1 text-[11px] text-muted">{it.count}</span>}
+          {it.count !== undefined && it.count > 0 && <span className="rounded bg-subtle px-1 text-2xs text-muted">{it.count}</span>}
         </button>
       ))}
       {actions && <div className="ml-auto flex items-center gap-2 pb-1">{actions}</div>}
@@ -464,7 +464,7 @@ export function TagInput({ value, onChange, suggestions = [], placeholder = t("A
           }
         }}
         onBlur={() => draft && add(draft)}
-        className="min-w-[90px] flex-1 bg-transparent px-1 text-[13px] outline-none placeholder:text-muted"
+        className="min-w-[90px] flex-1 bg-transparent px-1 text-body outline-none placeholder:text-muted"
       />
       <datalist id={listId}>
         {suggestions.filter((s) => !value.includes(s)).map((s) => (
@@ -546,7 +546,7 @@ export function Sheet({
         className={cx("floating anim-sheet relative flex h-full w-full flex-col border-l border-line bg-panel", extraWide ? "max-w-[980px]" : wide ? "max-w-[820px]" : "max-w-[480px]")}
       >
         <header className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
-          <h2 className="truncate text-[15px] font-semibold">{content.title}</h2>
+          <h2 className="truncate text-title font-semibold">{content.title}</h2>
           <IconButton label={t("Close")} onClick={onClose}>
             <X className="size-4" />
           </IconButton>
@@ -583,7 +583,7 @@ export function Dialog({
       <div className="anim-overlay absolute inset-0 bg-overlay backdrop-blur-sm" onClick={onClose} />
       <div role="dialog" aria-modal="true" className={cx("floating anim-dialog relative w-full rounded-xl border border-line bg-panel", wide ? "max-w-2xl" : "max-w-md")}>
         <header className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
-          <h2 className="text-[15px] font-semibold">{content.title}</h2>
+          <h2 className="text-title font-semibold">{content.title}</h2>
           <IconButton label={t("Close")} onClick={onClose}>
             <X className="size-4" />
           </IconButton>
@@ -626,7 +626,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div className="pointer-events-none fixed right-4 bottom-4 z-[60] flex w-[340px] flex-col gap-2" aria-live="polite">
         {items.map((t) => (
-          <div key={t.id} className="floating anim-toast pointer-events-auto flex items-center gap-2 rounded-lg border border-line bg-panel px-4 py-3 text-[13px]">
+          <div key={t.id} className="floating anim-toast pointer-events-auto flex items-center gap-2 rounded-lg border border-line bg-panel px-4 py-3 text-body">
             {t.kind === "success" ? <CheckCircle2 className="size-4 shrink-0 text-pos" /> : <AlertCircle className={cx("size-4 shrink-0", t.kind === "warn" ? "text-warn" : "text-neg")} />}
             <span data-selectable>{t.text}</span>
           </div>

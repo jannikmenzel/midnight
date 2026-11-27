@@ -27,7 +27,7 @@ export function SmallBusinessCard({ data, currency, className, projectedCents, b
         <span className="tabular text-xs text-muted">{Math.round(pct)} %</span>
       </div>
       <div className="tabular text-xl font-semibold tracking-tight">
-        {money(data.revenue_cents, currency)} <span className="text-[13px] font-normal text-muted">{t("of")} {money(data.limit_cents, currency)}</span>
+        {money(data.revenue_cents, currency)} <span className="text-body font-normal text-muted">{t("of")} {money(data.limit_cents, currency)}</span>
       </div>
       <div className="track relative h-1.5 w-full rounded-full bg-line" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>
         {projected !== null && (

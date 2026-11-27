@@ -96,7 +96,7 @@ function DocumentSheet({
           <div className="flex items-center gap-3 rounded-lg bg-subtle px-4 py-3">
             <FileText className="size-5 text-muted" />
             <div className="min-w-0 flex-1">
-              <div className="truncate text-[13px]">{doc.name}</div>
+              <div className="truncate text-body">{doc.name}</div>
               <div className="text-xs text-muted">
                 {fileSize(doc.size)} · {doc.has_text ? t("Full text indexed") : t("no text detected (image/scan)")}
               </div>
@@ -108,7 +108,7 @@ function DocumentSheet({
           {linked ? (
             <div className="flex items-center gap-3 rounded-lg border border-line px-4 py-3">
               <Link2 className="size-4 shrink-0 text-muted" />
-              <div className="min-w-0 flex-1 truncate text-[13px]">
+              <div className="min-w-0 flex-1 truncate text-body">
                 {doc.invoice_id ? t("Synced with invoice {number}", { number: doc.invoice_number ?? "" }) : t("Synced with expense \"{name}\"", { name: doc.expense_name ?? "" })}
               </div>
               <Button size="sm" onClick={() => (doc.invoice_id ? go("invoices", { open: doc.invoice_id }) : go("ledger", { open: doc.expense_id! }))}>
@@ -160,14 +160,14 @@ function DocumentRow({ d, onOpen }: { d: DocumentItem; onOpen: () => void }) {
     <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-subtle">
       <FileText className="size-4 shrink-0 text-muted" />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[13px]">{d.title ?? d.name}</div>
+        <div className="truncate text-body">{d.title ?? d.name}</div>
         <div className="truncate text-xs text-muted">
           {d.snippet ?? `${d.date ? date(d.date) : date(d.created_at.slice(0, 10))} · ${fileSize(d.size)}`}
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {d.tags.map((t) => (
-          <span key={t} className="inline-flex items-center text-[11px] text-muted">
+          <span key={t} className="inline-flex items-center text-2xs text-muted">
             <Hash className="size-3" />
             {t}
           </span>

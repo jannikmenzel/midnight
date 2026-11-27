@@ -79,7 +79,7 @@ function YearComparison({ year, currency }: { year: number; currency: string }) 
           <>
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <span className={cx("tabular text-xl font-semibold tracking-tight", (curValue ?? 0) < 0 && "text-neg")}>{money(curValue ?? 0, currency)}</span>
-              <span className="text-[13px] text-muted">
+              <span className="text-body text-muted">
                 {span} {year}
                 {prevValue !== null && prevValue !== 0 && (
                   <>
@@ -117,7 +117,7 @@ function CustomerTable({ data, currency, onOpen }: { data: Analysis; currency: s
         <Empty title={t("No customer activity in this period")} text={t("Paid invoices, tracked time and open invoices show up here.")} />
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-[13px]">
+          <table className="w-full min-w-[720px] text-body">
             <thead>
               <tr className="border-b border-line text-left text-xs text-muted">
                 <th className="px-4 py-2 font-normal">{t("Customer")}</th>
@@ -197,7 +197,7 @@ function CategoryList({ data, currency, onOpen }: { data: Analysis; currency: st
           {rows.map((r) => (
             <li key={r.key}>
               <button type="button" onClick={() => onOpen(r.key)} className="flex w-full flex-col gap-1.5 px-4 py-2 text-left hover:bg-subtle">
-                <div className="flex w-full items-baseline gap-2 text-[13px]">
+                <div className="flex w-full items-baseline gap-2 text-body">
                   <CategoryDot color={r.color} className="self-center" />
                   <span className="min-w-0 flex-1 truncate">{r.name}</span>
                   <span className="tabular">{money(r.total_cents, currency)}</span>
@@ -244,7 +244,7 @@ function ProjectList({ data, onOpen }: { data: Analysis; onOpen: (id: string) =>
             {rows.map((r) => (
               <li key={r.id}>
                 <button type="button" onClick={() => onOpen(r.id)} className="flex w-full flex-col gap-1.5 px-4 py-2 text-left hover:bg-subtle">
-                  <div className="flex w-full items-baseline gap-2 text-[13px]">
+                  <div className="flex w-full items-baseline gap-2 text-body">
                     <span className="min-w-0 flex-1 truncate">
                       {r.name}
                       {r.customer_name && <span className="ml-1.5 text-xs text-muted">{customer(r.customer_name)}</span>}

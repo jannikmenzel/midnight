@@ -43,7 +43,7 @@ export default function Onboarding({ settings, onDone }: { settings: Settings; o
             <path d="M5 15a7 7 0 0 1 14 0z" fill="currentColor" />
             <rect x="3" y="16.5" width="18" height="1.6" rx="0.8" fill="currentColor" />
           </svg>
-          <span className="text-[15px] font-semibold">Midnight</span>
+          <span className="text-title font-semibold">Midnight</span>
           <Select value={lang()} onChange={(e) => isLang(e.target.value) && setLang(e.target.value)} className="ml-auto w-32" aria-label={t("Language")}>
             {LANGUAGES.map((l) => (
               <option key={l.value} value={l.value}>
@@ -55,7 +55,7 @@ export default function Onboarding({ settings, onDone }: { settings: Settings; o
         <div className="flex flex-col gap-4">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">{t("Company details")}</h1>
-            <p className="mt-1 text-[13px] text-muted">{t("These details appear on your invoices. You can change them later in the settings.")}</p>
+            <p className="mt-1 text-body text-muted">{t("These details appear on your invoices. You can change them later in the settings.")}</p>
           </div>
           <Field label={t("Your name")}>
             <Input value={form.company_owner} onChange={(e) => set("company_owner", e.target.value)} autoFocus />

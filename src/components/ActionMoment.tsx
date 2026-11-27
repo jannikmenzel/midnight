@@ -98,7 +98,7 @@ function MomentOverlay({ moment, leaving, onDismiss }: { moment: ActiveMoment; l
       <div key={moment.working ? "working" : "done"} className="moment-text flex min-h-[112px] flex-col items-center gap-2 px-6 text-center">
         <h2 className="font-serif text-[30px] leading-tight font-normal tracking-tight">{moment.title}</h2>
         {moment.amount && <AnimatedMoney cents={moment.amount.cents} currency={moment.amount.currency} duration={1100} className={cx("tabular text-2xl font-semibold tracking-tight", moment.kind === "paid" && "text-pos")} />}
-        {moment.detail && <p className="text-[13px] text-muted">{moment.detail}</p>}
+        {moment.detail && <p className="text-body text-muted">{moment.detail}</p>}
       </div>
       {moment.working && <div className="moment-breathe absolute bottom-14 h-px w-[72px] bg-fg" />}
     </div>,

@@ -148,7 +148,7 @@ export function TrackerCalendar({
         />
       ) : (
         <>
-          <div className={cx("grid border-b border-line text-[11px] text-muted", columns)}>
+          <div className={cx("grid border-b border-line text-2xs text-muted", columns)}>
             {weekdays(mondayFirst).map((w) => (
               <div key={w} className="px-2 py-1.5">
                 {w}
@@ -190,13 +190,13 @@ export function TrackerCalendar({
                   <div className="flex items-center justify-between gap-1">
                     <span
                       className={cx(
-                        "tabular-nums inline-flex size-5 items-center justify-center rounded-full text-[11px]",
+                        "tabular-nums inline-flex size-5 items-center justify-center rounded-full text-2xs",
                         day === today ? "bg-accent font-medium text-accent-fg" : inMonth ? "text-fg" : "text-muted",
                       )}
                     >
                       {Number(day.slice(8))}
                     </span>
-                    {total > 0 && <span className="tabular text-[11px] text-muted">{duration(total).replace(" h", "")}</span>}
+                    {total > 0 && <span className="tabular text-2xs text-muted">{duration(total).replace(" h", "")}</span>}
                   </div>
                   {projects.slice(0, 2).map((name) => (
                     <span key={name} className="truncate rounded bg-info/12 px-1 py-px text-[10px] font-medium text-info">
@@ -212,7 +212,7 @@ export function TrackerCalendar({
                       className={cx("flex flex-col items-end gap-1 border-line p-2 text-right", !lastRow && "border-b", over && "bg-neg/8")}
                       title={over ? t("{time} over the weekly limit", { time: duration(weekTotal - weeklyLimitHours * 3600) }) : undefined}
                     >
-                      <span className={cx("tabular text-[11px]", over ? "font-medium text-neg" : weekTotal > 0 ? "text-fg" : "text-muted")}>
+                      <span className={cx("tabular text-2xs", over ? "font-medium text-neg" : weekTotal > 0 ? "text-fg" : "text-muted")}>
                         {current && (weekTotal > 0 ? hoursMinutes(weekTotal) : "–")}
                       </span>
                       {over && <AlertTriangle className="size-3.5 text-neg" aria-label={t("{time} over the weekly limit", { time: duration(weekTotal - weeklyLimitHours * 3600) })} />}
@@ -241,7 +241,7 @@ export function TrackerCalendar({
             ) : (
               <div className="divide-y divide-line">
                 {dayEntries.map((e) => (
-                  <div key={e.id} className="flex items-center gap-3 px-4 py-2.5 text-[13px]">
+                  <div key={e.id} className="flex items-center gap-3 px-4 py-2.5 text-body">
                     <button type="button" className="w-40 truncate text-left font-medium hover:underline" onClick={() => onOpenProject(e.project_id)}>
                       {e.project_name}
                     </button>
@@ -339,7 +339,7 @@ function EntryList({
               </div>
             </div>
             {list.map((e) => (
-              <div key={e.id} className={cx(LIST_COLS, "px-4 py-2 text-[13px]")}>
+              <div key={e.id} className={cx(LIST_COLS, "px-4 py-2 text-body")}>
                 <button type="button" className="truncate text-left font-medium hover:underline" onClick={() => onOpenProject(e.project_id)}>
                   {e.project_name}
                 </button>

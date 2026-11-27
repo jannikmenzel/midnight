@@ -81,7 +81,7 @@ function TaxSummary({ year, forecast, report, currency }: { year: number; foreca
       </div>
       <div className="tabular text-xl font-semibold tracking-tight">
         <span className={cx(refund && "text-pos")}>{expected !== undefined ? <AnimatedMoney cents={Math.abs(expected)} currency={currency} /> : "…"}</span>{" "}
-        <span className="text-[13px] font-normal text-muted">{refund ? t("refund") : t("additional payment")}</span>
+        <span className="text-body font-normal text-muted">{refund ? t("refund") : t("additional payment")}</span>
       </div>
       <Meter solid={share} faded={expected && expected > 0 ? 100 : 0} color="bg-warn" label={t("Booked so far")} />
       <span className="text-xs text-muted">
@@ -293,7 +293,7 @@ export default function Overview() {
                   >
                     <CategoryDot color={e.kind === "income" ? "var(--pos)" : e.category_color} />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13px]">{e.kind === "income" ? customer(e.name) : e.name}</span>
+                      <span className="block truncate text-body">{e.kind === "income" ? customer(e.name) : e.name}</span>
                       <span className="block truncate text-xs text-muted">
                         {date(e.date)} · {e.kind === "income" ? maskText(e.description ?? "") : (e.category_name ?? t("Uncategorised"))}
                       </span>
@@ -328,14 +328,14 @@ export default function Overview() {
                     className="flex w-full items-center gap-3 border-b border-line px-4 py-2.5 text-left last:border-0 hover:bg-subtle"
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13px]">{e.project_name}</span>
+                      <span className="block truncate text-body">{e.project_name}</span>
                       <span className="block truncate text-xs text-muted">
                         {date(e.date)} · {clockTime(e.start)}–{clockTime(e.stop!)}
                         {e.description ? ` · ${maskText(e.description)}` : ""}
                       </span>
                     </span>
                     {e.billed && <Badge tone="pos">{t("billed")}</Badge>}
-                    <span className="tabular w-16 text-right text-[13px]">{duration(e.duration)}</span>
+                    <span className="tabular w-16 text-right text-body">{duration(e.duration)}</span>
                   </button>
                 </li>
               ))}

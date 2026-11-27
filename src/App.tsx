@@ -81,7 +81,7 @@ function RunningTimerChip({ onOpen }: { onOpen: () => void }) {
       <span className="size-2 animate-pulse rounded-full bg-neg" />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-xs">{entry.project_name}</span>
-        <span className="tabular block text-[11px] text-muted">{clock(secs)}</span>
+        <span className="tabular block text-2xs text-muted">{clock(secs)}</span>
       </span>
     </button>
   );
@@ -264,11 +264,11 @@ export default function App() {
             type="button"
             data-tour="search"
             onClick={() => setPaletteOpen(true)}
-            className="glass col-start-2 flex h-8 w-full items-center gap-2 rounded-md border px-2.5 text-[13px] text-fg/70 transition-colors duration-150 hover:text-fg"
+            className="glass col-start-2 flex h-8 w-full items-center gap-2 rounded-md border px-2.5 text-body text-fg/70 transition-colors duration-150 hover:text-fg"
           >
             <Search className="size-3.5" />
             {t("Search or run an action…")}
-            <kbd className="ml-auto rounded border border-fg/15 px-1 text-[11px]">{keys("⌘K", "Ctrl+K")}</kbd>
+            <kbd className="ml-auto rounded border border-fg/15 px-1 text-2xs">{keys("⌘K", "Ctrl+K")}</kbd>
           </button>
           <div className="flex items-center justify-end gap-1 pr-4">
             <button
@@ -298,7 +298,7 @@ export default function App() {
                     onClick={() => go(n.route)}
                     aria-current={active ? "page" : undefined}
                     className={cx(
-                      "flex h-8 items-center gap-2.5 rounded-md border px-2.5 text-[13px] whitespace-nowrap transition-colors duration-150",
+                      "flex h-8 items-center gap-2.5 rounded-md border px-2.5 text-body whitespace-nowrap transition-colors duration-150",
                       active ? "nav-active font-medium text-fg" : "border-transparent text-fg/70 hover:bg-hover hover:text-fg",
                     )}
                   >
@@ -317,7 +317,7 @@ export default function App() {
                 onClick={() => go("settings")}
                 aria-current={route === "settings" ? "page" : undefined}
                 className={cx(
-                  "flex h-8 w-full items-center gap-2.5 rounded-md border px-2.5 text-[13px] transition-colors duration-150",
+                  "flex h-8 w-full items-center gap-2.5 rounded-md border px-2.5 text-body transition-colors duration-150",
                   route === "settings" ? "nav-active font-medium" : "border-transparent text-fg/70 hover:bg-hover hover:text-fg",
                 )}
               >

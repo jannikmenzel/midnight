@@ -165,7 +165,7 @@ export function DateInput({
             </div>
             <div className="grid grid-cols-7 gap-0.5 text-center">
               {weekdays.map((w) => (
-                <div key={w} className="pb-1 text-[11px] text-muted">
+                <div key={w} className="pb-1 text-2xs text-muted">
                   {w}
                 </div>
               ))}
@@ -180,7 +180,7 @@ export function DateInput({
                     disabled={blocked}
                     onClick={() => pick(iso)}
                     className={cx(
-                      "tabular-nums h-10 rounded-md text-[13px]",
+                      "tabular-nums h-10 rounded-md text-body",
                       iso === value ? "bg-accent font-medium text-accent-fg" : "hover:bg-subtle",
                       iso === today && iso !== value && "font-semibold ring-1 ring-line ring-inset",
                       outside && iso !== value && "text-muted",
@@ -279,7 +279,7 @@ function TimeInput({
               <button
                 type="button"
                 onClick={() => pick(s)}
-                className={cx("tabular-nums w-full rounded-md px-2.5 py-1.5 text-left text-[13px]", s === value ? "bg-accent font-medium text-accent-fg" : "hover:bg-subtle")}
+                className={cx("tabular-nums w-full rounded-md px-2.5 py-1.5 text-left text-body", s === value ? "bg-accent font-medium text-accent-fg" : "hover:bg-subtle")}
               >
                 {s}
               </button>
@@ -387,7 +387,7 @@ export function AutocompleteInput<T>({
                 onMouseEnter={() => setActive(i)}
                 className={cx("flex w-full flex-col rounded-md px-2.5 py-2 text-left", i === active && "bg-subtle")}
               >
-                <span className="truncate text-[13px]">{it.label}</span>
+                <span className="truncate text-body">{it.label}</span>
                 {it.sub && <span className="truncate text-xs text-muted">{it.sub}</span>}
               </button>
             </li>
@@ -496,7 +496,7 @@ export function PickSelect({
             </div>
           )}
           <ul ref={list} role="listbox" className="max-h-80 min-h-0 flex-1 overflow-y-auto p-1">
-            {shown.length === 0 && <li className="px-3 py-2 text-[13px] text-muted">{t("No results")}</li>}
+            {shown.length === 0 && <li className="px-3 py-2 text-body text-muted">{t("No results")}</li>}
             {shown.map((o, i) => (
               <li key={o.value} role="option" aria-selected={o.value === value}>
                 <button
@@ -507,7 +507,7 @@ export function PickSelect({
                 >
                   {o.color !== undefined && <CategoryDot color={o.color} className="size-2.5" />}
                   <span className="min-w-0 flex-1">
-                    <span className={cx("block truncate text-[13px]", o.value === value && "font-medium")}>{o.label}</span>
+                    <span className={cx("block truncate text-body", o.value === value && "font-medium")}>{o.label}</span>
                     {o.description && <span className="block truncate text-xs text-muted">{o.description}</span>}
                   </span>
                   {o.value === value && <Check className="size-4 shrink-0 text-fg" />}

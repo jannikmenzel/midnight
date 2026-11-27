@@ -25,7 +25,7 @@ export const Button = forwardRef<
       disabled={disabled || loading}
       className={cx(
         "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md font-medium whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50",
-        size === "sm" ? "h-7 px-2.5 text-xs" : "h-8 px-3 text-[13px]",
+        size === "sm" ? "h-7 px-2.5 text-xs" : "h-8 px-3 text-body",
         BUTTON_VARIANTS[variant],
         className,
       )}
@@ -53,7 +53,7 @@ export function fieldWidth(className?: string) {
   return /(^|\s)w-/.test(className ?? "") ? "" : "w-full";
 }
 
-export const FIELD = "field rounded-md border border-line px-2.5 text-[13px] text-fg outline-none placeholder:text-muted focus:border-muted disabled:opacity-60";
+export const FIELD = "field rounded-md border border-line px-2.5 text-body text-fg outline-none placeholder:text-muted focus:border-muted disabled:opacity-60";
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input({ className, ...rest }, ref) {
   return <input ref={ref} className={cx(FIELD, fieldWidth(className), "h-8", className)} {...rest} />;

@@ -417,7 +417,7 @@ export function InvoiceEditor({
                     <Input value={l.quantity} onChange={(e) => setLine(i, { quantity: e.target.value })} className="tabular-nums text-right" disabled={locked} />
                     <UnitSelect value={l.unit} onChange={(unit) => setLine(i, { unit })} disabled={locked} />
                     <Input value={l.price} onChange={(e) => setLine(i, { price: e.target.value })} placeholder={centsToInput(0)} className="tabular-nums text-right" disabled={locked} />
-                    <span className="tabular text-right text-[13px] font-medium">{money(Math.round(qty(l.quantity) * (parseMoney(l.price) ?? 0)), currency)}</span>
+                    <span className="tabular text-right text-body font-medium">{money(Math.round(qty(l.quantity) * (parseMoney(l.price) ?? 0)), currency)}</span>
                     <IconButton label={t("Remove line item")} onClick={() => setLines(lines.length > 1 ? lines.filter((_, idx) => idx !== i) : [emptyLine()])} disabled={locked}>
                       <X className="size-3.5" />
                     </IconButton>
@@ -474,7 +474,7 @@ export function InvoiceEditor({
             </Section>
 
             <Section title={t("Totals")}>
-              <div className="flex flex-col gap-2.5 rounded-lg border border-line bg-subtle/60 p-4 text-[13px]">
+              <div className="flex flex-col gap-2.5 rounded-lg border border-line bg-subtle/60 p-4 text-body">
                 <div className="flex items-center justify-between">
                   <span className="text-muted">{t("Subtotal")}</span>
                   <span className="tabular">{money(sum.subtotal, currency)}</span>

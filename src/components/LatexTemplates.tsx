@@ -127,7 +127,7 @@ function groupFiles(files: LatexFile[]) {
 function Group({ title, children, empty }: { title: string; children: React.ReactNode; empty?: string | false }) {
   return (
     <section className="flex flex-col gap-0.5">
-      <h3 className="px-2 pb-1 text-[11px] font-semibold tracking-wide text-muted uppercase">{title}</h3>
+      <h3 className="px-2 pb-1 text-2xs font-semibold tracking-wide text-muted uppercase">{title}</h3>
       {children}
       {empty && <p className="px-2 text-xs text-muted">{empty}</p>}
     </section>
@@ -152,7 +152,7 @@ function Row({
   return (
     <div
       className={cx(
-        "group flex h-7 items-center gap-1 rounded-md pr-0.5 text-[13px]",
+        "group flex h-7 items-center gap-1 rounded-md pr-0.5 text-body",
         active ? "bg-subtle font-medium text-fg" : "text-fg hover:bg-subtle",
         indent && "ml-4",
       )}
@@ -160,7 +160,7 @@ function Row({
       <button type="button" onClick={onClick} className="flex min-w-0 flex-1 items-center gap-1.5 truncate px-2 text-left">
         {label}
       </button>
-      {meta && <span className="shrink-0 text-[11px] text-muted tabular-nums">{meta}</span>}
+      {meta && <span className="shrink-0 text-2xs text-muted tabular-nums">{meta}</span>}
       {onDelete && (
         <IconButton label={t("Delete")} onClick={onDelete} className="size-6 opacity-0 group-hover:opacity-100 focus:opacity-100">
           <Trash2 className="size-3" />
@@ -459,8 +459,8 @@ export default function LatexTemplates() {
                 {placeholders ? (
                   <>
                     <div className="flex items-baseline justify-between gap-2">
-                      <h3 className="text-[11px] font-semibold tracking-wide text-muted uppercase">{t("Placeholders")}</h3>
-                      <span className="text-[11px] text-muted">{t("Click to insert")}</span>
+                      <h3 className="text-2xs font-semibold tracking-wide text-muted uppercase">{t("Placeholders")}</h3>
+                      <span className="text-2xs text-muted">{t("Click to insert")}</span>
                     </div>
                     <dl className="grid grid-cols-[88px_minmax(0,1fr)] gap-x-3 gap-y-1.5">
                       {groupPlaceholders(placeholders).map(([group, names]) => (
@@ -473,7 +473,7 @@ export default function LatexTemplates() {
                                 type="button"
                                 title={`<<${name}>>`}
                                 onClick={() => insert(`<<${name}>>`)}
-                                className="rounded border border-line px-1.5 py-0.5 font-mono text-[11px] text-fg hover:bg-subtle"
+                                className="rounded border border-line px-1.5 py-0.5 font-mono text-2xs text-fg hover:bg-subtle"
                               >
                                 {name}
                               </button>

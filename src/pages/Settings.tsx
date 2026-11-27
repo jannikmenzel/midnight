@@ -332,7 +332,7 @@ function AppLockCard() {
       <CardBody>
         <div className="flex items-start justify-between gap-4">
           <span className="flex flex-col">
-            <span className="text-[13px]">{t("Lock with PIN")}</span>
+            <span className="text-body">{t("Lock with PIN")}</span>
             <span className="text-xs text-muted">{t("A forgotten PIN cannot be reset. Keep it somewhere safe.")}</span>
           </span>
           <div className="flex shrink-0 gap-2">
@@ -794,7 +794,7 @@ function ResetCard() {
           </>
         }
       >
-        <p className="text-[13px]">{t("All data in this app will be deleted. If you want to keep it, back up the data folder first.")}</p>
+        <p className="text-body">{t("All data in this app will be deleted. If you want to keep it, back up the data folder first.")}</p>
         <Field label={t("Type \"{word}\" to confirm", { word: RESET_WORD })}>
           <Input value={confirm} onChange={(e) => setConfirm(e.target.value)} autoFocus />
         </Field>

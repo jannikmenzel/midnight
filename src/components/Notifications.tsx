@@ -69,15 +69,15 @@ export function NotificationsPanel({ state, update }: { state: NotificationsStat
     >
       <ul className="-m-4">
         <UpdateItem update={update} />
-        {items.length === 0 && !update.available && <li className="px-4 py-8 text-center text-[13px] text-muted">{t("Nothing has happened yet.")}</li>}
+        {items.length === 0 && !update.available && <li className="px-4 py-8 text-center text-body text-muted">{t("Nothing has happened yet.")}</li>}
         {items.map((a) => (
           <li key={a.id} className={cx("flex gap-3 border-b border-line px-4 py-2.5", !a.read && "bg-subtle")}>
             <span className={cx("mt-1.5 size-1.5 shrink-0 rounded-full", a.read ? "bg-line" : "bg-info")} />
             <span className="min-w-0 flex-1">
-              <span className="block text-[13px]" data-selectable>
+              <span className="block text-body" data-selectable>
                 {maskText(a.message)}
               </span>
-              <span className="text-[11px] text-muted">{relativeTime(a.created_at)}</span>
+              <span className="text-2xs text-muted">{relativeTime(a.created_at)}</span>
             </span>
           </li>
         ))}

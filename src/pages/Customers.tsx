@@ -134,7 +134,7 @@ function CustomerSheet({ customer, onClose, onSaved }: { customer: Customer | nu
             ].map(([label, value]) => (
               <div key={label} className="flex flex-col gap-1 px-5 py-4">
                 <span className="text-xs text-muted">{label}</span>
-                <span className="tabular text-[15px] font-medium">{value}</span>
+                <span className="tabular text-title font-medium">{value}</span>
               </div>
             ))}
           </div>
@@ -236,7 +236,7 @@ export default function Customers() {
       />
       <div className="flex items-center gap-2">
         <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("Name, email, contact person…")} className="w-72" />
-        <label className="flex cursor-pointer items-center gap-2 text-[13px] whitespace-nowrap text-muted">
+        <label className="flex cursor-pointer items-center gap-2 text-body whitespace-nowrap text-muted">
           <Checkbox checked={archived} onChange={setArchived} />
           {t("Show archived")}
         </label>
@@ -247,7 +247,7 @@ export default function Customers() {
         ) : customers.data?.length === 0 ? (
           <Empty icon={<Users className="size-6" />} title={t("No customers yet")} text={t("Customers are used for invoices and for projects in time tracking.")} action={<Button onClick={() => setOpen(EMPTY)}>{t("Create customer")}</Button>} />
         ) : (
-          <table className="w-full text-[13px]">
+          <table className="w-full text-body">
             <thead>
               <tr className="border-b border-line text-left text-xs text-muted">
                 <th className="w-24 py-2.5 pl-4 font-medium">{t("No.")}</th>

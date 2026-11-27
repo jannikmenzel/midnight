@@ -20,7 +20,7 @@ const KIND_LABELS: Record<ForecastItem["kind"], string> = {
 function InfoSection({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section>
-      <h3 className="mb-0.5 text-[13px] font-medium text-fg">{title}</h3>
+      <h3 className="mb-0.5 text-body font-medium text-fg">{title}</h3>
       <p>{children}</p>
     </section>
   );
@@ -29,7 +29,7 @@ function InfoSection({ title, children }: { title: string; children: ReactNode }
 function Line({ label, hint, value, sign: rawSign, total }: { label: string; hint: string; value: number; sign?: "+" | "−"; total?: boolean }) {
   const sign = value !== 0 ? rawSign : undefined;
   return (
-    <div className={cx("flex items-center justify-between gap-4 px-4 py-3 text-[13px]", total && "bg-subtle font-medium")}>
+    <div className={cx("flex items-center justify-between gap-4 px-4 py-3 text-body", total && "bg-subtle font-medium")}>
       <div className="min-w-0">
         <div className="truncate">{label}</div>
         <div className="truncate text-xs font-normal text-muted">{hint}</div>
@@ -46,7 +46,7 @@ function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col gap-0.5 border-l border-line pl-6">
       <span className="text-xs text-muted">{label}</span>
-      <span className="tabular text-[15px] font-medium">{value}</span>
+      <span className="tabular text-title font-medium">{value}</span>
     </div>
   );
 }
@@ -74,8 +74,8 @@ export function TaxForecast({ year }: { year: number }) {
     return (
       <Card>
         <div className="p-5">
-          <h2 className="text-[13px] font-medium">{t("Year-end forecast {year}", { year })}</h2>
-          <p className="text-[13px] text-muted">{t("This year is over. All figures are in the tax return.")}</p>
+          <h2 className="text-body font-medium">{t("Year-end forecast {year}", { year })}</h2>
+          <p className="text-body text-muted">{t("This year is over. All figures are in the tax return.")}</p>
         </div>
       </Card>
     );
@@ -155,7 +155,7 @@ export function TaxForecast({ year }: { year: number }) {
         {flows.length === 0 ? (
           <Empty title={t("No expected payments")} text={t("Open invoices, unbilled time and project budgets appear here.")} />
         ) : (
-          <table className="w-full table-fixed text-[13px]">
+          <table className="w-full table-fixed text-body">
             <thead>
               <tr className="border-b border-line text-left text-xs text-muted">
                 <th className="w-28 px-4 py-2 font-normal">{t("Expected on")}</th>
@@ -210,7 +210,7 @@ export function TaxForecast({ year }: { year: number }) {
             </InfoDialog>
           }
         >
-          <table className="w-full text-[13px]">
+          <table className="w-full text-body">
             <thead>
               <tr className="border-b border-line text-left text-xs whitespace-nowrap text-muted">
                 <th className="px-4 py-2 font-normal">{t("Project")}</th>

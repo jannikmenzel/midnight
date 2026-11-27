@@ -53,7 +53,7 @@ export function PaidDialog({ invoice, open, onClose, onPaid }: { invoice: Invoic
         </>
       }
     >
-      <p className="text-[13px]">
+      <p className="text-body">
         {invoice.customer_name
           ? t("{number} for {amount} from {customer}.", { number: invoice.invoice_number, amount: money(invoice.amount_cents, invoice.currency), customer: customer(invoice.customer_name) })
           : t("{number} for {amount}.", { number: invoice.invoice_number, amount: money(invoice.amount_cents, invoice.currency) })}

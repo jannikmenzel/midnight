@@ -54,7 +54,7 @@ function ProductsTab() {
       ) : products.data.length === 0 ? (
         <Empty icon={<Package className="size-6" />} title={t("No products")} text={t("Create recurring line items such as hourly rates or flat fees once and reuse them in every invoice.")} />
       ) : (
-        <table className="w-full text-[13px]">
+        <table className="w-full text-body">
           <thead>
             <tr className="border-b border-line text-left text-xs text-muted">
               <th className="py-2.5 pl-4 font-medium">{t("Name")}</th>
@@ -213,7 +213,7 @@ export default function Invoices() {
             ) : d?.items.length === 0 ? (
               <Empty icon={<FileText className="size-6" />} title={t("No invoices")} text={t("Create an invoice or bill tracked time from time tracking.")} />
             ) : (
-              <table className="w-full text-[13px]">
+              <table className="w-full text-body">
                 <thead>
                   <tr className="border-b border-line text-left text-xs text-muted">
                     <th className="py-2.5 pl-4 font-medium">{t("Number")}</th>

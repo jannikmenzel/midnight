@@ -133,7 +133,7 @@ function ProjectDetail({
       }
     >
       <div className="flex flex-col gap-4">
-        <div className="flex items-center gap-2 text-[13px] text-muted">
+        <div className="flex items-center gap-2 text-body text-muted">
           <span className="min-w-0 truncate">{customer(project.customer_name) ?? t("No customer")}</span>
           {priceLabel(project) && <Badge className="tabular shrink-0">{priceLabel(project)}</Badge>}
           <span className="ml-auto shrink-0 whitespace-nowrap tabular-nums">
@@ -143,29 +143,29 @@ function ProjectDetail({
         <div className="grid grid-cols-4 gap-2 rounded-lg bg-subtle px-4 py-3">
           <div>
             <div className="text-xs text-muted">{t("Total")}</div>
-            <div className="tabular text-[13px] font-medium">{duration(project.total_seconds)}</div>
+            <div className="tabular text-body font-medium">{duration(project.total_seconds)}</div>
           </div>
           <div>
             <div className="text-xs text-muted">{t("Billed")}</div>
-            <div className="tabular text-[13px] font-medium">{duration(billed)}</div>
+            <div className="tabular text-body font-medium">{duration(billed)}</div>
           </div>
           <div>
             <div className="text-xs text-muted">{t("Outstanding")}</div>
-            <div className={`tabular text-[13px] font-medium ${project.unbilled_seconds > 0 ? "text-warn" : ""}`}>
+            <div className={`tabular text-body font-medium ${project.unbilled_seconds > 0 ? "text-warn" : ""}`}>
               {duration(project.unbilled_seconds)}
               {project.unbilled_cents > 0 && <span className="font-normal text-muted"> · {money(project.unbilled_cents, project.currency)}</span>}
             </div>
           </div>
           <div>
             <div className="text-xs text-muted">{t("Budget")}</div>
-            <div className="tabular text-[13px] font-medium">
+            <div className="tabular text-body font-medium">
               {project.estimate_hours ? t("{done} / {total} hrs", { done: hours(project.total_seconds), total: project.estimate_hours }) : "–"}
               {pct !== null && <span className="font-normal text-muted"> · {Math.round(pct)} %</span>}
             </div>
           </div>
         </div>
         <Toggle checked={project.status === "completed"} onChange={(v) => onToggleCompleted(project, v)} label={t("Completed")} />
-        {project.description && <p className="text-[13px] leading-relaxed" data-selectable>{project.description}</p>}
+        {project.description && <p className="text-body leading-relaxed" data-selectable>{project.description}</p>}
 
         {entries.loading && !entries.data ? (
           <Skeleton />
@@ -181,7 +181,7 @@ function ProjectDetail({
                 </div>
                 <div className="divide-y divide-line">
                   {list.map((e) => (
-                    <div key={e.id} className="flex items-center gap-3 px-4 py-2.5 text-[13px]">
+                    <div key={e.id} className="flex items-center gap-3 px-4 py-2.5 text-body">
                       <span className="tabular-nums w-24 shrink-0 text-muted">
                         {new Date(e.start).toLocaleDateString(locale(), { weekday: "short", day: "2-digit", month: "2-digit" })}
                       </span>
@@ -462,7 +462,7 @@ export default function Tracker() {
             <>
               <span className="size-2.5 animate-pulse rounded-full bg-neg" />
               <div className="min-w-0 flex-1">
-                <div className="text-[13px] font-medium">{running.data.project_name}</div>
+                <div className="text-body font-medium">{running.data.project_name}</div>
                 <div className="text-xs text-muted">{running.data.description ?? t("Running since {time}", { time: time(running.data.start) })}</div>
               </div>
               <span className="tabular text-2xl font-semibold">{clock(runningSecs)}</span>
@@ -518,7 +518,7 @@ export default function Tracker() {
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex min-w-0 items-baseline gap-2">
-                      <span className="truncate text-[13px] font-medium">{p.name}</span>
+                      <span className="truncate text-body font-medium">{p.name}</span>
                       {p.unbilled_seconds > 0 && <span className="shrink-0 whitespace-nowrap text-xs text-warn">{t("{duration} unbilled · {amount}", { duration: duration(p.unbilled_seconds), amount: money(p.unbilled_cents, p.currency) })}</span>}
                     </div>
                     <div className="truncate text-xs text-muted">{customer(p.customer_name) ?? t("No customer")}</div>
@@ -527,7 +527,7 @@ export default function Tracker() {
                         <div className="track h-1.5 w-40 rounded-full bg-line">
                           <div className={`grain-fill h-1.5 rounded-full ${pct >= 100 ? "bg-neg" : pct >= 80 ? "bg-warn" : "bg-pos"}`} style={{ width: `${pct}%` }} />
                         </div>
-                        <span className="text-[11px] text-muted">
+                        <span className="text-2xs text-muted">
                           {t("{done} / {total} hrs", { done: hours(p.total_seconds), total: p.estimate_hours ?? 0 })}
                         </span>
                       </div>
@@ -551,9 +551,9 @@ export default function Tracker() {
                       </Button>
                     )}
                   </div>
-                  <div className={cx("tabular-nums text-[13px]", projectPeriod(p)?.planned && "text-muted")}>{projectPeriod(p) && <PeriodLabel p={p} />}</div>
-                  <div>{priceLabel(p) ? <Badge className="tabular">{priceLabel(p)}</Badge> : <span className="text-[13px] text-muted">–</span>}</div>
-                  <div className="tabular text-right text-[13px]">{duration(p.total_seconds)}</div>
+                  <div className={cx("tabular-nums text-body", projectPeriod(p)?.planned && "text-muted")}>{projectPeriod(p) && <PeriodLabel p={p} />}</div>
+                  <div>{priceLabel(p) ? <Badge className="tabular">{priceLabel(p)}</Badge> : <span className="text-body text-muted">–</span>}</div>
+                  <div className="tabular text-right text-body">{duration(p.total_seconds)}</div>
                   <div className="flex items-center justify-end">
                     <IconButton
                       label={t("Edit project")}
@@ -737,7 +737,7 @@ export default function Tracker() {
             </div>
             {projectDraft.completed && projectDraft.actual ? (
               <Field label={t("Duration")} hint={t("From the tracked time")}>
-                <div className="tabular py-1.5 text-[13px]">{projectDraft.actual}</div>
+                <div className="tabular py-1.5 text-body">{projectDraft.actual}</div>
               </Field>
             ) : (
               <div className="grid grid-cols-2 gap-4">

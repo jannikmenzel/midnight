@@ -137,13 +137,13 @@ export function CommandPalette({ open, onClose, onStartTour }: { open: boolean; 
           />
         </div>
         <ul className="max-h-[52vh] overflow-y-auto py-1" role="listbox">
-          {items.length === 0 && <li className="px-4 py-6 text-center text-[13px] text-muted">{t("No results")}</li>}
+          {items.length === 0 && <li className="px-4 py-6 text-center text-body text-muted">{t("No results")}</li>}
           {items.map((it, i) => {
             const header = it.group !== lastGroup ? it.group : null;
             lastGroup = it.group;
             return (
               <li key={it.id}>
-                {header && <div className="px-4 pt-2 pb-1 text-[11px] font-medium tracking-wide text-muted uppercase">{header}</div>}
+                {header && <div className="px-4 pt-2 pb-1 text-2xs font-medium tracking-wide text-muted uppercase">{header}</div>}
                 <button
                   type="button"
                   role="option"
@@ -154,7 +154,7 @@ export function CommandPalette({ open, onClose, onStartTour }: { open: boolean; 
                 >
                   <span className="text-muted">{it.icon}</span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px]">{it.title}</span>
+                    <span className="block truncate text-body">{it.title}</span>
                     {it.subtitle && <span className="block truncate text-xs text-muted">{it.subtitle}</span>}
                   </span>
                   {it.meta && <span className="tabular-nums shrink-0 text-xs text-muted">{it.meta}</span>}

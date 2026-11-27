@@ -340,7 +340,7 @@ function ExpenseSheet({
           {receipts.map((r) => (
             <div key={r.id} className="flex items-center gap-2 rounded-md border border-line px-2.5 py-1.5">
               <FileText className="size-3.5 text-muted" />
-              <span className="min-w-0 flex-1 truncate text-[13px]">{r.name}</span>
+              <span className="min-w-0 flex-1 truncate text-body">{r.name}</span>
               <IconButton label={t("Open")} onClick={() => api.openPath(r.path).catch((e) => toast.error(errorMessage(e)))}>
                 <ExternalLink className="size-3.5" />
               </IconButton>
@@ -359,7 +359,7 @@ function ExpenseSheet({
           {pending.map((p) => (
             <div key={p} className="flex items-center gap-2 rounded-md border border-dashed border-line px-2.5 py-1.5">
               <FileText className="size-3.5 text-muted" />
-              <span className="min-w-0 flex-1 truncate text-[13px]">{fileName(p)}</span>
+              <span className="min-w-0 flex-1 truncate text-body">{fileName(p)}</span>
               <span className="text-xs text-muted">{t("attached on save")}</span>
               <IconButton label={t("Remove")} onClick={() => setPending((xs) => xs.filter((x) => x !== p))}>
                 <X className="size-3.5" />
@@ -521,7 +521,7 @@ function RecurringExpenses({ categories }: { categories: Category[] }) {
           text={t("Choose \"Repeat\" when recording an expense, e.g. for rent, software or insurance. Following expenses are booked automatically.")}
         />
       ) : (
-        <table className="w-full text-[13px]">
+        <table className="w-full text-body">
           <thead>
             <tr className="border-b border-line text-left text-xs text-muted">
               <th className="w-full py-2.5 pl-4 font-medium">{t("Description")}</th>
@@ -717,7 +717,7 @@ export default function Ledger() {
           />
           <DateInput value={filter.from ?? ""} onChange={(v) => setFilter({ ...filter, from: v })} className="w-36" aria-label={t("From")} />
           <DateInput value={filter.to ?? ""} onChange={(v) => setFilter({ ...filter, to: v })} className="w-36" aria-label={t("To")} />
-          <label className="flex cursor-pointer items-center gap-2 px-1 text-[13px] whitespace-nowrap text-muted">
+          <label className="flex cursor-pointer items-center gap-2 px-1 text-body whitespace-nowrap text-muted">
             <Checkbox checked={Boolean(filter.missing_receipt)} onChange={(v) => setFilter({ ...filter, missing_receipt: v })} />
             {t("Without receipt")}
           </label>
@@ -752,7 +752,7 @@ export default function Ledger() {
               action={!filtersActive && <Button onClick={() => setTarget({ draft: emptyDraft(), files: [] })}>{t("Record expense")}</Button>}
             />
           ) : (
-            <table className="w-full text-[13px]">
+            <table className="w-full text-body">
               <thead>
                 <tr className="border-b border-line text-left text-xs text-muted">
                   <th className="min-w-28 py-2.5 pl-4 font-medium">{t("Date")}</th>

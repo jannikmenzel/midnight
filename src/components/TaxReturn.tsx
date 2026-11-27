@@ -30,10 +30,10 @@ function Item({ title, hint, value, open, onToggle, children }: { title: string;
     <li className="border-b border-line last:border-0">
       <button type="button" onClick={onToggle} aria-expanded={open} className="flex w-full items-center gap-4 px-4 py-3 text-left hover:bg-subtle">
         <span className="min-w-0 flex-1">
-          <span className="block text-[13px] font-medium">{title}</span>
+          <span className="block text-body font-medium">{title}</span>
           <span className="block truncate text-xs text-muted">{hint}</span>
         </span>
-        <span className="tabular text-[13px]">{value}</span>
+        <span className="tabular text-body">{value}</span>
         <ChevronDown className={cx("size-4 shrink-0 text-muted transition-transform", open && "rotate-180")} />
       </button>
       {open && <div className="flex flex-col gap-4 px-4 pt-1 pb-4">{children}</div>}
@@ -123,7 +123,7 @@ export function TaxReturn({ year }: { year: number }) {
               </div>
               <div className={cx("tabular text-3xl font-semibold", r.balance_cents > 0 ? "text-neg" : r.balance_cents < 0 ? "text-pos" : "")}>{money(Math.abs(r.balance_cents))}</div>
             </div>
-            {saving !== "idle" && <span className="text-[11px] text-muted">{saving === "saving" ? t("Saving…") : t("Saved")}</span>}
+            {saving !== "idle" && <span className="text-2xs text-muted">{saving === "saving" ? t("Saving…") : t("Saved")}</span>}
           </div>
           {warnings.map((w, i) => (
             <p key={i} className="flex items-center gap-2 rounded-md bg-warn/10 px-3 py-2 text-xs leading-relaxed">
@@ -144,7 +144,7 @@ export function TaxReturn({ year }: { year: number }) {
       <Card title={t("Your details")}>
         <ul>
           <Item title={t("Self-employment")} hint={t("From invoices and expenses, minus home office")} value={money(r.profit_cents)} open={open === "business"} onToggle={() => toggle("business")}>
-            <dl className="flex max-w-md flex-col text-[13px]">
+            <dl className="flex max-w-md flex-col text-body">
               <div className="flex h-9 items-center justify-between">
                 <dt>
                   <button type="button" onClick={() => go("invoices")} className="hover:underline">

@@ -130,7 +130,7 @@ export default function MenuBarPanel() {
         <div className="flex items-center gap-3 border-b border-line px-4 py-3.5">
           <span className="size-2 shrink-0 animate-pulse rounded-full bg-neg" />
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[13px] font-medium">{running.project_name}</div>
+            <div className="truncate text-body font-medium">{running.project_name}</div>
             <div className="truncate text-xs text-muted">{running.description ?? t("No description")}</div>
             <div className="tabular mt-1 text-xl">{clock(elapsed(running, now))}</div>
           </div>
@@ -138,7 +138,7 @@ export default function MenuBarPanel() {
             type="button"
             onClick={stop}
             disabled={busy}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-neg px-3 text-[13px] font-medium text-accent-fg hover:opacity-90 disabled:opacity-50"
+            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-neg px-3 text-body font-medium text-accent-fg hover:opacity-90 disabled:opacity-50"
           >
             <Square className="size-3 fill-current" />
             {t("Stop")}
@@ -156,7 +156,7 @@ export default function MenuBarPanel() {
           value={note}
           onChange={(e) => setNote(e.target.value)}
           placeholder={t("What are you working on?")}
-          className="field h-8 rounded-md border border-line px-2.5 text-[13px] outline-none placeholder:text-muted focus:border-muted"
+          className="field h-8 rounded-md border border-line px-2.5 text-body outline-none placeholder:text-muted focus:border-muted"
         />
         <label className="field flex h-8 items-center gap-2 rounded-md border border-line px-2.5 focus-within:border-muted">
           <Search className="size-3.5 text-muted" />
@@ -168,7 +168,7 @@ export default function MenuBarPanel() {
               if (e.key === "Enter" && visible[0]) start(visible[0]);
             }}
             placeholder={t("Search project…")}
-            className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted"
+            className="min-w-0 flex-1 bg-transparent text-body outline-none placeholder:text-muted"
           />
         </label>
       </div>
@@ -189,7 +189,7 @@ export default function MenuBarPanel() {
                 className={cx("group flex w-full items-center gap-3 px-4 py-2 text-left", active ? "bg-hover" : "hover:bg-hover")}
               >
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13px]">{p.name}</div>
+                  <div className="truncate text-body">{p.name}</div>
                   {p.customer_name && <div className="truncate text-xs text-muted">{customer(p.customer_name)}</div>}
                 </div>
                 {active ? (

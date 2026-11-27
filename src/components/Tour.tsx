@@ -125,10 +125,10 @@ export function Tour({ open, onClose }: { open: boolean; onClose: () => void }) 
         className="floating anim-dialog absolute rounded-xl border border-line bg-panel p-4"
         style={{ width: CARD_WIDTH, ...cardPosition(rect) }}
       >
-        <h2 id="tour-title" className="text-[15px] font-semibold">
+        <h2 id="tour-title" className="text-title font-semibold">
           {current.title}
         </h2>
-        <p className="mt-1.5 text-[13px] leading-relaxed text-pretty text-muted">
+        <p className="mt-1.5 text-body leading-relaxed text-pretty text-muted">
           {current.text}
         </p>
         <div className="mt-4 flex items-center gap-2">
