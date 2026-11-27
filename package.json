@@ -1,7 +1,7 @@
 {
   "name": "midnight",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Local bookkeeping for freelancers in Germany",
   "author": "Jannik Menzel",
   "homepage": "https://github.com/jannikmenzel/midnight#readme",

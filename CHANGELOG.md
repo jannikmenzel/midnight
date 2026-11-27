@@ -4,6 +4,13 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-11-27
+
+### Changed
+
+- The cashflow chart shows only income and expenses. The profit is still shown in the tooltip
+- New colours for the sky in the light theme
+
 ## [0.2.1] - 2026-11-18
 
 ### Added
@@ -136,7 +143,8 @@ All notable changes to this project are documented in this file. The format is b
 - English and German interface
 - `midnight-mcp` server exposing the app's features as MCP tools
 
-[Unreleased]: https://github.com/jannikmenzel/midnight/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/jannikmenzel/midnight/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/jannikmenzel/midnight/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/jannikmenzel/midnight/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/jannikmenzel/midnight/compare/v0.1.8...v0.2.0
 [0.1.8]: https://github.com/jannikmenzel/midnight/compare/v0.1.7...v0.1.8
